@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SVG Forge — 이미지·글자를 SVG · DXF · STL로</title>
+<style>
+:root{
+  --bg:#f3f4f7; --card:#fff; --ink:#1c2230; --sub:#5d6678; --line:#dfe3ea; --pri:#1d5fd6; --pri-ink:#fff; --pri-soft:#e8f0fd; --warn:#8a4f00; --warn-bg:#fff4dd;
+  --radius:10px; --gap:10px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font:13px/1.45 "Pretendard","Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;background:var(--bg);color:var(--ink);
+  display:flex;flex-direction:column;overflow:hidden}
+.hide{display:none!important}
+
+/* 상단 바: 모드 전환 + 내보내기 */
+header{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--card);border-bottom:1px solid var(--line)}
+header h1{font-size:16px;margin:0 6px 0 2px;letter-spacing:-.2px;white-space:nowrap}
+.spacer{flex:1}
+.tabs{display:flex;gap:3px;background:#eceff4;padding:3px;border-radius:8px}
+.tabs button{white-space:nowrap;border:0;background:transparent;padding:5px 12px;border-radius:6px;font:inherit;color:var(--sub);cursor:pointer}
+.tabs button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08);font-weight:600}
+.exports{display:flex;gap:6px;align-items:center}
+button.btn{font:inherit;border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 11px;cursor:pointer;color:var(--ink);white-space:nowrap}
+button.btn:hover:not(:disabled){border-color:#b9c2d3;background:#fafbfd}
+button.btn:disabled{opacity:.45;cursor:not-allowed}
+button.pri{background:var(--pri);border-color:var(--pri);color:var(--pri-ink);font-weight:600}
+button.pri:hover:not(:disabled){background:#1852b8;border-color:#1852b8}
+button.small{padding:4px 8px;font-size:12px}
+.exports .lbl{color:var(--sub);font-size:12px;margin-right:2px}
+
+/* 본문: 설정 | 미리보기 | 출력 */
+main{flex:1;min-height:0;display:grid;grid-template-columns:292px minmax(0,1fr) 236px;gap:var(--gap);padding:var(--gap)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;overflow:auto;min-height:0}
+.panel h2{font-size:12px;margin:10px 0 4px;color:var(--sub);font-weight:600;letter-spacing:.2px;text-transform:none}
+.panel h2:first-child{margin-top:0}
+.row{display:flex;align-items:center;gap:6px;margin:5px 0;min-height:28px}
+.row label{flex:0 0 78px;color:var(--sub);font-size:12.5px;white-space:nowrap}
+.row .grow{flex:1;min-width:0}
+input[type=range]{width:100%;margin:0}
+input[type=number],select,textarea{font:inherit;color:inherit;border:1px solid var(--line);border-radius:7px;padding:4px 7px;background:#fff;width:100%}
+textarea{resize:vertical;min-height:56px;max-height:160px}
+.val{flex:0 0 34px;text-align:right;color:var(--sub);font-variant-numeric:tabular-nums;font-size:12px}
+.chk{display:flex;align-items:center;gap:6px;color:var(--sub);font-size:12px;margin:3px 0;min-height:22px}
+.chk input{margin:0}
+.chkgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 6px}
+.hint{color:var(--sub);font-size:11.5px;margin:2px 0 0}
+.filebar{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+#drop{flex:0 0 auto}
+#fileName{flex:1;min-width:0;font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.out{font-variant-numeric:tabular-nums}
+
+/* 미리보기 */
+section.stage{display:flex;flex-direction:column;min-width:0;min-height:0}
+.stagebar{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.view{flex:1;min-height:0;border:1px solid var(--line);border-radius:var(--radius);position:relative;overflow:hidden;
+  background:conic-gradient(#eff1f5 25%,#fff 0 50%,#eff1f5 0 75%,#fff 0) 0 0/20px 20px}
+#view2d{display:flex;align-items:center;justify-content:center;padding:20px}
+#view2d svg{width:100%;height:100%;shape-rendering:geometricPrecision}
+#view3d{background:linear-gradient(#eef1f6,#dde3ee)}
+#view3d canvas{display:block;width:100%;height:100%}
+.empty{color:var(--sub);text-align:center;padding:20px;line-height:1.7}
+.empty b{color:var(--ink);font-size:15px}
+.empty.clickable{cursor:pointer;border:1.5px dashed #b7c0d1;border-radius:12px;padding:28px 36px;background:rgba(255,255,255,.85)}
+.empty.clickable:hover{border-color:var(--pri);background:#fff}
+body.dragging .view::after{content:"여기에 놓으면 불러옵니다";position:absolute;inset:8px;border:2px dashed var(--pri);border-radius:10px;
+  background:rgba(232,240,253,.85);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;color:var(--pri)}
+#msg{position:absolute;left:10px;right:10px;top:10px;display:flex;flex-direction:column;gap:6px;pointer-events:none;z-index:2}
+.note{background:var(--warn-bg);color:var(--warn);border:1px solid #f1d9a8;border-radius:8px;padding:6px 10px;font-size:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.stagewrap{flex:1;min-height:0;position:relative;display:flex}
+.stagewrap .view{flex:1}
+.statusbar{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin-top:6px;color:var(--sub);font-size:12px;min-height:20px}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.25);vertical-align:-2px;margin-right:3px}
+.badge3d{position:absolute;left:10px;bottom:10px;background:rgba(255,255,255,.85);border:1px solid var(--line);border-radius:8px;padding:3px 8px;font-size:12px;color:var(--sub)}
+
+/* 낮은 화면(노트북 1366×768 등): 간격을 더 줄임 */
+@media (max-height:760px){
+  .row{margin:3px 0;min-height:26px}
+  .panel h2{margin:7px 0 2px}
+  header{padding:6px 10px}
+}
+/* 좁은 화면: 출력 설정을 미리보기 아래 한 줄로 */
+@media (max-width:1150px){
+  main{grid-template-columns:270px minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
+  #panelIn{grid-column:1;grid-row:1 / span 2}
+  section.stage{grid-column:2;grid-row:1}
+  #panelOut{grid-column:2;grid-row:2;display:flex;flex-wrap:wrap;align-items:center;gap:2px 14px;padding:6px 10px;overflow:visible}
+  #panelOut h2,#panelOut .hint{display:none}
+  #panelOut .row{margin:0}
+  #panelOut .row label{flex-basis:auto}
+  #panelOut .row input{width:80px;flex:0 0 auto}
+  #panelOut .row select{width:100px;flex:0 0 auto}
+  .exports .lbl{display:none}
+}
+/* 태블릿·휴대폰: 세로로 쌓고 스크롤 허용 */
+@media (max-width:760px){
+  body{overflow:auto;height:auto}
+  html,body{height:auto}
+  header{flex-wrap:wrap}
+  .exports{flex-wrap:wrap}
+  main{display:flex;flex-direction:column}
+  section.stage{min-height:360px;order:-1}
+  .panel{overflow:visible}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>SVG Forge</h1>
+  <div class="tabs" id="modeTabs">
+    <button id="modeImage" class="on">이미지</button>
+    <button id="modeText">글자</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="exports">
+    <span class="lbl">저장</span>
+    <button class="btn pri" id="btnFill" disabled title="MakerLab·3D용: 닫힌 채움 경로만, 선·글꼴 없음, mm 단위">SVG · MakerLab</button>
+    <button class="btn" id="btnLaser" disabled title="레이저용: 채움 없이 0.1mm 윤곽선, 색상=레이어 (LightBurn)">SVG · 레이저</button>
+    <button class="btn" id="btnDxf" disabled title="DXF R12, 단위 mm, 색상별 레이어 (RDWorks·LightBurn)">DXF</button>
+    <button class="btn" id="btnStl" disabled title="바이너리 STL, 오른쪽 '3D 출력'의 두께로 압출">STL</button>
+  </div>
+</header>
+
+<main>
+  <aside class="panel" id="panelIn">
+    <div id="paneImage">
+      <div class="filebar">
+        <button class="btn small" id="drop" title="이미지를 화면 아무 곳에나 끌어다 놓거나 Ctrl+V로 붙여넣어도 됩니다">이미지 열기…</button>
+        <span id="fileName">끌어놓기 · 붙여넣기(Ctrl+V) 가능</span>
+      </div>
+      <input id="file" type="file" accept="image/*,.svg" class="hide">
+      <h2>색·영역</h2>
+      <div class="row"><label for="colors">색 수</label>
+        <select id="colors" class="grow">
+          <option value="1" selected>1색 (흑백, 임계값)</option>
+          <option value="2">2색</option><option value="3">3색</option><option value="4">4색</option>
+          <option value="5">5색</option><option value="6">6색</option><option value="8">8색</option>
+        </select>
+      </div>
+      <div class="row" id="thrRow"><label for="thr">임계값</label>
+        <input id="thr" class="grow" type="range" min="1" max="254" value="128"><span class="val" id="thrVal">128</span>
+        <button class="btn small" id="thrAuto" title="자동 임계값(Otsu)">자동</button>
+      </div>
+      <label class="chk" id="invertRow"><input type="checkbox" id="invert"> 밝은 부분을 도형으로 (반전)</label>
+      <label class="chk hide" id="bgRow"><input type="checkbox" id="removeBg" checked> 배경색(모서리 색) 제거</label>
+      <h2>선 품질</h2>
+      <div class="row" id="engineRow"><label for="engine" title="Potrace: 널리 쓰이는 오픈소스 트레이서(GPL-2.0). 흑백 전용, 디자인 보정은 적용되지 않음">엔진</label>
+        <select id="engine" class="grow">
+          <option value="forge" selected>SVG Forge (기본)</option>
+          <option value="potrace">Potrace (GPL, 흑백)</option>
+        </select></div>
+      <div class="row"><label for="tres" title="작을수록 원본에 가깝고, 클수록 노드가 적고 매끈합니다">곡선 허용오차</label>
+        <input id="tres" class="grow" type="range" min="0.1" max="3" step="0.05" value="0.4"><span class="val" id="tresVal">0.40</span></div>
+      <div class="row"><label for="corner" title="이보다 크게 꺾이는 곳을 뾰족한 모서리로 만듭니다. 작을수록 모서리가 많아집니다">모서리 각도</label>
+        <input id="corner" class="grow" type="range" min="15" max="120" step="5" value="40"><span class="val" id="cornerVal">40°</span></div>
+      <div class="row"><label for="lineTol" title="이 편차(px) 안에서 곧게 뻗은 부분을 정확한 직선으로 바꿉니다. 0이면 끔">직선 인식</label>
+        <input id="lineTol" class="grow" type="range" min="0" max="3" step="0.1" value="1"><span class="val" id="lineTolVal">1.0</span></div>
+      <h2>디자인 보정</h2>
+      <div class="chkgrid">
+        <label class="chk" title="3° 이내로 기운 직선을 정확히 수평·수직으로"><input type="checkbox" id="axisSnap" checked> 수평·수직</label>
+        <label class="chk" title="원과 원호를 정확한 원으로 (DXF는 호로 저장)"><input type="checkbox" id="optArcs" checked> 원·호</label>
+        <label class="chk" title="거의 평행한 직선들의 각도를 하나로"><input type="checkbox" id="optParallel" checked> 평행</label>
+        <label class="chk" title="비슷한 두께의 획을 같은 두께로"><input type="checkbox" id="optWidth" checked> 같은 두께</label>
+        <label class="chk" title="거의 일직선인 선(기준선 등)을 한 줄로"><input type="checkbox" id="optAlign" checked> 일직선 정렬</label>
+        <label class="chk" title="그림 전체가 좌우 대칭에 가까우면 완전한 대칭으로 (흑백 모드)"><input type="checkbox" id="optSym"> 좌우 대칭</label>
+      </div>
+      <h2>정리</h2>
+      <div class="row"><label for="omit" title="이 면적(px²)보다 작은 조각을 지웁니다">노이즈 제거</label>
+        <input id="omit" class="grow" type="range" min="0" max="200" step="2" value="12"><span class="val" id="omitVal">12</span></div>
+      <div class="row" id="blurRow"><label for="blur" title="JPG 잡티·거친 가장자리를 다듬습니다">번짐 완화</label>
+        <input id="blur" class="grow" type="range" min="0" max="5" step="1" value="0"><span class="val" id="blurVal">0</span></div>
+      <div class="row"><label for="upscale" title="작거나 흐린 이미지를 AI로 선명하게 키운 뒤 트레이싱합니다 (처음 한 번은 몇 초 걸림)">AI 업스케일</label>
+        <select id="upscale" class="grow">
+          <option value="1" selected>끔</option>
+          <option value="2">×2</option>
+          <option value="4">×4 (작은 이미지)</option>
+        </select></div>
+      <label class="chk" title="가장자리는 유지하고 JPG 잡티·얼룩만 지웁니다"><input type="checkbox" id="denoise"> 잡티 제거 (가장자리 보존)</label>
+      <div class="row"><label for="res" title="트레이싱할 때의 이미지 크기. 높을수록 정밀하지만 느립니다">해상도</label>
+        <select id="res" class="grow">
+          <option value="500">낮음 (500px, 빠름)</option>
+          <option value="800" selected>보통 (800px)</option>
+          <option value="1200">높음 (1200px)</option>
+          <option value="1600">매우 높음 (1600px)</option>
+        </select></div>
+    </div>
+
+    <div id="paneText" class="hide">
+      <h2>글자</h2>
+      <textarea id="text" placeholder="글자를 입력하세요 (여러 줄 가능)">이름</textarea>
+      <h2>폰트</h2>
+      <div class="row"><select id="fontSel" class="grow" aria-label="폰트"><option value="builtin">Noto Sans KR Bold (내장)</option></select></div>
+      <div class="row">
+        <button class="btn small" id="fontFileBtn">폰트 파일…</button>
+        <button class="btn small hide" id="fontLocalBtn">설치된 폰트…</button>
+        <input id="fontFile" type="file" accept=".ttf,.otf,.woff" class="hide">
+      </div>
+      <div class="row hide" id="localFontRow"><select id="localFontSel" class="grow" aria-label="설치된 폰트"></select></div>
+      <h2>배치</h2>
+      <div class="row"><label for="align">정렬</label>
+        <select id="align" class="grow"><option value="center">가운데</option><option value="left">왼쪽</option><option value="right">오른쪽</option></select></div>
+      <div class="row"><label for="lineH">줄 간격</label>
+        <input id="lineH" class="grow" type="range" min="0.8" max="2" step="0.05" value="1.2"><span class="val" id="lineHVal">1.20</span></div>
+    </div>
+  </aside>
+
+  <section class="stage">
+    <div class="stagebar">
+      <div class="tabs"><button id="tab2d" class="on">2D</button><button id="tab3d">3D</button></div>
+      <div id="modeView2d" class="tabs">
+        <button id="v2Fill" class="on">채움</button><button id="v2Line">윤곽선</button>
+      </div>
+      <div class="spacer"></div>
+    </div>
+    <div class="stagewrap">
+      <div class="view" id="view2d"><div class="empty">미리보기가 여기에 나타납니다.</div></div>
+      <div class="view hide" id="view3d"><div class="badge3d" id="badge3d"></div></div>
+      <div id="msg"></div>
+    </div>
+    <div class="statusbar" id="status"></div>
+  </section>
+
+  <aside class="panel" id="panelOut">
+    <h2>크기</h2>
+    <div class="row"><label for="width">너비 (mm)</label><input id="width" type="number" min="1" max="1000" step="0.5" value="50" class="grow"></div>
+    <div class="row"><label>높이 (mm)</label><span id="heightOut" class="grow out">-</span></div>
+    <div class="row"><label for="tol" title="DXF·STL은 곡선을 직선으로 나눌 때 이 오차 이내로 맞춥니다">곡선 정밀도</label>
+      <select id="tol" class="grow">
+        <option value="0.02">0.02 mm</option>
+        <option value="0.05" selected>0.05 mm</option>
+        <option value="0.1">0.1 mm</option>
+        <option value="0.2">0.2 mm</option>
+      </select></div>
+    <h2>레이저 (SVG·DXF)</h2>
+    <label class="chk"><input type="checkbox" id="laserSingle"> 모든 색을 한 레이어로 합치기</label>
+    <h2>3D 출력 (STL)</h2>
+    <div class="row"><label for="thick">두께 (mm)</label><input id="thick" type="number" min="0.2" max="200" step="0.2" value="3" class="grow"></div>
+    <div class="row"><label for="step" title="색 레이어마다 이만큼 높이를 더합니다">색별 높이차</label><input id="step" type="number" min="0" max="20" step="0.2" value="0" class="grow"></div>
+    <p class="hint">저장 버튼은 화면 맨 위에 있습니다. 파일은 이 브라우저 밖으로 나가지 않습니다.</p>
+  </aside>
+</main>
+<!--BUNDLE-->
+</body>
+</html>

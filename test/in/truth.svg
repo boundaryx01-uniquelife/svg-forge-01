@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
+<rect width="400" height="300" fill="#fff"/>
+<circle cx="80" cy="80" r="55" fill="#000"/><circle cx="80" cy="80" r="25" fill="#fff"/>
+<polygon points="250,20 265,65 312,65 274,93 288,138 250,110 212,138 226,93 188,65 235,65" fill="#000"/>
+<rect x="330" y="30" width="50" height="90" fill="#000" transform="rotate(12 355 75)"/>
+<path d="M30 200 Q100 150 170 200 T310 200 L310 260 L30 260 Z" fill="#000"/>
+<text x="200" y="290" font-family="Noto Sans CJK KR" font-weight="700" font-size="34" text-anchor="middle" fill="#fff">발명 Edge</text>
+</svg>

@@ -1,0 +1,7 @@
+node_modules/
+dist/
+site/
+test/out/
+test/old.html
+test/prev_v2.html
+.DS_Store

@@ -1,0 +1,7 @@
+# Netlify: GPL(Potrace) 제외 빌드를 사이트 첫 화면으로 배포
+[build]
+  command = "npm ci && node build.mjs --no-potrace && mkdir -p site && cp dist/svg-forge-nogpl.html site/index.html"
+  publish = "site"
+
+[build.environment]
+  NODE_VERSION = "22"

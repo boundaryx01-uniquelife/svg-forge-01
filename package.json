@@ -1,0 +1,23 @@
+{
+  "name": "svg-forge",
+  "version": "1.0.0",
+  "description": "이미지·글자를 MakerLab·레이저·3D프린팅용 SVG/DXF/STL로 변환하는 단일 HTML 도구",
+  "scripts": {
+    "build": "node build.mjs && node build.mjs --no-potrace",
+    "build:nogpl": "node build.mjs --no-potrace",
+    "test": "python3 test/run_ui.py && python3 test/validate.py"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@tensorflow/tfjs": "^4.11.0",
+    "@upscalerjs/esrgan-slim": "^1.0.0",
+    "esbuild": "^0.28.2",
+    "esm-potrace-wasm": "^0.5.1",
+    "imagetracerjs": "^1.2.6",
+    "opentype.js": "^2.0.0",
+    "three": "^0.186.1",
+    "upscaler": "^1.0.0"
+  },
+  "private": true,
+  "type": "module"
+}
