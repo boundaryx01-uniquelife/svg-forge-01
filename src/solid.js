@@ -1,6 +1,7 @@
 // 3D 출력용 입체 구성: 색 레이어 + 받침판 + 테두리 턱 + 키링 고리
 // 좌표: mm, Y 위쪽 (3D 기준). 도형 연산은 Clipper(정수 좌표, 1µm 단위).
 import ClipperLib from 'clipper-lib';
+import { ShapeUtils, Vector2 } from 'three';
 
 const SC = 1000; // mm → µm
 const CT = ClipperLib.ClipType;
@@ -189,9 +190,14 @@ export function buildParts(model, o) {
       const yt = topAtX(target, x);
       c = [x, (yt === null ? y1 : yt) + gap];
     }
+    const auto = c.slice();
+    c = [c[0] + (ring.dx || 0), c[1] + (ring.dy || 0)];
     const disk = circle(c[0], c[1], R);
     holeDisk = circle(c[0], c[1], r);
-    info.ring = { center: c, outer: 2 * R, hole: 2 * r };
+    // 고리 몸통(구멍 제외)이 도형과 겹치는 면적 → 0이면 떨어져 있음
+    const touch = clip(CT.ctIntersection, diff(disk, holeDisk), offset(target, 0.05));
+    const touchArea = touch.reduce((a, p) => a + Math.abs(ClipperLib.Clipper.Area(p)), 0) / (SC * SC);
+    info.ring = { center: c, auto, outer: 2 * R, hole: 2 * r, attached: touchArea > 0.3, touchArea, z: base.on ? z0 : thickness };
     if (basePaths) basePaths = diff(union(basePaths.concat(disk)), holeDisk);
     else {
       const rp = diff(diff(disk, holeDisk), all);
@@ -200,26 +206,213 @@ export function buildParts(model, o) {
     layerPaths = layerPaths.map((lp) => diff(lp, holeDisk));
   }
 
+  const edge = o.edge || {};
+  const bev = (flag) => (edge.type && edge.type !== 'none' && flag && edge.size > 0 ? { type: edge.type, size: edge.size } : null);
   const parts = [];
+  const add = (name, color, paths, z0_, z1_, role, bevel) => {
+    if (!paths.length) return;
+    parts.push({ name, color, paths, shapes: toShapes(paths), z0: z0_, z1: z1_, role, bevel });
+  };
   if (basePaths) {
-    parts.push({ name: '받침판', color: base.color || '#ffffff', shapes: toShapes(basePaths), z0: 0, z1: z0, role: 'base' });
-    if (border.on) {
+    const hasBorder = border.on;
+    // 테두리 턱이 있으면 받침판 윗면 대신 턱 윗면을 다듬음
+    add('받침판', base.color || '#ffffff', basePaths, 0, z0, 'base', hasBorder ? null : bev(edge.onBase));
+    if (hasBorder) {
       const w = Math.max(0.4, border.width || 1.2);
       let rim = diff(basePaths, offset(basePaths, -w));
       rim = diff(rim, union(layerPaths.flat()));
-      if (rim.length) parts.push({ name: '테두리', color: base.color || '#ffffff', shapes: toShapes(rim), z0, z1: z0 + Math.max(0.2, border.height || 1), role: 'border' });
+      add('테두리', base.color || '#ffffff', rim, z0, z0 + Math.max(0.2, border.height || 1), 'border', bev(edge.onBase));
     }
   }
   model.layers.forEach((l, i) => {
-    if (!layerPaths[i].length) return;
-    parts.push({ name: `색 ${i + 1} ${l.color}`, color: l.color, shapes: toShapes(layerPaths[i]), z0, z1: z0 + thickness + i * step, role: 'color' });
+    // 색별 높이차: offsets[i]가 있으면 그 값(음수 가능), 없으면 계단식 step. 최소 두께 0.2mm
+    const off = o.offsets && o.offsets[i] != null ? o.offsets[i] : i * step;
+    add(`색 ${i + 1} ${l.color}`, l.color, layerPaths[i], z0, z0 + Math.max(0.2, thickness + off), 'color', bev(edge.onColor));
   });
   if (ringPart) {
     const c0 = model.layers[0] ? model.layers[0].color : '#000000';
-    parts.push({ name: '키링 고리', color: c0, shapes: toShapes(ringPart), z0: 0, z1: thickness, role: 'ring' });
+    add('키링 고리', c0, ringPart, 0, thickness, 'ring', bev(edge.onColor));
   }
   const bb = bbox(parts.flatMap((p) => p.shapes.map((s) => s.outer.map(([x, y]) => ({ X: x * SC, Y: y * SC })))));
   info.size = [bb[2] - bb[0], bb[3] - bb[1], Math.max(...parts.map((p) => p.z1))];
   info.bbox = bb;
   return { parts, info };
+}
+
+// ---------- 모따기·모깎기: 윗모서리를 층층이 안쪽으로 줄여 쌓은 하나의 닫힌 메시 ----------
+
+/** 정수 경로 → 윤곽 트리 (공선점 보존: 벽과 뚜껑의 꼭짓점이 정확히 일치해야 닫힌 메시가 됨) */
+function treeShapes(paths, fill) {
+  const c = new ClipperLib.Clipper();
+  c.PreserveCollinear = false; // 벽·뚜껑 모두 같은 규칙으로 일직선 점 제거 → 꼭짓점 일치
+  c.AddPaths(paths, PT.ptSubject, true);
+  const tree = new ClipperLib.PolyTree();
+  c.Execute(CT.ctUnion, tree, fill, fill);
+  const out = [];
+  const walk = (node) => {
+    for (const ch of node.Childs()) {
+      if (!ch.IsHole()) {
+        const s = { outer: ch.Contour(), holes: [] };
+        for (const h of ch.Childs()) {
+          s.holes.push(h.Contour());
+          walk(h);
+        }
+        out.push(s);
+      }
+    }
+  };
+  walk(tree);
+  return out;
+}
+function allContours(paths) {
+  const out = [];
+  for (const s of treeShapes(paths, PF.pftNonZero)) {
+    out.push(s.outer);
+    for (const h of s.holes) out.push(h);
+  }
+  return out;
+}
+
+/**
+ * paths: 정수 경로(파트 영역), z0~z1, bevel: {type:'chamfer'|'fillet', size}
+ * 반환: 삼각형 좌표 배열 Float32Array (비색인, 법선은 바깥쪽)
+ */
+export function beveledSolid(paths, z0, z1, bevel) {
+  const h = z1 - z0;
+  const sz = Math.min(bevel.size, h * 0.95);
+  const zb = z1 - sz;
+  const N = Math.max(2, Math.min(24, Math.ceil(sz / 0.08)));
+  // 층: [윗면 z, 안쪽 거리 d]
+  const levels = [{ z: zb, d: 0 }];
+  for (let k = 1; k <= N; k++) {
+    const tm = (sz * (k - 0.5)) / N;
+    const d = bevel.type === 'chamfer' ? tm : sz - Math.sqrt(Math.max(0, sz * sz - tm * tm));
+    const zt = zb + (sz * k) / N;
+    const last = levels[levels.length - 1];
+    if (d - last.d < 0.02) last.z = zt; // 변화가 너무 작으면 앞 층에 합침
+    else levels.push({ z: zt, d });
+  }
+  // 층별 영역 (0층은 원래 영역을 공선점 보존 형태로 정리)
+  const A = [];
+  for (const L of levels) {
+    const reg = L.d === 0 ? union(allContours(paths)) : offset(paths, -L.d);
+    const cont = allContours(reg);
+    if (!cont.length) break;
+    A.push({ z: L.z, cont });
+  }
+  if (!A.length) return new Float32Array(0);
+  A[A.length - 1].z = z1;
+
+  // 정점표(정수 X,Y + 높이) — 같은 좌표는 같은 번호
+  const verts = [];
+  const vmap = new Map();
+  const vid = (q, z) => {
+    const k = q.X + ',' + q.Y + ',' + z;
+    let i = vmap.get(k);
+    if (i === undefined) {
+      i = verts.length;
+      verts.push([q.X, q.Y, z]);
+      vmap.set(k, i);
+    }
+    return i;
+  };
+  const T = [];
+  const area2 = (a, b, c) => (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
+  const cap = (contours, z, up) => {
+    for (const s of treeShapes(contours, PF.pftEvenOdd)) {
+      const outer = s.outer.map((q) => new Vector2(q.X, q.Y));
+      const holes = s.holes.map((hh) => hh.map((q) => new Vector2(q.X, q.Y)));
+      const pts = s.outer.concat(...s.holes);
+      const faces = ShapeUtils.triangulateShape(outer, holes);
+      for (const [i, j, k] of faces) {
+        let a = pts[i], b = pts[j], c = pts[k];
+        const ar = area2(a, b, c);
+        if (ar === 0) continue;
+        if (ar > 0 !== up) [b, c] = [c, b];
+        T.push([vid(a, z), vid(b, z), vid(c, z)]);
+      }
+    }
+  };
+  cap(A[0].cont, z0, false);
+  let zPrev = z0;
+  for (let k = 0; k < A.length; k++) {
+    const { z, cont } = A[k];
+    for (const c of cont) {
+      const n = c.length;
+      for (let i = 0; i < n; i++) {
+        const p = c[i], q = c[(i + 1) % n];
+        const a = vid(p, zPrev), b = vid(q, zPrev), cc = vid(q, z), d = vid(p, z);
+        T.push([a, b, cc], [a, cc, d]);
+      }
+    }
+    const nextCont = k + 1 < A.length ? A[k + 1].cont : [];
+    cap(cont.concat(nextCont), z, true);
+    zPrev = z;
+  }
+  repairTJunctions(T, verts);
+  const out = new Float32Array(T.length * 9);
+  let o = 0;
+  for (const t of T) for (const i of t) {
+    const v = verts[i];
+    out[o++] = v[0] / SC;
+    out[o++] = v[1] / SC;
+    out[o++] = v[2];
+  }
+  return out;
+}
+
+/** 열린 모서리 위에 다른 정점이 놓인 경우(T자 이음) 삼각형을 나눠 닫는다 (정수 좌표로 정확히 판정) */
+function repairTJunctions(T, verts) {
+  for (let pass = 0; pass < 4; pass++) {
+    const cnt = new Map();
+    const key = (a, b) => (a < b ? a + ':' + b : b + ':' + a);
+    for (const t of T) for (let e = 0; e < 3; e++) {
+      const k = key(t[e], t[(e + 1) % 3]);
+      cnt.set(k, (cnt.get(k) || 0) + 1);
+    }
+    const open = new Set();
+    for (const t of T) for (let e = 0; e < 3; e++) if (cnt.get(key(t[e], t[(e + 1) % 3])) === 1) {
+      open.add(t[e]);
+      open.add(t[(e + 1) % 3]);
+    }
+    if (!open.size) return;
+    const openList = [...open];
+    let changed = false;
+    for (let ti = 0; ti < T.length; ti++) {
+      const t = T[ti];
+      for (let e = 0; e < 3; e++) {
+        const a = t[e], b = t[(e + 1) % 3], c = t[(e + 2) % 3];
+        if (cnt.get(key(a, b)) !== 1) continue;
+        const A = verts[a], B = verts[b];
+        const on = [];
+        for (const w of openList) {
+          if (w === a || w === b) continue;
+          const W = verts[w];
+          // 같은 선분 위 (정수 외적 0, 사이에 있음). 높이도 선형으로 맞아야 함
+          const dx = B[0] - A[0], dy = B[1] - A[1], dz = B[2] - A[2];
+          const wx = W[0] - A[0], wy = W[1] - A[1], wz = W[2] - A[2];
+          if (dx * wy - dy * wx !== 0) continue;
+          const L2 = dx * dx + dy * dy;
+          let tt;
+          if (L2 > 0) tt = (wx * dx + wy * dy) / L2;
+          else if (dz !== 0) tt = wz / dz;
+          else continue;
+          if (!(tt > 1e-9 && tt < 1 - 1e-9)) continue;
+          if (Math.abs(A[2] + dz * tt - W[2]) > 1e-9) continue;
+          if (L2 === 0 && (wx !== 0 || wy !== 0)) continue;
+          on.push([tt, w]);
+        }
+        if (!on.length) continue;
+        on.sort((p, q) => p[0] - q[0]);
+        const chain = [a, ...on.map((x) => x[1]), b];
+        const fan = [];
+        for (let i = 0; i + 1 < chain.length; i++) fan.push([chain[i], chain[i + 1], c]);
+        T.splice(ti, 1, ...fan);
+        ti += fan.length - 1;
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) return;
+  }
 }

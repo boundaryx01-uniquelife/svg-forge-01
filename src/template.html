@@ -49,6 +49,11 @@ textarea{resize:vertical;min-height:56px;max-height:160px}
 .row input[type=color]{width:34px;height:28px;padding:1px;border:1px solid var(--line);border-radius:6px;background:#fff;flex:0 0 auto}
 .sub{margin:0 0 4px 12px}
 .sub .row label{flex-basis:66px}
+.hlabel{color:var(--sub);font-size:12.5px;margin:1px 0 2px;display:flex;align-items:center;white-space:nowrap}
+.hchips{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-bottom:0}
+.hchip{display:flex;align-items:center;gap:3px;border:1px solid var(--line);border-radius:7px;padding:2px 3px 2px 4px;background:#fafbfd}
+.hchip .sw{margin:0}
+.hchip input{width:100%;min-width:0;padding:2px 3px;font-size:12px}
 .chkgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 6px}
 .hint{color:var(--sub);font-size:11.5px;margin:2px 0 0}
 .filebar{display:flex;align-items:center;gap:8px;margin-bottom:4px}
@@ -81,8 +86,8 @@ body.dragging .view::after{content:"여기에 놓으면 불러옵니다";positio
 
 /* 낮은 화면(노트북 1366×768 등): 간격을 더 줄임 */
 @media (max-height:760px){
-  .row{margin:3px 0;min-height:26px}
-  .panel h2{margin:7px 0 2px}
+  .row{margin:2px 0;min-height:26px}
+  .panel h2{margin:6px 0 2px}
   header{padding:6px 10px}
 }
 /* 좁은 화면: 출력 설정을 미리보기 아래 한 줄로 */
@@ -123,6 +128,7 @@ body.dragging .view::after{content:"여기에 놓으면 불러옵니다";positio
     <button class="btn pri" id="btnFill" disabled title="MakerLab·3D용: 닫힌 채움 경로만, 선·글꼴 없음, mm 단위">SVG · MakerLab</button>
     <button class="btn" id="btnLaser" disabled title="레이저용: 채움 없이 0.1mm 윤곽선, 색상=레이어 (LightBurn)">SVG · 레이저</button>
     <button class="btn" id="btnDxf" disabled title="DXF R12, 단위 mm, 색상별 레이어 (RDWorks·LightBurn)">DXF</button>
+    <label class="chk" style="margin:0 6px 0 0;font-size:11.5px" title="레이저 SVG·DXF에서 모든 색을 한 레이어(CUT)로 합칩니다"><input type="checkbox" id="laserSingle"> 한 레이어</label>
     <button class="btn" id="btnStl" disabled title="바이너리 STL, 오른쪽 '3D 출력'의 두께로 압출 (모든 파트 한 파일)">STL</button>
     <button class="btn" id="btn3mf" disabled title="3MF: 색·받침판·고리가 각각 파트로 나뉨 (Bambu Studio·OrcaSlicer 필라멘트 지정용)">3MF</button>
   </div>
@@ -229,8 +235,8 @@ body.dragging .view::after{content:"여기에 놓으면 불러옵니다";positio
 
   <aside class="panel" id="panelOut">
     <h2>크기</h2>
-    <div class="row"><label for="width">너비 (mm)</label><input id="width" type="number" min="1" max="1000" step="0.5" value="50" class="grow"></div>
-    <div class="row"><label>높이 (mm)</label><span id="heightOut" class="grow out">-</span></div>
+    <div class="row"><label for="width">너비 (mm)</label><input id="width" class="mini" type="number" min="1" max="1000" step="0.5" value="50">
+      <span class="out" style="color:var(--sub);font-size:12px;white-space:nowrap">높이 <span id="heightOut">-</span></span></div>
     <div class="row"><label for="tol" title="DXF·STL은 곡선을 직선으로 나눌 때 이 오차 이내로 맞춥니다">곡선 정밀도</label>
       <select id="tol" class="grow">
         <option value="0.02">0.02 mm</option>
@@ -238,11 +244,19 @@ body.dragging .view::after{content:"여기에 놓으면 불러옵니다";positio
         <option value="0.1">0.1 mm</option>
         <option value="0.2">0.2 mm</option>
       </select></div>
-    <h2>레이저 (SVG·DXF)</h2>
-    <label class="chk"><input type="checkbox" id="laserSingle"> 모든 색을 한 레이어로 합치기</label>
     <h2>3D 출력 (STL·3MF)</h2>
-    <div class="row"><label for="thick">두께 (mm)</label><input id="thick" type="number" min="0.2" max="200" step="0.2" value="3" class="grow"></div>
-    <div class="row"><label for="step" title="색 레이어마다 이만큼 높이를 더합니다">색별 높이차</label><input id="step" type="number" min="0" max="20" step="0.2" value="0" class="grow"></div>
+    <div class="row"><label for="thick" title="글자·색 기본 두께 (mm)">두께 (mm)</label>
+      <input id="thick" class="mini" type="number" min="0.2" max="200" step="0.2" value="3" title="기본 두께 (mm)"></div>
+    <div class="hlabel" title="색마다 기본 두께에 더할 높이 (mm). 음수면 낮아짐 (최소 0.2mm)">색별 높이 ±mm
+      <button class="btn small" id="stepAuto" style="margin-left:6px;padding:1px 7px" title="밝기 순서대로 계단식 높이차를 채움 (0, +0.4, +0.8 …)">계단</button>
+      <button class="btn small" id="stepZero" style="padding:1px 7px" title="색별 높이차를 모두 0으로">0으로</button></div>
+    <div id="colorHeights" class="hchips" title="색마다 기본 두께에 더할 높이 (mm). 음수면 낮아짐 (최소 0.2mm)"></div>
+    <div class="row"><label for="edgeType" title="윗모서리 다듬기">모서리</label>
+      <select id="edgeType" class="grow"><option value="none" selected>그대로</option><option value="chamfer">모따기</option><option value="fillet">모깎기</option></select>
+      <input id="edgeSize" class="mini" type="number" min="0.1" max="10" step="0.1" value="0.6" title="크기 (mm)"></div>
+    <div class="row hide" id="edgeOpts" style="margin-left:12px">
+      <label class="chk" style="margin:0 10px 0 0"><input type="checkbox" id="edgeColor" checked> 글자·색</label>
+      <label class="chk" style="margin:0"><input type="checkbox" id="edgeBase" checked> 받침·턱</label></div>
     <label class="chk"><input type="checkbox" id="baseOn"> 받침판</label>
     <div id="baseOpts" class="sub hide">
       <div class="row"><label for="baseShape">모양</label>
@@ -266,6 +280,10 @@ body.dragging .view::after{content:"여기에 놓으면 불러옵니다";positio
       <div class="row"><label title="고리 바깥 지름 · 구멍 지름 (mm)">외경·구멍</label>
         <input id="ringOuter" class="mini" type="number" min="3" max="40" step="0.5" value="8" title="바깥 지름 (mm)">
         <input id="ringHole" class="mini" type="number" min="1" max="30" step="0.5" value="4" title="구멍 지름 (mm)"></div>
+      <div class="row" title="자동 위치에서 옮긴 거리 (mm). 3D 화면에서 고리를 마우스로 끌어도 됩니다"><label style="flex-basis:40px">이동</label>
+        <input id="ringDx" class="mini" style="width:52px" type="number" step="0.5" value="0" title="가로 이동 (mm, +오른쪽)">
+        <input id="ringDy" class="mini" style="width:52px" type="number" step="0.5" value="0" title="세로 이동 (mm, +위)">
+        <button class="btn small" id="ringReset" title="자동 위치로">↺</button></div>
     </div>
   </aside>
 </main>

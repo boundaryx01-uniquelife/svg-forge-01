@@ -13,7 +13,7 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'bgRow', 'removeBg', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'step', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseCut', 'borderOn', 'borderOpts', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseCut', 'borderOn', 'borderOpts', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d',
 ].forEach((id) => (el[id] = document.getElementById(id)));
 
@@ -475,6 +475,7 @@ const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt
 function updateButtons() {
   const ok = !!(S.model && S.model.layers.length);
   ['btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf'].forEach((id) => (el[id].disabled = !ok));
+  renderHeightChips();
 }
 
 function render2d() {
@@ -515,6 +516,8 @@ function init3d() {
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.addEventListener('change', () => renderer.render(scene, camera));
   T = { renderer, scene, camera, group, controls };
+  setupRingDrag(T);
+
   new ResizeObserver(() => resize3d()).observe(el.view3d);
   return T;
 }
@@ -534,15 +537,59 @@ function render3dIfVisible() {
   if (S.view === '3d') rebuild3d();
 }
 
+// ---------- 색별 높이차 ----------
+S.heightByColor = new Map(); // 색 → 높이차(mm). 같은 색은 다시 트레이싱해도 값 유지
+function colorOffsets() {
+  const m = S.model;
+  if (!m) return [];
+  return m.layers.map((l) => S.heightByColor.get(l.color) || 0);
+}
+function renderHeightChips() {
+  const m = S.model;
+  const box = el.colorHeights;
+  const colors = m ? m.layers.map((l) => l.color) : [];
+  const sig = colors.join(',');
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  box.innerHTML = '';
+  if (!colors.length) {
+    box.innerHTML = '<span style="color:var(--sub);font-size:12px;padding-top:5px">-</span>';
+    return;
+  }
+  colors.forEach((c, i) => {
+    const lab = document.createElement('label');
+    lab.className = 'hchip';
+    lab.title = `색 ${i + 1} ${c}: 기본 두께에 더할 높이 (mm, 음수 가능)`;
+    lab.innerHTML = `<i class="sw" style="background:${c}"></i><input type="number" step="0.2" min="-50" max="50" data-color="${c}">`;
+    const inp = lab.querySelector('input');
+    inp.value = S.heightByColor.get(c) || 0;
+    inp.addEventListener('input', () => {
+      const v = parseFloat(inp.value);
+      S.heightByColor.set(c, isFinite(v) ? v : 0);
+      on3dChange(false);
+    });
+    box.appendChild(lab);
+  });
+}
+function setAllOffsets(fn) {
+  const m = S.model;
+  if (!m) return;
+  m.layers.forEach((l, i) => S.heightByColor.set(l.color, Math.round(fn(i) * 100) / 100));
+  el.colorHeights.dataset.sig = '';
+  renderHeightChips();
+  on3dChange(true);
+}
+
 /** 오른쪽 '3D 출력' 설정 */
 function solidOpts() {
   const nv = (e, d, lo = 0) => Math.max(lo, parseFloat(e.value) || d);
   return {
     thickness: nv(el.thick, 3, 0.2),
-    step: Math.max(0, parseFloat(el.step.value) || 0),
+    offsets: colorOffsets(),
     base: { on: el.baseOn.checked, shape: el.baseShape.value, margin: Math.max(0, parseFloat(el.baseMargin.value) || 0), height: nv(el.baseH, 1.5, 0.2), color: el.baseColor.value, fill: Math.max(0, parseFloat(el.baseFill.value) || 0), cutHoles: el.baseCut.checked },
     border: { on: el.baseOn.checked && el.borderOn.checked, width: nv(el.borderW, 1.2, 0.4), height: nv(el.borderH, 1, 0.2) },
-    ring: { on: el.ringOn.checked, pos: el.ringPos.value, outer: nv(el.ringOuter, 8, 3), hole: nv(el.ringHole, 4, 1) },
+    ring: { on: el.ringOn.checked, pos: el.ringPos.value, outer: nv(el.ringOuter, 8, 3), hole: nv(el.ringHole, 4, 1), dx: parseFloat(el.ringDx.value) || 0, dy: parseFloat(el.ringDy.value) || 0 },
+    edge: { type: el.edgeType.value, size: nv(el.edgeSize, 0.6, 0.1), onColor: el.edgeColor.checked, onBase: el.edgeBase.checked },
   };
 }
 
@@ -560,7 +607,10 @@ function rebuild3d() {
     resize3d();
     return;
   }
-  const geos = buildPartGeometries(m, solidOpts());
+  const so = solidOpts();
+  if (S.dragging) so.edge = { type: 'none' }; // 끄는 동안은 빠르게
+  const geos = buildPartGeometries(m, so);
+  S.ringInfo = geos.info && geos.info.ring ? geos.info.ring : null;
   let maxH = 0;
   for (const g of geos) {
     maxH = Math.max(maxH, g.z1);
@@ -569,6 +619,8 @@ function rebuild3d() {
   const inf = geos.info || {};
   const bb = inf.bbox || [0, 0, m.width, m.height];
   el.badge3d.textContent = inf.size ? `${inf.size[0].toFixed(1)} × ${inf.size[1].toFixed(1)} × ${inf.size[2].toFixed(1)} mm · 파트 ${geos.length}개` : '';
+  if (inf.ring && !inf.ring.attached) el.badge3d.textContent += ' · ⚠ 고리가 몸체에서 떨어져 있음';
+  else if (inf.ring) el.badge3d.textContent += ' · 고리는 끌어서 옮길 수 있음';
   const size = Math.max(bb[2] - bb[0], bb[3] - bb[1], maxH);
   const c = new THREE.Vector3((bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2, maxH / 2);
   t.controls.target.copy(c);
@@ -696,6 +748,7 @@ function on3dChange(showView) {
   el.borderOpts.classList.toggle('hide', !el.borderOn.checked);
   el.baseFillRow.classList.toggle('hide', el.baseShape.value !== 'outline');
   el.ringOpts.classList.toggle('hide', !el.ringOn.checked);
+  el.edgeOpts.classList.toggle('hide', el.edgeType.value === 'none');
   if (showView && S.view !== '3d' && S.model) {
     S.dirty3d = true;
     setView('3d');
@@ -703,8 +756,83 @@ function on3dChange(showView) {
   }
   render3dIfVisible();
 }
-[el.thick, el.step, el.baseMargin, el.baseH, el.baseFill, el.borderW, el.borderH, el.ringOuter, el.ringHole].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
-[el.baseOn, el.baseShape, el.baseColor, el.baseCut, el.borderOn, el.ringOn, el.ringPos].forEach((e) => e.addEventListener('change', () => on3dChange(true)));
+[el.thick, el.baseMargin, el.baseH, el.baseFill, el.edgeSize, el.ringDx, el.ringDy, el.borderW, el.borderH, el.ringOuter, el.ringHole].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
+[el.baseOn, el.baseShape, el.baseColor, el.baseCut, el.edgeType, el.edgeColor, el.edgeBase, el.borderOn, el.ringOn, el.ringPos].forEach((e) => e.addEventListener('change', () => on3dChange(true)));
+
+el.stepAuto.onclick = () => setAllOffsets((i) => i * 0.4);
+el.stepZero.onclick = () => setAllOffsets(() => 0);
+
+// 고리 위치: 자동 위치를 바꾸면 이동값 초기화
+el.ringPos.addEventListener('change', () => {
+  el.ringDx.value = 0;
+  el.ringDy.value = 0;
+});
+el.ringReset.onclick = () => {
+  el.ringDx.value = 0;
+  el.ringDy.value = 0;
+  on3dChange(true);
+};
+
+// 3D 화면에서 고리 끌어 옮기기
+function setupRingDrag(t) {
+  const dom = t.renderer.domElement;
+  const ray = new THREE.Raycaster();
+  const ndc = new THREE.Vector2();
+  const hit = (ev) => {
+    const r = dom.getBoundingClientRect();
+    ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, t.camera);
+    const z = S.ringInfo ? S.ringInfo.z : 0;
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -z);
+    const p = new THREE.Vector3();
+    return ray.ray.intersectPlane(plane, p) ? p : null;
+  };
+  const nearRing = (p) => S.ringInfo && p && Math.hypot(p.x - S.ringInfo.center[0], p.y - S.ringInfo.center[1]) <= (S.ringInfo.outer / 2) * 1.15;
+  let grab = null;
+  let raf = 0;
+  dom.addEventListener('pointerdown', (ev) => {
+    if (!el.ringOn.checked) return;
+    const p = hit(ev);
+    if (!nearRing(p)) return;
+    grab = [S.ringInfo.center[0] - p.x, S.ringInfo.center[1] - p.y];
+    S.dragging = true;
+    t.controls.enabled = false;
+    dom.setPointerCapture(ev.pointerId);
+    dom.style.cursor = 'grabbing';
+    ev.preventDefault();
+  });
+  dom.addEventListener('pointermove', (ev) => {
+    const p = hit(ev);
+    if (!grab) {
+      dom.style.cursor = el.ringOn.checked && nearRing(p) ? 'grab' : '';
+      return;
+    }
+    if (!p || !S.ringInfo) return;
+    const auto = S.ringInfo.auto;
+    el.ringDx.value = (Math.round((p.x + grab[0] - auto[0]) * 10) / 10).toFixed(1);
+    el.ringDy.value = (Math.round((p.y + grab[1] - auto[1]) * 10) / 10).toFixed(1);
+    if (!raf)
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        S.dirty3d = false;
+        rebuild3d();
+      });
+  });
+  const end = (ev) => {
+    if (!grab) return;
+    grab = null;
+    S.dragging = false;
+    t.controls.enabled = true;
+    dom.style.cursor = '';
+    try {
+      dom.releasePointerCapture(ev.pointerId);
+    } catch (e) {}
+    S.dirty3d = false;
+    rebuild3d(); // 모서리 다듬기 포함 최종 계산
+  };
+  dom.addEventListener('pointerup', end);
+  dom.addEventListener('pointercancel', end);
+}
 
 // 폰트 파일 / 설치 폰트
 el.fontFileBtn.onclick = () => el.fontFile.click();

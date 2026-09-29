@@ -12,7 +12,7 @@ with sync_playwright() as p:
         # 스크롤 필요 여부: 문서 및 패널
         info=page.evaluate("""()=>{const d=document.scrollingElement; const r={doc:[d.scrollHeight,d.clientHeight,d.scrollWidth,d.clientWidth]};
           for(const id of ['panelIn','panelOut']){const e=document.getElementById(id); r[id]=[e.scrollHeight,e.clientHeight];}
-          const vis=[...document.querySelectorAll('#btnFill,#btnLaser,#btnDxf,#btnStl,#thick,#step,#res,#width')].map(e=>{const b=e.getBoundingClientRect();return e.id+':'+(b.bottom<=innerHeight&&b.right<=innerWidth&&b.width>0?'ok':'HIDDEN')});
+          const vis=[...document.querySelectorAll('#btnFill,#btnLaser,#btnDxf,#btnStl,#thick,#colorHeights,#res,#width')].map(e=>{const b=e.getBoundingClientRect();return e.id+':'+(b.bottom<=innerHeight&&b.right<=innerWidth&&b.width>0?'ok':'HIDDEN')});
           r.vis=vis.join(' '); return r;}""")
         print((w,h), info, errs)
         page.screenshot(path=f'test/out/lay_{w}x{h}.png')

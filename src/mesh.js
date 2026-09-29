@@ -2,10 +2,19 @@
 import * as THREE from 'three';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { buildParts } from './solid.js';
+import { buildParts, beveledSolid } from './solid.js';
 
 /** 파트(도형+높이) → 지오메트리 */
 export function partGeometry(part) {
+  if (part.bevel && part.paths) {
+    const pos = beveledSolid(part.paths, part.z0, part.z1, part.bevel);
+    if (!pos.length) return null;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.computeVertexNormals();
+    g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+    return g;
+  }
   const h = Math.max(0.01, part.z1 - part.z0);
   const geos = [];
   for (const s of part.shapes) {

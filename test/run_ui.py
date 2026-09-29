@@ -52,7 +52,7 @@ def run():
         print('multi status:', page.inner_text('#status').replace('\n', ' | '))
         page.screenshot(path=str(OUT / 'shot_multi_2d.png'))
         save_dl(page, '#btnFill', 'multi_makerlab.svg')
-        page.fill('#step', '1')
+        page.evaluate("()=>{document.querySelectorAll('#colorHeights input').forEach((e,i)=>{e.value=i; e.dispatchEvent(new Event('input'))})}")
         save_dl(page, '#btnStl', 'multi.stl')
         save_dl(page, '#btnDxf', 'multi.dxf')
 
