@@ -152,8 +152,16 @@ export function buildParts(model, o) {
       for (const p of all) for (const q of p) rr = Math.max(rr, Math.hypot(q.X / SC - cx, q.Y / SC - cy));
       basePaths = circle(cx, cy, rr + m);
     } else {
-      basePaths = offset(outersOnly(all), m);
-      if (!m) basePaths = outersOnly(all);
+      // 외곽 따라: 여백만큼 키운 뒤, '메움' 반경으로 닫힘 연산(키웠다 줄이기) → 글자 사이·u 안쪽 같은 오목한 홈을 매끈하게 메움
+      const k = Math.max(0, base.fill == null ? 3 : base.fill);
+      basePaths = outersOnly(all);
+      if (m + k > 0) basePaths = offset(basePaths, m + k);
+      if (k > 0) basePaths = outersOnly(offset(basePaths, -k));
+    }
+    // 글자 안 구멍(o·e 등의 안쪽 공간)을 받침판에서도 뚫기
+    if (base.cutHoles) {
+      const counters = diff(outersOnly(all), all).filter((p) => Math.abs(ClipperLib.Clipper.Area(p)) > 0.5 * SC * SC);
+      if (counters.length) basePaths = diff(basePaths, counters);
     }
   }
 
