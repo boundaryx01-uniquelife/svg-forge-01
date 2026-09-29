@@ -8,7 +8,7 @@ OUT.mkdir(exist_ok=True, parents=True)
 
 def wait_done(page, timeout=30000):
     time.sleep(0.9)
-    page.wait_for_function("() => { const s=document.getElementById('status'); return s && s.innerText.trim() !== '' && !s.innerText.includes('처리 중'); }", timeout=timeout)
+    page.wait_for_function("() => { const s=document.getElementById('status'); return s && s.innerText.trim() !== '' && !s.innerText.includes('처리 중') && !s.innerText.includes('Processing'); }", timeout=timeout)
 
 def save_dl(page, btn, name):
     with page.expect_download(timeout=30000) as d:
