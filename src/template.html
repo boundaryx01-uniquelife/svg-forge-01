@@ -45,6 +45,10 @@ textarea{resize:vertical;min-height:56px;max-height:160px}
 .val{flex:0 0 34px;text-align:right;color:var(--sub);font-variant-numeric:tabular-nums;font-size:12px}
 .chk{display:flex;align-items:center;gap:6px;color:var(--sub);font-size:12px;margin:3px 0;min-height:22px}
 .chk input{margin:0}
+.row input.mini{width:58px;flex:0 0 auto}
+.row input[type=color]{width:34px;height:28px;padding:1px;border:1px solid var(--line);border-radius:6px;background:#fff;flex:0 0 auto}
+.sub{margin:0 0 4px 12px}
+.sub .row label{flex-basis:66px}
 .chkgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 6px}
 .hint{color:var(--sub);font-size:11.5px;margin:2px 0 0}
 .filebar{display:flex;align-items:center;gap:8px;margin-bottom:4px}
@@ -119,7 +123,8 @@ body.dragging .view::after{content:"여기에 놓으면 불러옵니다";positio
     <button class="btn pri" id="btnFill" disabled title="MakerLab·3D용: 닫힌 채움 경로만, 선·글꼴 없음, mm 단위">SVG · MakerLab</button>
     <button class="btn" id="btnLaser" disabled title="레이저용: 채움 없이 0.1mm 윤곽선, 색상=레이어 (LightBurn)">SVG · 레이저</button>
     <button class="btn" id="btnDxf" disabled title="DXF R12, 단위 mm, 색상별 레이어 (RDWorks·LightBurn)">DXF</button>
-    <button class="btn" id="btnStl" disabled title="바이너리 STL, 오른쪽 '3D 출력'의 두께로 압출">STL</button>
+    <button class="btn" id="btnStl" disabled title="바이너리 STL, 오른쪽 '3D 출력'의 두께로 압출 (모든 파트 한 파일)">STL</button>
+    <button class="btn" id="btn3mf" disabled title="3MF: 색·받침판·고리가 각각 파트로 나뉨 (Bambu Studio·OrcaSlicer 필라멘트 지정용)">3MF</button>
   </div>
 </header>
 
@@ -235,10 +240,31 @@ body.dragging .view::after{content:"여기에 놓으면 불러옵니다";positio
       </select></div>
     <h2>레이저 (SVG·DXF)</h2>
     <label class="chk"><input type="checkbox" id="laserSingle"> 모든 색을 한 레이어로 합치기</label>
-    <h2>3D 출력 (STL)</h2>
+    <h2>3D 출력 (STL·3MF)</h2>
     <div class="row"><label for="thick">두께 (mm)</label><input id="thick" type="number" min="0.2" max="200" step="0.2" value="3" class="grow"></div>
     <div class="row"><label for="step" title="색 레이어마다 이만큼 높이를 더합니다">색별 높이차</label><input id="step" type="number" min="0" max="20" step="0.2" value="0" class="grow"></div>
-    <p class="hint">저장 버튼은 화면 맨 위에 있습니다. 파일은 이 브라우저 밖으로 나가지 않습니다.</p>
+    <label class="chk"><input type="checkbox" id="baseOn"> 받침판</label>
+    <div id="baseOpts" class="sub hide">
+      <div class="row"><label for="baseShape">모양</label>
+        <select id="baseShape" class="grow"><option value="outline">외곽 따라</option><option value="rect">둥근 사각형</option><option value="circle">원</option></select>
+        <input id="baseColor" type="color" value="#ffffff" title="받침판 색 (3MF 필라멘트 구분용)"></div>
+      <div class="row"><label title="여백 · 두께 (mm)">여백·두께</label>
+        <input id="baseMargin" class="mini" type="number" min="0" max="50" step="0.5" value="2" title="여백 (mm)">
+        <input id="baseH" class="mini" type="number" min="0.2" max="20" step="0.2" value="1.5" title="두께 (mm)"></div>
+      <label class="chk"><input type="checkbox" id="borderOn"> 테두리 턱</label>
+      <div class="row hide" id="borderOpts"><label title="턱 폭 · 받침판 위 높이 (mm)">폭·높이</label>
+        <input id="borderW" class="mini" type="number" min="0.4" max="20" step="0.2" value="1.2" title="폭 (mm)">
+        <input id="borderH" class="mini" type="number" min="0.2" max="20" step="0.2" value="1" title="높이 (mm)"></div>
+    </div>
+    <label class="chk"><input type="checkbox" id="ringOn"> 키링 고리</label>
+    <div id="ringOpts" class="sub hide">
+      <div class="row"><label for="ringPos">위치</label>
+        <select id="ringPos" class="grow"><option value="top">위</option><option value="topleft">왼쪽 위</option><option value="topright">오른쪽 위</option><option value="left">왼쪽</option><option value="right">오른쪽</option></select></div>
+      <div class="row"><label title="고리 바깥 지름 · 구멍 지름 (mm)">외경·구멍</label>
+        <input id="ringOuter" class="mini" type="number" min="3" max="40" step="0.5" value="8" title="바깥 지름 (mm)">
+        <input id="ringHole" class="mini" type="number" min="1" max="30" step="0.5" value="4" title="구멍 지름 (mm)"></div>
+    </div>
+    <p class="hint">3MF는 색마다 파트가 나뉘어 Bambu Studio에서 필라멘트를 지정하기 쉽습니다.</p>
   </aside>
 </main>
 <!--BUNDLE-->

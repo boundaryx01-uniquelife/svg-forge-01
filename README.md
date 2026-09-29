@@ -14,6 +14,8 @@
   - SVG (레이저 윤곽선, 공유 경계는 한 번만)
   - DXF R12 (원호는 bulge 호, 단위 mm)
   - STL (두께·색별 높이차)
+  - 3MF (색·받침판·고리가 각각 파트, Bambu Studio·OrcaSlicer 필라멘트 번호 지정)
+- **3D 구성**: 받침판(외곽 따라/둥근 사각형/원), 테두리 턱, 키링 고리(위치·외경·구멍)
 - 무거운 계산은 백그라운드(Web Worker)에서 실행
 
 ## 빌드
@@ -34,7 +36,8 @@ npm run build:nogpl    # 배포용만
 | `src/contour.js` | 서브픽셀 윤곽, 베지어 피팅 |
 | `src/vectorize.js` | 모서리·직선·원호 분석, 전역 정규화, 출력 |
 | `src/planar.js` | 다색 공유 경계 그래프 |
-| `src/geom.js`, `src/export.js`, `src/mesh.js` | mm 모델, SVG/DXF/STL 내보내기 |
+| `src/geom.js`, `src/export.js` | mm 모델, SVG/DXF 내보내기 |
+| `src/solid.js`, `src/mesh.js` | 받침판·테두리·고리 도형 연산(Clipper), STL/3MF 내보내기 |
 | `src/worker.js`, `src/upscale.js`, `src/potrace_entry.js` | 백그라운드 계산, AI 업스케일, Potrace(선택) |
 | `test/` | 브라우저 자동 테스트·파일 검증 스크립트 |
 
@@ -44,5 +47,6 @@ npm run build:nogpl    # 배포용만
 | Noto Sans CJK KR (부분 글꼴, `assets/`) | SIL OFL 1.1 | |
 | opentype.js, three.js, UpscalerJS / ESRGAN-slim | MIT | |
 | TensorFlow.js | Apache-2.0 | |
+| clipper-lib | Boost (BSL-1.0) | 도형 연산 |
 | imagetracerjs | Unlicense | 초기 버전에서 사용 |
 | **Potrace** (esm-potrace-wasm) | **GPL-2.0** | `svg-forge.html`에만 포함. 공개 배포에는 `svg-forge-nogpl.html` 사용 권장 |

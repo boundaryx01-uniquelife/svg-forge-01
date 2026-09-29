@@ -11,6 +11,7 @@
   "dependencies": {
     "@tensorflow/tfjs": "^4.11.0",
     "@upscalerjs/esrgan-slim": "^1.0.0",
+    "clipper-lib": "^6.4.2",
     "esbuild": "^0.28.2",
     "esm-potrace-wasm": "^0.5.1",
     "imagetracerjs": "^1.2.6",

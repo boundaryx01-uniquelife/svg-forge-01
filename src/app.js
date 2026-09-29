@@ -4,7 +4,7 @@ import { traceImage, otsuThreshold, estimateHardEdges, parseFont, missingGlyphs,
 import { makeModel } from './geom.js';
 import { potracePathsToRings } from './pathparse.js';
 import { toFillSvg, toLaserSvg, toDxf } from './export.js';
-import { buildLayerGeometries, buildStlBlob } from './mesh.js';
+import { buildPartGeometries, buildStlBlob, build3mfBlob } from './mesh.js';
 import builtinFontData from '../assets/NotoSansKR-Bold-subset.otf';
 
 const $ = (s) => document.querySelector(s);
@@ -13,7 +13,7 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'bgRow', 'removeBg', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'laserSingle', 'thick', 'step',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'step', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'borderOn', 'borderOpts', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d',
 ].forEach((id) => (el[id] = document.getElementById(id)));
 
@@ -474,7 +474,7 @@ const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt
 
 function updateButtons() {
   const ok = !!(S.model && S.model.layers.length);
-  ['btnFill', 'btnLaser', 'btnDxf', 'btnStl'].forEach((id) => (el[id].disabled = !ok));
+  ['btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf'].forEach((id) => (el[id].disabled = !ok));
 }
 
 function render2d() {
@@ -534,6 +534,18 @@ function render3dIfVisible() {
   if (S.view === '3d') rebuild3d();
 }
 
+/** 오른쪽 '3D 출력' 설정 */
+function solidOpts() {
+  const nv = (e, d, lo = 0) => Math.max(lo, parseFloat(e.value) || d);
+  return {
+    thickness: nv(el.thick, 3, 0.2),
+    step: Math.max(0, parseFloat(el.step.value) || 0),
+    base: { on: el.baseOn.checked, shape: el.baseShape.value, margin: Math.max(0, parseFloat(el.baseMargin.value) || 0), height: nv(el.baseH, 1.5, 0.2), color: el.baseColor.value },
+    border: { on: el.baseOn.checked && el.borderOn.checked, width: nv(el.borderW, 1.2, 0.4), height: nv(el.borderH, 1, 0.2) },
+    ring: { on: el.ringOn.checked, pos: el.ringPos.value, outer: nv(el.ringOuter, 8, 3), hole: nv(el.ringHole, 4, 1) },
+  };
+}
+
 function rebuild3d() {
   const t = init3d();
   if (t.failed) return;
@@ -548,20 +560,20 @@ function rebuild3d() {
     resize3d();
     return;
   }
-  const thickness = Math.max(0.2, parseFloat(el.thick.value) || 3);
-  const step = Math.max(0, parseFloat(el.step.value) || 0);
-  const geos = buildLayerGeometries(m, { thickness, step });
+  const geos = buildPartGeometries(m, solidOpts());
   let maxH = 0;
   for (const g of geos) {
-    maxH = Math.max(maxH, g.height);
+    maxH = Math.max(maxH, g.z1);
     t.group.add(new THREE.Mesh(g.geometry, new THREE.MeshStandardMaterial({ color: g.color, roughness: 0.55, metalness: 0.05 })));
   }
-  el.badge3d.textContent = `${m.width.toFixed(1)} × ${m.height.toFixed(1)} × ${maxH.toFixed(1)} mm`;
-  const size = Math.max(m.width, m.height, maxH);
-  const c = new THREE.Vector3(m.width / 2, m.height / 2, maxH / 2);
+  const inf = geos.info || {};
+  const bb = inf.bbox || [0, 0, m.width, m.height];
+  el.badge3d.textContent = inf.size ? `${inf.size[0].toFixed(1)} × ${inf.size[1].toFixed(1)} × ${inf.size[2].toFixed(1)} mm · 파트 ${geos.length}개` : '';
+  const size = Math.max(bb[2] - bb[0], bb[3] - bb[1], maxH);
+  const c = new THREE.Vector3((bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2, maxH / 2);
   t.controls.target.copy(c);
   if (S.dirty3d) {
-    t.camera.position.set(c.x, c.y - size * 0.75, c.z + size * 1.5);
+    t.camera.position.set(c.x, c.y - size * 0.95, c.z + size * 1.85);
     t.camera.near = size / 100;
     t.camera.far = size * 50;
     t.camera.updateProjectionMatrix();
@@ -678,14 +690,20 @@ el.text.addEventListener('input', () => schedule(250));
 el.fontSel.addEventListener('change', () => schedule(0));
 el.width.addEventListener('input', () => schedule(200));
 el.tol.addEventListener('change', () => schedule(0));
-el.thick.addEventListener('input', () => {
-  S.dirty3d = false;
+// 3D 설정: 바꾸면 3D 미리보기로 보여줌
+function on3dChange(showView) {
+  el.baseOpts.classList.toggle('hide', !el.baseOn.checked);
+  el.borderOpts.classList.toggle('hide', !el.borderOn.checked);
+  el.ringOpts.classList.toggle('hide', !el.ringOn.checked);
+  if (showView && S.view !== '3d' && S.model) {
+    S.dirty3d = true;
+    setView('3d');
+    return;
+  }
   render3dIfVisible();
-});
-el.step.addEventListener('input', () => {
-  S.dirty3d = false;
-  render3dIfVisible();
-});
+}
+[el.thick, el.step, el.baseMargin, el.baseH, el.borderW, el.borderH, el.ringOuter, el.ringHole].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
+[el.baseOn, el.baseShape, el.baseColor, el.borderOn, el.ringOn, el.ringPos].forEach((e) => e.addEventListener('change', () => on3dChange(true)));
 
 // 폰트 파일 / 설치 폰트
 el.fontFileBtn.onclick = () => el.fontFile.click();
@@ -743,11 +761,17 @@ el.btnDxf.onclick = () =>
   S.model && download(new Blob([toDxf(S.model, { single: el.laserSingle.checked })], { type: 'application/dxf' }), `${safeBase()}.dxf`);
 el.btnStl.onclick = () => {
   if (!S.model) return;
-  const blob = buildStlBlob(S.model, {
-    thickness: Math.max(0.2, parseFloat(el.thick.value) || 3),
-    step: Math.max(0, parseFloat(el.step.value) || 0),
-  });
+  const blob = buildStlBlob(S.model, solidOpts());
   if (blob) download(blob, `${safeBase()}.stl`);
+};
+el.btn3mf.onclick = async () => {
+  if (!S.model) return;
+  const blob = await build3mfBlob(S.model, solidOpts(), safeBase());
+  if (!blob) return;
+  download(blob, `${safeBase()}.3mf`);
+  const f = blob.filaments || [];
+  if (f.length > 1)
+    setMsg([`3MF 저장: 필라멘트 ${f.length}개 — ` + f.map((x) => `${x.n}번 <i class="sw" style="background:${x.color}"></i>${x.color}`).join(' · ')]);
 };
 
 window.__svgforge = S;
