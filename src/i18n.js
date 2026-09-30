@@ -274,6 +274,8 @@ const EN = {
   '크기 (mm) · 최대 {m}': 'Size (mm) · max {m}',
   '작업 설정을 처음 값으로 되돌렸습니다.': 'Work settings were reset.',
   '텍스트 입력': 'Text',
+  '모두 채움': 'Fill all',
+  '내용물이 없는 받침판 위를 전부 내용물 높이까지 채웁니다. 끄면 폭·높이를 mm로 직접 정합니다.': 'Fills every empty area of the base up to the content height. Turn off to set width/height in mm.',
   '꼭지점 시점': 'Corner view',
   '불러온 이미지 모양 그대로': 'Same shape as the loaded image',
   '편집할 고리·구멍 선택': 'Choose the ring/hole to edit',

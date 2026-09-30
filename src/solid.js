@@ -382,10 +382,20 @@ export function buildParts(model, o) {
     // 테두리 턱이 있으면 받침판 윗면 대신 턱 윗면을 다듬음
     add('받침판', base.color || '#ffffff', baseTop, 0, z0, 'base', hasBorder ? null : bev(edge.onBase));
     if (hasBorder) {
-      const w = Math.max(0.4, border.width || 1.2);
-      let rim = diff(basePaths, offset(basePaths, -w));
-      rim = diff(rim, union(layerPaths.flat()));
-      add('테두리', base.color || '#ffffff', rim, z0, z0 + Math.max(0.2, border.height || 1), 'border', bev(edge.onBase));
+      let rim, rimH = Math.max(0.2, border.height || 1);
+      if (border.full) {
+        // 모두 채움: 내용물이 없는 받침판 위를 전부 내용물 높이까지 채움 (내용물 윗면과 같은 높이)
+        rim = diff(basePaths, allText);
+        if (textMode !== 'engrave' && textMode !== 'through' && model.layers.length) {
+          const tops = model.layers.map((l, i) => Math.max(0.2, thickness + (o.offsets && o.offsets[i] != null ? o.offsets[i] : i * step) + (l.dz || 0)));
+          rimH = Math.max(...tops);
+        }
+      } else {
+        const w = Math.max(0.4, border.width || 1.2);
+        rim = diff(basePaths, offset(basePaths, -w));
+        rim = diff(rim, allText);
+      }
+      add('테두리', base.color || '#ffffff', rim, z0, z0 + rimH, 'border', bev(edge.onBase));
     }
   }
   model.layers.forEach((l, i) => {

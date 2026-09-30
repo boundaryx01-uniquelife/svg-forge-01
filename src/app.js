@@ -18,7 +18,7 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'bgRow', 'removeBg', 'keepRow', 'keepInner', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -1241,7 +1241,7 @@ function buildDims3d(t, geos, bb, maxH, so) {
       on3dChange(false);
     };
     if (p.role === 'base') (text = `${T('받침')} ${th.toFixed(1)}`), (edit = { v: th, set: (v) => setNum(el.baseH, v, 0.2) });
-    else if (p.role === 'border') (text = `${T('턱')} +${th.toFixed(1)}`), (edit = { v: th, set: (v) => setNum(el.borderH, v, 0.2) });
+    else if (p.role === 'border') (text = `${T('턱')} +${th.toFixed(1)}`), (edit = { v: th, set: (v) => (el.borderFull.checked = false, syncBorderUi(), setNum(el.borderH, v, 0.2)) });
     else if (p.role === 'color' && so.textMode === 'engrave' && p.z0 === 0) {
       const dep = baseTop - p.z1;
       text = `${T('깊이')} ${dep.toFixed(1)}`;
@@ -1312,7 +1312,7 @@ function solidOpts() {
       custom: S.baseCustom ? S.baseCustom.polys : null, customKey: S.baseCustom ? S.baseCustom.key : '',
     },
     textMode: el.textMode.value === 'emboss_cut' ? 'emboss' : el.textMode.value,
-    border: { on: el.baseOn.checked && el.borderOn.checked, width: nv(el.borderW, 1.2, 0.4), height: nv(el.borderH, 1, 0.2) },
+    border: { on: el.baseOn.checked && el.borderOn.checked, width: nv(el.borderW, 1.2, 0.4), height: nv(el.borderH, 1, 0.2), full: el.borderFull.checked },
     ring: { on: el.ringOn.checked, list: (ringFromInputs(), S.rings.map((r) => ({ ...r }))) },
     edge: { type: el.edgeType.value, size: nv(el.edgeSize, 0.6, 0.1), onColor: el.edgeColor.checked, onBase: el.edgeBase.checked },
   };
@@ -1471,7 +1471,7 @@ const bindRange = (input, label, fmt = (v) => v) => {
     schedule();
   });
 };
-const syncLabels = () => rangeLabels.forEach((f) => f());
+const syncLabels = () => (rangeLabels.forEach((f) => f()), syncBorderUi());
 bindRange(el.thr, el.thrVal);
 bindRange(el.tres, el.tresVal, (v) => parseFloat(v).toFixed(2));
 bindRange(el.corner, el.cornerVal, (v) => v + '°');
@@ -1496,10 +1496,15 @@ el.text.addEventListener('input', () => schedule(250));
 el.fontSel.addEventListener('change', () => schedule(0));
 el.width.addEventListener('input', () => schedule(200));
 el.tol.addEventListener('change', () => schedule(0));
+/** '모두 채움'이면 폭·높이 칸은 자동이라 잠금 */
+function syncBorderUi() {
+  el.borderW.disabled = el.borderH.disabled = el.borderFull.checked;
+}
 // 3D 설정: 바꾸면 3D 미리보기로 보여줌
 function on3dChange(showView) {
   el.baseOpts.classList.toggle('hide', !el.baseOn.checked);
   el.borderOpts.classList.toggle('hide', !el.borderOn.checked);
+  syncBorderUi();
   const sh = el.baseShape.value;
   const poly = !['outline', 'rect', 'square', 'circle', 'ellipse', 'custom'].includes(sh);
   el.baseFillRow.classList.toggle('hide', !(sh === 'outline' || sh === 'custom' || poly));
@@ -1519,7 +1524,7 @@ function on3dChange(showView) {
   autosave();
 }
 [el.thick, el.baseMargin, el.baseH, el.baseFill, el.edgeSize, el.ringDx, el.ringDy, el.borderW, el.borderH, el.ringOuter, el.ringHole].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
-[el.baseOn, el.baseShape, el.baseColor, el.baseStretch, el.textMode, el.ringType, el.edgeType, el.edgeColor, el.edgeBase, el.borderOn, el.ringOn, el.ringPos].forEach((e) => e.addEventListener('change', () => on3dChange(true)));
+[el.baseOn, el.baseShape, el.baseColor, el.baseStretch, el.textMode, el.ringType, el.edgeType, el.edgeColor, el.edgeBase, el.borderOn, el.borderFull, el.ringOn, el.ringPos].forEach((e) => e.addEventListener('change', () => on3dChange(true)));
 
 el.stepAuto.onclick = () => setAllOffsets((i) => i * 0.4);
 el.stepZero.onclick = () => setAllOffsets(() => 0);
@@ -1892,6 +1897,7 @@ async function applyProject(p) {
     if (pf.id && pf.id !== 'builtin') notes.push(T('프로젝트에 쓰인 폰트({name})가 없어 기본 폰트로 표시합니다.', { name: escapeHtml(pf.name || pf.id) }));
   }
   // 2) 설정값 (이벤트 없이 값만)
+  if (!('borderFull' in p.controls)) el.borderFull.checked = false; // 예전 프로젝트는 mm 값 그대로
   for (const e of controlEls()) {
     if (!(e.id in p.controls)) continue;
     const v = p.controls[e.id];
