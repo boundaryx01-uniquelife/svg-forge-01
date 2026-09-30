@@ -403,6 +403,9 @@ export function buildParts(model, o) {
     const c0 = model.layers[0] ? model.layers[0].color : '#000000';
     add('키링 고리', c0, ringPart, 0, thickness, 'ring', bev(edge.onColor));
   }
+  // 모서리 다듬기가 실제로 먹는 최대치 (입력 칸 제한용)
+  const bevParts = parts.filter((p) => p.bevel);
+  if (bevParts.length) info.bevelMax = Math.max(...bevParts.map((p) => bevelLimit(p.paths, p.z1 - p.z0)));
   const bb = bbox(parts.flatMap((p) => p.shapes.map((s) => s.outer.map(([x, y]) => ({ X: x * SC, Y: y * SC })))));
   info.size = [bb[2] - bb[0], bb[3] - bb[1], Math.max(...parts.map((p) => p.z1))];
   info.bbox = bb;
@@ -448,6 +451,52 @@ function allContours(paths) {
  * 반환: 삼각형 좌표 배열 Float32Array (비색인, 법선은 바깥쪽)
  */
 export function beveledSolid(paths, z0, z1, bevel) {
+  if (!bevel || bevel.size <= 0.01) return beveledOne(paths, z0, z1, bevel || { type: 'chamfer', size: 0.001 });
+  // 조각(글자 획 등)마다 깎을 수 있는 최대치까지만: 넘치면 더 변하지 않고 높이도 그대로
+  const parts = [];
+  let total = 0;
+  for (const comp of components(paths)) {
+    const sz = Math.min(bevel.size, maxInset(comp) * 0.97);
+    const pos = beveledOne(comp, z0, z1, { type: bevel.type, size: Math.max(0.001, sz) });
+    parts.push(pos);
+    total += pos.length;
+  }
+  const out = new Float32Array(total);
+  let o = 0;
+  for (const p of parts) {
+    out.set(p, o);
+    o += p.length;
+  }
+  return out;
+}
+/** 서로 떨어진 조각별 경로 (구멍 포함) */
+function components(paths) {
+  return treeShapes(paths, PF.pftNonZero).map((s) => [s.outer, ...s.holes]);
+}
+const insetCache = new Map();
+/** 안쪽으로 줄여서 사라지기 직전 거리 (mm) = 깎을 수 있는 최대치 */
+function maxInset(comp) {
+  const [x0, y0, x1, y1] = bbox(comp);
+  const key = comp.length + '|' + area(comp).toFixed(4) + '|' + [x0, y0, x1, y1].map((v) => v.toFixed(3)).join(',');
+  if (insetCache.has(key)) return insetCache.get(key);
+  let lo = 0, hi = Math.min(x1 - x0, y1 - y0) / 2 + 0.01;
+  for (let i = 0; i < 13; i++) {
+    const mid = (lo + hi) / 2;
+    if (area(offset(comp, -mid)) > 1e-4) lo = mid;
+    else hi = mid;
+  }
+  if (insetCache.size > 3000) insetCache.clear();
+  insetCache.set(key, lo);
+  return lo;
+}
+/** 파트 모서리 다듬기의 실제 최대치 (이보다 크게 해도 변화 없음) */
+export function bevelLimit(paths, h) {
+  let m = 0;
+  for (const comp of components(paths)) m = Math.max(m, maxInset(comp) * 0.97);
+  return Math.min(m, h * 0.95);
+}
+
+function beveledOne(paths, z0, z1, bevel) {
   const h = z1 - z0;
   const sz = Math.min(bevel.size, h * 0.95);
   const zb = z1 - sz;

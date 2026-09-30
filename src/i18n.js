@@ -251,6 +251,29 @@ const EN = {
   '한글 폰트 (이름으로 추정)': 'Korean fonts (guessed by name)',
   '기타 폰트': 'Other fonts',
   '이 폰트에 없는 글자는 다른 폰트로 채웠습니다: {chars}': 'Characters missing in this font were taken from another font: {chars}',
+  '설정 (치수 색·배경·도움말 등)': 'Settings (dimension color, backgrounds, hints…)',
+  '설정': 'Settings',
+  '치수 색': 'Dim color',
+  '치수 글자 크기': 'Dimension text size',
+  '작은 글씨': 'Small text',
+  '보통 글씨': 'Normal text',
+  '큰 글씨': 'Large text',
+  '2D 배경': '2D background',
+  '3D 배경': '3D background',
+  '체크무늬': 'Checker',
+  '흰색': 'White',
+  '회색': 'Gray',
+  '밝게': 'Light',
+  '어둡게': 'Dark',
+  '마우스를 올리면 영어 용어도 표시': 'Show English terms on hover (Korean UI)',
+  '마지막 작업 자동 저장': 'Autosave last work',
+  '왼쪽·오른쪽 설정을 처음 값으로 (글자·이미지는 그대로)': 'Reset all left/right settings (keeps text and image)',
+  '작업 설정 처음값으로': 'Reset work settings',
+  '이 창 기본값': 'Defaults',
+  '닫기': 'Close',
+  '크기 (mm) · 최대 {m}': 'Size (mm) · max {m}',
+  '작업 설정을 처음 값으로 되돌렸습니다.': 'Work settings were reset.',
+  '글자 입력': 'Text',
 };
 
 const DICTS = { en: EN };
@@ -309,10 +332,36 @@ export function applyLang(root = document.body, skip = []) {
   document.documentElement.lang = lang;
 }
 
+// 한국어 화면에서 마우스를 올리면 영어 용어도 보여 줌 (버튼·항목 이름 → 사전의 영어)
+let hintsOn = true;
+export function setHints(on) {
+  hintsOn = !!on;
+  applyHints();
+}
+export function applyHints(root = document) {
+  const d = DICTS.en;
+  for (const e of root.querySelectorAll('button, label, h2, .hlabel, option')) {
+    if (e.closest('#colorHeights,#cube')) continue;
+    if (e.dataset.hintBase == null) e.dataset.hintBase = e.dataset.koTitle != null ? '' : e.getAttribute('title') || '';
+    const base = e.dataset.koTitle != null ? translateStr(e.dataset.koTitle) : e.dataset.hintBase;
+    const own = (origOwnText(e) || '').trim().replace(/\s+/g, ' ');
+    const en = lang === 'ko' && hintsOn && own && d[own] && d[own] !== own ? d[own] : '';
+    const t = [base, en && 'EN: ' + en].filter(Boolean).join('\n');
+    if (t) e.setAttribute('title', t);
+    else if (e.hasAttribute('title')) e.removeAttribute('title');
+  }
+}
+function origOwnText(e) {
+  let s = '';
+  for (const n of e.childNodes) if (n.nodeType === 3) s += origText.get(n) ?? n.nodeValue;
+  return s;
+}
+
 export function setLang(l) {
   lang = DICTS[l] || l === 'ko' ? l : 'ko';
   lsSet('svgforge.lang', lang);
   applyLang();
+  applyHints();
 }
 
 export function initLang() {

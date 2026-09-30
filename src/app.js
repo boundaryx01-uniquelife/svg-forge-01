@@ -10,7 +10,7 @@ import hanjaFontData from '../assets/NotoSansCJKkr-Bold-hanja.otf';
 import { CSS3DRenderer, CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
 import { kvGet, kvSet, kvDel, lsGet, lsSet } from './store.js';
 import { isCollection, splitCollection, fontDisplayName, fontPostscript } from './fontutil.js';
-import { T, applyLang, setLang, initLang, getLang } from './i18n.js';
+import { T, applyLang, setLang, initLang, getLang, setHints, applyHints } from './i18n.js';
 
 const $ = (s) => document.querySelector(s);
 const el = {};
@@ -18,7 +18,7 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'bgRow', 'removeBg', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'dimsBtn', 'homeBtn', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'dimsBtn', 'homeBtn', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -659,7 +659,7 @@ function applyVb2() {
 /** 2D 치수선 (화면 표시용, 저장 파일에는 없음) */
 function addDims2d(sv, W, H) {
   const NS = 'http://www.w3.org/2000/svg';
-  const M = Math.max(W, H), d = M * 0.06, fs = M * 0.036, col = '#1d5fd6';
+  const M = Math.max(W, H), d = M * 0.06, fs = M * 0.036 * S.prefs.dimSize, col = S.prefs.dimColor;
   const g = document.createElementNS(NS, 'g');
   const line = (x1, y1, x2, y2) => {
     const l = document.createElementNS(NS, 'line');
@@ -916,7 +916,7 @@ function buildDims3d(t, geos, bb, maxH, so) {
   seg([x1 + off - tk, y1, 0], [x1 + off + tk, y1, 0]);
   label([x1 + off * 1.9, y1, maxH / 2], `${maxH.toFixed(1)} mm`);
   const g = new THREE.BufferGeometry().setFromPoints(pts);
-  const ln = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x1d5fd6, depthTest: false, transparent: true }));
+  const ln = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: new THREE.Color(S.prefs.dimColor), depthTest: false, transparent: true }));
   ln.renderOrder = 10;
   t.dims.add(ln);
   // 파트별 두께·높이 (색으로 구분)
@@ -1046,6 +1046,13 @@ function rebuild3d() {
   if (inf.ring && !inf.ring.attached) el.badge3d.textContent += ' · ' + T(inf.ring.type === 'hole' ? '⚠ 구멍이 가장자리에 걸림' : '⚠ 고리가 몸체에서 떨어져 있음');
   else if (inf.ring) el.badge3d.textContent += ' · ' + T('고리는 끌어서 옮길 수 있음');
   if (inf.loose) el.badge3d.textContent += ' · ' + T('⚠ 떨어져 나가는 조각 {n}개 (o·e 안쪽 등)', { n: inf.loose });
+  // 모서리 다듬기: 실제로 깎을 수 있는 최대치에서 입력값도 멈춤
+  if (inf.bevelMax != null && so.edge.type !== 'none') {
+    const lim = Math.max(0.1, Math.floor(inf.bevelMax * 10 + 1e-6) / 10);
+    el.edgeSize.max = lim;
+    el.edgeSize.title = T('크기 (mm) · 최대 {m}', { m: lim.toFixed(1) });
+    if ((parseFloat(el.edgeSize.value) || 0) > lim) el.edgeSize.value = lim.toFixed(1);
+  }
   if (inf.depthClamped) el.badge3d.textContent += ' · ' + T('새김 깊이를 받침 두께에 맞춰 줄임');
   const size = Math.max(bb[2] - bb[0], bb[3] - bb[1], maxH);
   const c = new THREE.Vector3((bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2, maxH / 2);
@@ -1522,7 +1529,7 @@ el.projFile.onchange = () => {
 // 자동 저장: 마지막 작업을 이 브라우저에 (새로 열면 '지난 작업 이어서 하기')
 let saveTimer = 0;
 function autosave() {
-  if (!S.ready || !S.model) return;
+  if (!S.ready || !S.model || !S.prefs.autosave) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     try {
@@ -1541,6 +1548,64 @@ async function resumeLast() {
     setMsg([T('프로젝트 파일을 읽을 수 없습니다.')]);
   }
 }
+
+// ---------- 설정 ----------
+const PREF_DEF = { dimColor: '#1d5fd6', dimSize: 1, bg2d: 'checker', bg3d: 'light', hints: true, autosave: true };
+S.prefs = { ...PREF_DEF };
+try {
+  Object.assign(S.prefs, JSON.parse(lsGet('svgforge.prefs', '{}')));
+} catch (e) {}
+function applyPrefs() {
+  const P = S.prefs;
+  document.documentElement.style.setProperty('--dim', P.dimColor);
+  document.documentElement.style.setProperty('--dim-fs', (11.5 * P.dimSize).toFixed(1) + 'px');
+  el.view2d.dataset.bg = P.bg2d;
+  el.view3d.dataset.bg = P.bg3d;
+  setHints(P.hints);
+  el.pDimColor.value = P.dimColor;
+  el.pDimSize.value = String(P.dimSize);
+  el.pBg2d.value = P.bg2d;
+  el.pBg3d.value = P.bg3d;
+  el.pHints.checked = P.hints;
+  el.pAutosave.checked = P.autosave;
+}
+function prefsChanged() {
+  S.prefs = { dimColor: el.pDimColor.value, dimSize: parseFloat(el.pDimSize.value) || 1, bg2d: el.pBg2d.value, bg3d: el.pBg3d.value, hints: el.pHints.checked, autosave: el.pAutosave.checked };
+  lsSet('svgforge.prefs', JSON.stringify(S.prefs));
+  applyPrefs();
+  render2d();
+  S.dirty3d = false;
+  render3dIfVisible();
+}
+[el.pDimColor, el.pDimSize, el.pBg2d, el.pBg3d, el.pHints, el.pAutosave].forEach((e) => e.addEventListener('input', prefsChanged));
+el.prefsBtn.onclick = () => (el.prefs.showModal ? el.prefs.showModal() : el.prefs.setAttribute('open', ''));
+el.pResetPrefs.onclick = () => {
+  S.prefs = { ...PREF_DEF };
+  applyPrefs();
+  prefsChanged();
+};
+// 작업 설정 처음값: 시작할 때의 화면 값을 기억해 두었다가 되돌림 (글자·이미지는 유지)
+let ctlDefaults = null;
+el.pResetCtl.onclick = () => {
+  if (!ctlDefaults) return;
+  for (const e of controlEls()) {
+    if (e.id === 'text' || !(e.id in ctlDefaults)) continue;
+    if (e.type === 'checkbox') e.checked = ctlDefaults[e.id];
+    else e.value = ctlDefaults[e.id];
+  }
+  syncLabels();
+  S.heightByColor = new Map();
+  S.baseCustom = null;
+  el.colorHeights.dataset.sig = '';
+  el.edgeSize.removeAttribute('max');
+  syncColorUi();
+  on3dChange(false);
+  S.vb2 = null;
+  S.dirty3d = true;
+  S.flash = T('작업 설정을 처음 값으로 되돌렸습니다.');
+  el.prefs.close && el.prefs.close();
+  schedule(0);
+};
 
 // ---------- 치수 표시 · 처음으로 ----------
 S.showDims = lsGet('svgforge.dims', '1') === '1';
@@ -1580,6 +1645,7 @@ el.langSel.onchange = () => {
   renderHeightChips();
   S.dirty3d = false;
   render3dIfVisible();
+  if (el.text.value === '글자 입력' || el.text.value === 'Text') el.text.value = T('글자 입력');
   schedule(0);
 };
 
@@ -1618,6 +1684,10 @@ el.btn3mf.onclick = async () => {
 window.__svgforge = S;
 initLang();
 applyLang();
+ctlDefaults = {};
+for (const e of controlEls()) ctlDefaults[e.id] = e.type === 'checkbox' ? e.checked : e.value;
+if (getLang() !== 'ko' && el.text.value === '글자 입력') el.text.value = T('글자 입력');
+applyPrefs();
 refreshLang();
 syncLabels();
 syncColorUi();
