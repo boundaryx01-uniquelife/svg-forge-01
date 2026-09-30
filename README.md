@@ -12,6 +12,7 @@
 - **출력**
   - SVG (MakerLab·3D용 채움 경로)
   - SVG (레이저 윤곽선, 공유 경계는 한 번만)
+  - 레이저 옵션: 절단 폭(kerf) 보정, 색별 절단/새김/제외 (새김은 면 채움으로 저장, DXF는 ENGRAVE 레이어)
   - DXF R12 (원호는 bulge 호, 단위 mm)
   - STL (두께·색별 높이차)
   - 3MF (색·받침판·고리가 각각 파트, Bambu Studio·OrcaSlicer 필라멘트 번호 지정)

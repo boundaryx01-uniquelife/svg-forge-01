@@ -111,6 +111,9 @@ input.numedit{position:fixed;z-index:50;width:80px;transform:translate(-50%,-50%
 #view3d[data-bg=dark]{background:linear-gradient(#323845,#1c2028)}
 dialog#prefs{border:1px solid var(--line);border-radius:12px;padding:14px 16px;width:330px;box-shadow:0 10px 40px rgba(0,0,0,.2);color:var(--ink);font:inherit}
 dialog#prefs::backdrop{background:rgba(20,25,35,.25)}
+dialog#laserDlg{border:1px solid var(--line);border-radius:12px;padding:14px 18px;width:min(380px,92vw);box-shadow:0 10px 40px rgba(0,0,0,.2);color:var(--ink);font:inherit}
+dialog#laserDlg::backdrop{background:rgba(20,25,35,.25)}
+dialog#laserDlg h3{margin:0 0 6px}
 dialog#help{border:1px solid var(--line);border-radius:12px;padding:14px 18px;width:min(460px,92vw);max-height:86vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.2);color:var(--ink);font:inherit}
 dialog#help::backdrop{background:rgba(20,25,35,.25)}
 dialog#help h3{margin:0 0 6px}
@@ -351,6 +354,10 @@ dialog#prefs .row label{flex-basis:70px}
         <option value="0.1">0.1 mm</option>
         <option value="0.2">0.2 mm</option>
       </select></div>
+    <h2>레이저 (SVG·DXF)</h2>
+    <div class="row"><label for="kerf" title="레이저 빔이 지나간 폭만큼 재료가 없어집니다. 그 폭(mm)을 넣으면 바깥 윤곽을 절반만큼 키워, 잘려 나온 조각이 정확한 크기가 됩니다(구멍은 그만큼 작아짐). 0이면 그대로.">절단 폭 보정</label>
+      <input id="kerf" class="mini" type="number" min="0" max="2" step="0.05" value="0" title="빔 폭 (mm)">
+      <button class="btn small" id="laserOpsBtn" title="색마다 절단·새김·제외를 정합니다">색별 작업…</button></div>
     <h2>3D 출력 (STL·3MF)</h2>
     <div class="row"><label for="thick" title="텍스트·색 기본 두께 (mm)">두께 (mm)</label>
       <input id="thick" class="mini" type="number" min="0.2" max="200" step="0.2" value="3" title="기본 두께 (mm)"></div>
@@ -407,6 +414,14 @@ dialog#prefs .row label{flex-basis:70px}
     </div>
   </aside>
 </main>
+<dialog id="laserDlg">
+  <form method="dialog">
+    <h3>색별 레이저 작업</h3>
+    <p class="hint">절단은 윤곽선(선)으로, 새김은 안을 채운 면으로 저장됩니다. LightBurn·RDWorks에서 색(레이어)마다 출력·속도를 정하세요.</p>
+    <div id="laserRows"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn pri" value="ok">닫기</button></div>
+  </form>
+</dialog>
 <dialog id="help">
   <form method="dialog">
     <h3>사용법 · 단축키</h3>

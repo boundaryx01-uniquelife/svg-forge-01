@@ -1,3 +1,4 @@
+import ClipperLib from 'clipper-lib';
 import { arcSweep, flattenRing } from './geom.js';
 // 내보내기: SVG(채움/레이저), DXF R12
 const f = (v, p = 3) => {
@@ -58,13 +59,51 @@ function segKey(from, c) {
  * 레이저용 경로: 여러 색이 공유하는 경계선은 한 번만 (이중 절단 방지).
  * 반환: [{ name, color, paths: [{ cmds, closed }] }]
  */
+/**
+ * 레이저용 모델: 색별 작업(절단·새김·제외)과 절단 폭 보정.
+ * kerf(mm) > 0 이면 절단 윤곽을 kerf/2 만큼 바깥으로 키움 (구멍은 그만큼 줄어듦) → 잘려 나간 뒤 크기가 정확해짐.
+ * ops: { '#rrggbb': 'cut' | 'engrave' | 'skip' } (없으면 절단)
+ */
+export function laserModel(model, { kerf = 0, ops = {} } = {}) {
+  const SC = 1000;
+  const layers = [];
+  for (const l of model.layers) {
+    const op = ops[l.color] || 'cut';
+    if (op === 'skip') continue;
+    if (op === 'cut' && kerf > 0) {
+      const paths = l.items.map((it) => flattenRing(it.ring, Math.min(model.tol || 0.05, 0.02)).map(([x, y]) => ({ X: Math.round(x * SC), Y: Math.round(y * SC) })));
+      const c = new ClipperLib.Clipper();
+      c.AddPaths(paths, ClipperLib.PolyType.ptSubject, true);
+      const u = new ClipperLib.Paths();
+      c.Execute(ClipperLib.ClipType.ctUnion, u, ClipperLib.PolyFillType.pftEvenOdd, ClipperLib.PolyFillType.pftEvenOdd);
+      const co = new ClipperLib.ClipperOffset(2, 0.005 * SC);
+      co.AddPaths(u, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+      const out = new ClipperLib.Paths();
+      co.Execute(out, (kerf / 2) * SC);
+      const items = out.filter((q) => q.length > 2).map((q) => ({ ring: q.map((pt, i) => [i ? 'L' : 'M', pt.X / SC, pt.Y / SC]) }));
+      layers.push({ ...l, op, items });
+    } else layers.push({ ...l, op });
+  }
+  return { ...model, layers, kerf };
+}
+
 export function laserLayers(model, single) {
   const seen = new Set();
-  const groups = single
-    ? [{ name: 'CUT', color: '#000000', src: model.layers }]
-    : model.layers.map((l, i) => ({ name: `LAYER${i + 1}_${l.color.slice(1).toUpperCase()}`, color: l.color, src: [l] }));
+  const isEng = (l) => l.op === 'engrave';
+  const hex = (l) => l.color.slice(1).toUpperCase();
+  const groups = [];
+  const cuts = model.layers.filter((l) => !isEng(l));
+  if (single) {
+    if (cuts.length) groups.push({ name: 'CUT', color: '#000000', src: cuts });
+  } else cuts.forEach((l) => groups.push({ name: `LAYER${model.layers.indexOf(l) + 1}_${hex(l)}`, color: l.color, src: [l] }));
+  model.layers.forEach((l, i) => isEng(l) && groups.push({ name: `ENGRAVE${i + 1}_${hex(l)}`, color: l.color, src: [l], engrave: true }));
   for (const g of groups) {
     g.paths = [];
+    if (g.engrave || model.kerf > 0) {
+      // 새김은 색마다 닫힌 윤곽이 온전해야 함 · 절단 폭 보정 후에는 경계 공유가 없어 중복 제거 불필요
+      for (const l of g.src) for (const it of l.items) g.paths.push({ cmds: it.ring, closed: true });
+      continue;
+    }
     for (const l of g.src) {
       for (const it of l.items) {
         const ring = it.ring;
@@ -131,7 +170,8 @@ export function toLaserSvg(model, { p = 3, xmlDecl = true, single = false, strok
   let s = head(model, p, xmlDecl);
   laserLayers(model, single).forEach((g, i) => {
     const d = g.paths.map((pt) => ringToPath(pt.cmds, p, pt.closed)).join(' ');
-    s += `  <path id="${single ? 'cut' : 'layer' + (i + 1)}" fill="none" stroke="${g.color}" stroke-width="${strokeWidth}" d="${d}"/>\n`;
+    if (g.engrave) s += `  <path id="engrave${i + 1}" fill="${g.color}" fill-rule="evenodd" stroke="none" d="${d}"/>\n`;
+    else s += `  <path id="${single ? 'cut' : 'layer' + (i + 1)}" fill="none" stroke="${g.color}" stroke-width="${strokeWidth}" d="${d}"/>\n`;
   });
   return s + '</svg>\n';
 }
@@ -205,7 +245,7 @@ export function toDxf(model, { single = false } = {}) {
   const H = model.height;
   const g = [];
   const add = (code, val) => g.push(String(code), String(val));
-  const layerDefs = laserLayers(model, single).map((g) => ({ name: g.name, aci: single ? 7 : nearestAci(g.color), paths: g.paths }));
+  const layerDefs = laserLayers(model, single).map((g) => ({ name: g.name, aci: g.name === 'CUT' ? 7 : nearestAci(g.color), paths: g.paths }));
 
   add(0, 'SECTION'); add(2, 'HEADER');
   add(9, '$ACADVER'); add(1, 'AC1009');

@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { traceImage, otsuThreshold, estimateHardEdges, estimateColorCount, parseFont, missingGlyphs, textToLayers } from './trace.js';
 import { makeModel } from './geom.js';
 import { potracePathsToRings } from './pathparse.js';
-import { toFillSvg, toLaserSvg, toDxf } from './export.js';
+import { toFillSvg, toLaserSvg, toDxf, laserModel } from './export.js';
 import { printabilityReport } from './solid.js';
 import { buildPartGeometries, buildStlBlob, build3mfBlob } from './mesh.js';
 import builtinFontData from '../assets/NotoSansKR-Bold-subset.otf';
@@ -19,7 +19,7 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'preset', 'advImage', 'bgRow', 'removeBg', 'keepRow', 'keepInner', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -1953,6 +1953,7 @@ async function serializeProject(forFile) {
     rings: (ringFromInputs(), S.rings),
     ringSel: S.ringSel,
     charStyles: S.charStyles,
+    laserOps: S.laserOps,
   };
 }
 async function applyProject(p) {
@@ -1989,6 +1990,7 @@ async function applyProject(p) {
   S.ringSel = p.ringSel || 0;
   ringToInputs();
   S.charStyles = p.charStyles || {};
+  S.laserOps = p.laserOps || {};
   S.prevText = el.text.value;
   S.selChar = null;
   el.charChips.dataset.sig = '';
@@ -2272,10 +2274,42 @@ function download(blob, name) {
   }, 1500);
 }
 el.btnFill.onclick = () => S.model && download(new Blob([toFillSvg(S.model)], { type: 'image/svg+xml' }), `${safeBase()}_makerlab.svg`);
-el.btnLaser.onclick = () =>
-  S.model && download(new Blob([toLaserSvg(S.model, { single: el.laserSingle.checked })], { type: 'image/svg+xml' }), `${safeBase()}_laser.svg`);
-el.btnDxf.onclick = () =>
-  S.model && download(new Blob([toDxf(S.model, { single: el.laserSingle.checked })], { type: 'application/dxf' }), `${safeBase()}.dxf`);
+// ---------- 레이저: 색별 작업(절단·새김·제외) · 절단 폭 보정 ----------
+S.laserOps = {};
+const laserOut = () => laserModel(S.model, { kerf: Math.max(0, parseFloat(el.kerf.value) || 0), ops: S.laserOps });
+function renderLaserRows() {
+  const m = S.model;
+  el.laserRows.innerHTML = '';
+  if (!m) return;
+  for (const l of m.layers) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `<i class="sw" style="background:${l.color}"></i><span style="flex:0 0 64px">${l.color}</span>`;
+    const sel = document.createElement('select');
+    sel.className = 'grow';
+    for (const [v, k] of [['cut', '절단 (윤곽선)'], ['engrave', '새김 (면 채움)'], ['skip', '저장 안 함']]) sel.add(new Option(T(k), v));
+    sel.value = S.laserOps[l.color] || 'cut';
+    sel.onchange = () => {
+      S.laserOps[l.color] = sel.value;
+      autosave();
+    };
+    row.append(sel);
+    el.laserRows.append(row);
+  }
+}
+el.laserOpsBtn.onclick = () => {
+  renderLaserRows();
+  el.laserDlg.showModal ? el.laserDlg.showModal() : el.laserDlg.setAttribute('open', '');
+};
+el.btnLaser.onclick = () => {
+  if (!S.model) return;
+  const lm = laserOut();
+  download(new Blob([toLaserSvg(lm, { single: el.laserSingle.checked })], { type: 'image/svg+xml' }), `${safeBase()}_laser.svg`);
+};
+el.btnDxf.onclick = () => {
+  if (!S.model) return;
+  download(new Blob([toDxf(laserOut(), { single: el.laserSingle.checked })], { type: 'application/dxf' }), `${safeBase()}.dxf`);
+};
 el.btnStl.onclick = () => {
   if (!S.model) return;
   const blob = buildStlBlob(S.model, solidOpts());
