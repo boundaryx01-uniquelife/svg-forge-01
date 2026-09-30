@@ -698,9 +698,16 @@ function render2d() {
     addDims2d(sv, W, H);
     box = [-M * 0.02, -M * 0.02, W + M * 0.16, H + M * 0.16];
   }
-  const f = S.mode === 'text' ? 0.58 : 0.92; // 글자는 작게 시작 (화면 가득 차지 않게)
   const bw = box[2] - box[0], bh = box[3] - box[1];
-  S.fit2 = [box[0] - (bw / f - bw) / 2, box[1] - (bh / f - bh) / 2, bw / f, bh / f];
+  if (S.mode === 'text') {
+    // 텍스트: 글자 수와 상관없이 비슷한 크기로 보이게 — 가로는 화면의 92%, 세로는 68%까지만 차지 (한 글자는 커지지 않게, 긴 글은 작아지지 않게)
+    const A = Math.max(0.3, (el.view2d.clientWidth || 800) / (el.view2d.clientHeight || 500));
+    const vw = Math.max(bw / 0.92, (bh / 0.68) * A), vh = vw / A;
+    S.fit2 = [box[0] - (vw - bw) / 2, box[1] - (vh - bh) / 2, vw, vh];
+  } else {
+    const f = 0.92;
+    S.fit2 = [box[0] - (bw / f - bw) / 2, box[1] - (bh / f - bh) / 2, bw / f, bh / f];
+  }
   applyVb2();
 }
 function applyVb2() {
@@ -1362,23 +1369,26 @@ function rebuild3d() {
   }
   if (inf.depthClamped) el.badge3d.textContent += ' · ' + T('새김 깊이를 받침 두께에 맞춰 줄임');
   const size = Math.max(bb[2] - bb[0], bb[3] - bb[1], maxH);
+  // 카메라 거리 기준: 화면이 가로로 넓으므로 가로로 긴 텍스트는 그만큼 가깝게 (한 글자와 긴 글이 비슷한 크기로 보이게)
+  const A3 = Math.max(0.5, (el.view3d.clientWidth || 800) / (el.view3d.clientHeight || 500));
+  const fitSize = S.mode === 'text' ? Math.max(bb[3] - bb[1], (bb[2] - bb[0]) / (A3 * 1.05), maxH) : size;
   const c = new THREE.Vector3((bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2, maxH / 2);
   if (S.dirty3d || !S.frameSize) t.controls.target.copy(c);
-  else if (!S.dragging && (size > S.frameSize * 1.12 || size < S.frameSize / 1.25)) {
+  else if (!S.dragging && !S.keepView && (fitSize > S.frameSize * 1.12 || fitSize < S.frameSize / 1.25)) {
     // 크기가 크게 바뀌면(받침 모양 변경 등) 보던 각도는 그대로 두고 거리만 비례해 맞춤
-    const k = size / S.frameSize;
+    const k = fitSize / S.frameSize;
     const off = t.camera.position.clone().sub(t.controls.target).multiplyScalar(k);
     t.controls.target.copy(c);
     t.camera.position.copy(c).add(off);
-    S.frameSize = size;
+    S.frameSize = fitSize;
     t.camera.near = size / 100;
     t.camera.far = size * 50;
     t.camera.updateProjectionMatrix();
     t.controls.update();
   }
   if (S.dirty3d || !S.frameSize) {
-    S.frameSize = size;
-    t.camera.position.set(c.x, c.y - size * 1.85, c.z + size * 2.2);
+    S.frameSize = fitSize;
+    t.camera.position.set(c.x, c.y - fitSize * 1.85, c.z + fitSize * 2.2);
     t.camera.near = size / 100;
     t.camera.far = size * 50;
     t.camera.updateProjectionMatrix();
