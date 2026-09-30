@@ -26,6 +26,7 @@ with sync_playwright() as p:
     # 1) 이미지 프로젝트: 다색 + 설정 변경 + 높이 + 받침 + 고리 이동
     page.set_input_files('#file', str(ROOT/'test/in/multi.png')); wait(page)
     page.select_option('#colors','3'); wait(page)
+    page.evaluate("()=>{document.getElementById('advImage').open=true}")
     page.fill('#width','72'); page.select_option('#res','1200'); wait(page)
     page.evaluate("()=>{document.querySelectorAll('#colorHeights input').forEach((e,i)=>{e.value=(i*0.6-0.4).toFixed(1); e.dispatchEvent(new Event('input'))})}")
     page.check('#baseOn'); page.check('#ringOn'); page.fill('#ringDx','3.5'); page.dispatch_event('#ringDx','input')

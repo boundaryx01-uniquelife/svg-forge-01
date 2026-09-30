@@ -367,3 +367,27 @@ export function estimateHardEdges(imgd) {
   }
   return edge ? mid / edge : 1;
 }
+
+/** 그림에 쓰인 뚜렷한 색 가짓수(배경 포함) 추정. 2 이하면 흑백으로 충분. 사진처럼 색이 너무 많으면 -1 */
+export function estimateColorCount(imgd) {
+  const w = compositeOnWhite(imgd);
+  const d = w.data, N = w.width * w.height;
+  const hist = new Map();
+  const step = Math.max(1, Math.floor(N / 200000));
+  let total = 0;
+  for (let i = 0; i < N; i += step) {
+    const k = ((d[i * 4] >> 4) << 8) | ((d[i * 4 + 1] >> 4) << 4) | (d[i * 4 + 2] >> 4);
+    hist.set(k, (hist.get(k) || 0) + 1);
+    total++;
+  }
+  const bins = [...hist.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ r: ((k >> 8) & 15) * 16 + 8, g: ((k >> 4) & 15) * 16 + 8, b: (k & 15) * 16 + 8, n }));
+  const cl = [];
+  for (const b of bins) {
+    const c = cl.find((q) => Math.hypot(q.r - b.r, q.g - b.g, q.b - b.b) < 75);
+    if (c) c.n += b.n;
+    else cl.push({ ...b });
+  }
+  const big = cl.filter((c) => c.n / total >= 0.02);
+  if (big.length > 8) return -1;
+  return big.length;
+}

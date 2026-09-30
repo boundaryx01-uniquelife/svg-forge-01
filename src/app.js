@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { traceImage, otsuThreshold, estimateHardEdges, parseFont, missingGlyphs, textToLayers } from './trace.js';
+import { traceImage, otsuThreshold, estimateHardEdges, estimateColorCount, parseFont, missingGlyphs, textToLayers } from './trace.js';
 import { makeModel } from './geom.js';
 import { potracePathsToRings } from './pathparse.js';
 import { toFillSvg, toLaserSvg, toDxf } from './export.js';
@@ -16,7 +16,7 @@ const $ = (s) => document.querySelector(s);
 const el = {};
 [
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
-  'invert', 'invertRow', 'bgRow', 'removeBg', 'keepRow', 'keepInner', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
+  'invert', 'invertRow', 'preset', 'advImage', 'bgRow', 'removeBg', 'keepRow', 'keepInner', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
   'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
@@ -211,6 +211,7 @@ async function loadFile(file, keep = false) {
   el.fileName.title = name;
   setMode('image', true);
   S.autoNote = '';
+  S.autoNote2 = '';
   if (keep) return schedule(0); // 프로젝트 불러오기: 저장된 설정 유지
   // 새 이미지: 자동 임계값
   try {
@@ -222,7 +223,16 @@ async function loadFile(file, keep = false) {
     const hard = estimateHardEdges(imgd) < 0.1;
     el.tres.value = hard ? 0.8 : 0.4;
     el.tresVal.textContent = parseFloat(el.tres.value).toFixed(2);
-    S.autoNote = hard ? '계단형(각진 픽셀) 가장자리를 감지해 곡선 허용오차를 0.80으로 자동 설정했습니다.' : ''; // 표시할 때 T()
+    S.autoNote = hard ? '그림 가장자리가 각져 보여, 곡선을 더 부드럽게 다듬도록 자동으로 맞췄습니다.' : ''; // 표시할 때 T()
+    // 색이 여러 가지인 그림은 색 수도 자동으로 (흑백이면 1색)
+    const kc = estimateColorCount(imgd);
+    const opts = [...el.colors.options].map((o) => parseInt(o.value, 10));
+    const want = kc < 0 ? 4 : kc <= 2 ? 1 : opts.find((v) => v >= kc) || 8;
+    el.colors.value = String(want);
+    syncColorUi();
+    S.autoColors = want;
+    if (want > 1) S.autoNote2 = kc < 0 ? '' : '색이 {n}가지로 보여 색 수를 {n}색으로 자동 설정했습니다.';
+    S.autoN = kc;
   } catch (e) {}
   schedule(0);
 }
@@ -588,6 +598,7 @@ async function compute() {
     return;
   }
   if (S.mode === 'image' && S.autoNote) warnings.push(T(S.autoNote));
+  if (S.mode === 'image' && S.autoNote2 && parseInt(el.colors.value, 10) > 1) warnings.push(T(S.autoNote2, { n: S.autoN }));
   if (S.mode === 'image' && el.engine.value === 'potrace')
     warnings.push(T(parseInt(el.colors.value, 10) > 1 ? 'Potrace 엔진은 흑백 전용이라 다색에는 기본 엔진을 썼습니다.' : 'Potrace 엔진: 디자인 보정(직선·원호·평행 등)은 적용되지 않습니다. GPL-2.0 라이선스.'));
   if (S.mode === 'image' && S.img && parseInt(el.upscale.value, 10) > 1 && Math.max(S.img.natW, S.img.natH) >= 1200)
@@ -1492,7 +1503,37 @@ const bindRange = (input, label, fmt = (v) => v) => {
     schedule();
   });
 };
-const syncLabels = () => (rangeLabels.forEach((f) => f()), syncBorderUi());
+// ---------- 목적별 시작 프리셋 ----------
+const PRESETS = {
+  keyring: { base: true, border: true, ring: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판·테두리·고리를 켰습니다. 위쪽 저장에서 노란 테두리 버튼(3MF는 색 나눔, STL은 한 덩어리)을 누르세요.' },
+  print3d: { base: false, border: false, ring: false, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판 없이 도형만 만듭니다. 노란 테두리 버튼(3MF 또는 STL)으로 저장하세요.' },
+  laser: { base: false, border: false, ring: false, view3d: false, rec: ['btnLaser', 'btnDxf'], hint: '윤곽선만 저장합니다. 노란 테두리 버튼(SVG·레이저 또는 DXF)을 LightBurn·RDWorks에서 여세요.' },
+  maker: { base: false, border: false, ring: false, view3d: false, rec: ['btnFill'], hint: 'MakerLab용 SVG입니다. 노란 테두리 버튼으로 저장해 MakerLab에 올리세요.' },
+};
+function showPresetRec() {
+  const pr = PRESETS[el.preset.value];
+  for (const id of ['btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf']) el[id].classList.toggle('rec', !!pr && pr.rec.includes(id));
+}
+el.preset.addEventListener('change', () => {
+  const pr = PRESETS[el.preset.value];
+  showPresetRec();
+  if (!pr) return;
+  S.flash = T(pr.hint);
+  el.baseOn.checked = pr.base;
+  if (pr.base) {
+    el.baseShape.value = 'outline';
+    el.borderOn.checked = pr.border;
+    el.borderFull.checked = true;
+  } else el.borderOn.checked = false;
+  el.ringOn.checked = pr.ring;
+  if (pr.ring) {
+    el.ringType.value = 'tab';
+    el.ringPos.value = 'top';
+  }
+  on3dChange(pr.view3d);
+  schedule(0);
+});
+const syncLabels = () => (rangeLabels.forEach((f) => f()), syncBorderUi(), showPresetRec());
 bindRange(el.thr, el.thrVal);
 bindRange(el.tres, el.tresVal, (v) => parseFloat(v).toFixed(2));
 bindRange(el.corner, el.cornerVal, (v) => v + '°');
@@ -2081,6 +2122,8 @@ el.dimsBtn.onclick = () => {
   S.dirty3d = false;
   render3dIfVisible();
 };
+try { el.advImage.open = localStorage.getItem('svgforge.adv') === '1'; } catch (e) {}
+el.advImage.addEventListener('toggle', () => lsSet('svgforge.adv', el.advImage.open ? '1' : '0'));
 el.homeBtn.onclick = () => {
   if (S.view === '3d') {
     S.dirty3d = true;
@@ -2094,6 +2137,7 @@ el.homeBtn.onclick = () => {
 // ---------- 화면 언어 ----------
 function refreshLang() {
   document.title = T('SVG Forge — 이미지·텍스트를 SVG · DXF · STL로');
+  showPresetRec();
   el.view2d.dataset.drop = el.view3d.dataset.drop = T('여기에 놓으면 불러옵니다');
   if (el.langSel.value !== getLang()) el.langSel.value = getLang();
 }

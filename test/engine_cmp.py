@@ -11,8 +11,9 @@ FLAT = """() => { const out=[]; for (const L of window.__svgforge.layers) for (c
   } out.push(pts);} return out; }"""
 def run(img, engine, colors='1'):
     with sync_playwright() as p:
-        b=p.chromium.launch(); page=b.new_page(viewport={'width':1366,'height':657})
+        b=p.chromium.launch(); page=b.new_context(viewport={'width':1366,'height':657},locale='ko-KR').new_page()
         page.goto('file:///home/claude/svg-forge/dist/svg-forge.html'); time.sleep(0.3)
+        page.evaluate("()=>{document.getElementById('advImage').open=true}")
         page.select_option('#engine',engine)
         page.set_input_files('#file',img); time.sleep(0.3)
         page.wait_for_function("()=>document.getElementById('status').innerText.includes('도형')",timeout=60000); time.sleep(0.5)
