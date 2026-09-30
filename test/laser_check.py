@@ -1,4 +1,4 @@
-# 레이저: 절단 폭 보정 크기, 색별 새김/제외, DXF 감사
+# 레이저: 절단 폭 보정 크기, 색상별 새김/제외, DXF 감사
 import time, pathlib, re, ezdxf
 from playwright.sync_api import sync_playwright
 ROOT=pathlib.Path('/home/claude/svg-forge'); OUT=ROOT/'test/out'
@@ -19,7 +19,7 @@ with sync_playwright() as p:
     s0=dl(pg,'#btnLaser','l0.svg'); d0=dl(pg,'#btnDxf','l0.dxf')
     pg.fill('#kerf','0.2'); pg.dispatch_event('#kerf','input')
     s1=dl(pg,'#btnLaser','l1.svg'); d1=dl(pg,'#btnDxf','l1.dxf')
-    # 색별 작업: 첫 색 새김, 마지막 색 제외
+    # 색상별 작업: 첫 색 새김, 마지막 색 제외
     pg.click('#laserOpsBtn'); time.sleep(0.3)
     sels=pg.locator('#laserRows select'); n=sels.count()
     sels.nth(0).select_option('engrave'); sels.nth(n-1).select_option('skip')

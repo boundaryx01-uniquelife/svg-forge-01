@@ -60,7 +60,7 @@ function segKey(from, c) {
  * 반환: [{ name, color, paths: [{ cmds, closed }] }]
  */
 /**
- * 레이저용 모델: 색별 작업(절단·새김·제외)과 절단 폭 보정.
+ * 레이저용 모델: 색상별 작업(절단·새김·제외)과 절단 폭 보정.
  * kerf(mm) > 0 이면 절단 윤곽을 kerf/2 만큼 바깥으로 키움 (구멍은 그만큼 줄어듦) → 잘려 나간 뒤 크기가 정확해짐.
  * ops: { '#rrggbb': 'cut' | 'engrave' | 'skip' } (없으면 절단)
  */

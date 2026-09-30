@@ -5,6 +5,7 @@ import { makeModel } from './geom.js';
 import { potracePathsToRings } from './pathparse.js';
 import { toFillSvg, toLaserSvg, toDxf, laserModel } from './export.js';
 import { printabilityReport } from './solid.js';
+import { attachPalette } from './palette.js';
 import { buildPartGeometries, buildStlBlob, build3mfBlob } from './mesh.js';
 import builtinFontData from '../assets/NotoSansKR-Bold-subset.otf';
 import hanjaFontData from '../assets/NotoSansCJKkr-Bold-hanja.otf';
@@ -1289,7 +1290,7 @@ function render3dIfVisible() {
   if (S.view === '3d') rebuild3d();
 }
 
-// ---------- 색별 높이차 ----------
+// ---------- 색상별 높이차 ----------
 S.heightByColor = new Map(); // 색 → 높이차(mm). 같은 색은 다시 트레이싱해도 값 유지
 function colorOffsets() {
   const m = S.model;
@@ -2225,6 +2226,9 @@ window.addEventListener('keydown', (e) => {
   if (k === 'y' || e.shiftKey) redo();
   else undo();
 });
+// 색 고르기: 16/32/64/128색 색판 (구분이 쉬운 고정 색)
+const modelColors = () => (S.model ? [...new Set(S.model.layers.map((l) => l.color))] : []);
+[el.baseColor, el.chColor, el.pDimColor].forEach((i) => attachPalette(i, modelColors));
 el.helpBtn.onclick = () => (el.help.showModal ? el.help.showModal() : el.help.setAttribute('open', ''));
 
 el.homeBtn.onclick = () => {
@@ -2274,7 +2278,7 @@ function download(blob, name) {
   }, 1500);
 }
 el.btnFill.onclick = () => S.model && download(new Blob([toFillSvg(S.model)], { type: 'image/svg+xml' }), `${safeBase()}_makerlab.svg`);
-// ---------- 레이저: 색별 작업(절단·새김·제외) · 절단 폭 보정 ----------
+// ---------- 레이저: 색상별 작업(절단·새김·제외) · 절단 폭 보정 ----------
 S.laserOps = {};
 const laserOut = () => laserModel(S.model, { kerf: Math.max(0, parseFloat(el.kerf.value) || 0), ops: S.laserOps });
 function renderLaserRows() {

@@ -111,6 +111,14 @@ input.numedit{position:fixed;z-index:50;width:80px;transform:translate(-50%,-50%
 #view3d[data-bg=dark]{background:linear-gradient(#323845,#1c2028)}
 dialog#prefs{border:1px solid var(--line);border-radius:12px;padding:14px 16px;width:330px;box-shadow:0 10px 40px rgba(0,0,0,.2);color:var(--ink);font:inherit}
 dialog#prefs::backdrop{background:rgba(20,25,35,.25)}
+.palpop{position:fixed;z-index:200;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px;box-shadow:0 8px 28px rgba(0,0,0,.22);max-width:calc(100vw - 16px)}
+.palhead{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.palhead select{width:auto}
+.palgrid{display:grid;gap:3px}
+.palsw{width:22px;height:22px;border:1px solid rgba(0,0,0,.28);border-radius:5px;padding:0;cursor:pointer}
+.palsw:hover{transform:scale(1.15)}
+.palsw.sel{outline:2px solid var(--pri);outline-offset:1px}
+.pallab{font-size:11px;color:var(--sub);margin:4px 0 2px}
 dialog#laserDlg{border:1px solid var(--line);border-radius:12px;padding:14px 18px;width:min(380px,92vw);box-shadow:0 10px 40px rgba(0,0,0,.2);color:var(--ink);font:inherit}
 dialog#laserDlg::backdrop{background:rgba(20,25,35,.25)}
 dialog#laserDlg h3{margin:0 0 6px}
@@ -357,13 +365,13 @@ dialog#prefs .row label{flex-basis:70px}
     <h2>레이저 (SVG·DXF)</h2>
     <div class="row"><label for="kerf" title="레이저 빔이 지나간 폭만큼 재료가 없어집니다. 그 폭(mm)을 넣으면 바깥 윤곽을 절반만큼 키워, 잘려 나온 조각이 정확한 크기가 됩니다(구멍은 그만큼 작아짐). 0이면 그대로.">절단 폭 보정</label>
       <input id="kerf" class="mini" type="number" min="0" max="2" step="0.05" value="0" title="빔 폭 (mm)">
-      <button class="btn small" id="laserOpsBtn" title="색마다 절단·새김·제외를 정합니다">색별 작업…</button></div>
+      <button class="btn small" id="laserOpsBtn" title="색마다 절단·새김·제외를 정합니다">색상별 작업…</button></div>
     <h2>3D 출력 (STL·3MF)</h2>
     <div class="row"><label for="thick" title="텍스트·색 기본 두께 (mm)">두께 (mm)</label>
       <input id="thick" class="mini" type="number" min="0.2" max="200" step="0.2" value="3" title="기본 두께 (mm)"></div>
-    <div class="hlabel" title="색마다 기본 두께에 더할 높이 (mm). 음수면 낮아짐 (최소 0.2mm)">색별 높이 ±mm
+    <div class="hlabel" title="색마다 기본 두께에 더할 높이 (mm). 음수면 낮아짐 (최소 0.2mm)">색상별 높이 ±mm
       <button class="btn small" id="stepAuto" style="margin-left:6px;padding:1px 7px" title="밝기 순서대로 계단식 높이차를 채움 (0, +0.4, +0.8 …)">계단</button>
-      <button class="btn small" id="stepZero" style="padding:1px 7px" title="색별 높이차를 모두 0으로">0으로</button></div>
+      <button class="btn small" id="stepZero" style="padding:1px 7px" title="색상별 높이차를 모두 0으로">0으로</button></div>
     <div id="colorHeights" class="hchips" title="색마다 기본 두께에 더할 높이 (mm). 음수면 낮아짐 (최소 0.2mm)"></div>
     <div class="row"><label for="edgeType" title="윗모서리 다듬기" style="flex-basis:auto;margin-right:4px">모서리</label>
       <select id="edgeType" class="grow"><option value="none" selected>그대로</option><option value="chamfer">모따기</option><option value="fillet">모깎기</option></select>
@@ -416,7 +424,7 @@ dialog#prefs .row label{flex-basis:70px}
 </main>
 <dialog id="laserDlg">
   <form method="dialog">
-    <h3>색별 레이저 작업</h3>
+    <h3>색상별 레이저 작업</h3>
     <p class="hint">절단은 윤곽선(선)으로, 새김은 안을 채운 면으로 저장됩니다. LightBurn·RDWorks에서 색(레이어)마다 출력·속도를 정하세요.</p>
     <div id="laserRows"></div>
     <div class="row" style="justify-content:flex-end"><button class="btn pri" value="ok">닫기</button></div>
@@ -441,6 +449,7 @@ dialog#prefs .row label{flex-basis:70px}
       <li>Ctrl+Z 실행 취소 · Ctrl+Y 다시 실행 (설정값 기준, 이미지 교체는 제외)</li>
       <li>텍스트 탭: 글자를 눌러 끌면 옮겨지고 방향키로 미세 이동(Shift는 크게)</li>
       <li>3D: 키링 고리는 끌어서 옮길 수 있음</li>
+      <li>색 칸을 누르면 16 · 32 · 64 · 128색 색판이 열립니다 (맨 위에 지금 그림에 쓰인 색)</li>
     </ul>
     <h4>어떤 저장 버튼?</h4>
     <ul>

@@ -440,12 +440,12 @@ export function buildParts(model, o) {
     }
   }
   model.layers.forEach((l, i) => {
-    // 색별 높이차: offsets[i]가 있으면 그 값(음수 가능), 없으면 계단식 step. 최소 두께 0.2mm
+    // 색상별 높이차: offsets[i]가 있으면 그 값(음수 가능), 없으면 계단식 step. 최소 두께 0.2mm
     const off = (o.offsets && o.offsets[i] != null ? o.offsets[i] : i * step) + (l.dz || 0);
     const h = Math.max(0.2, thickness + off);
     if (textMode === 'through') return;
     if (textMode === 'engrave') {
-      // 새김: 두께(+색별 높이차) = 파는 깊이. 파인 바닥은 글자 색으로 (다색 출력 시 홈 바닥이 그 색)
+      // 새김: 두께(+색상별 높이차) = 파는 깊이. 파인 바닥은 글자 색으로 (다색 출력 시 홈 바닥이 그 색)
       const floor = Math.max(0.2, z0 - h);
       if (z0 - h < 0.2) info.depthClamped = true;
       add(`색 ${i + 1} ${l.color}`, l.color, clip(CT.ctIntersection, layerPaths[i], basePaths), 0, floor, 'color', null, i);
