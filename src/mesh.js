@@ -38,7 +38,7 @@ export function buildPartGeometries(model, opts) {
   const out = [];
   for (const p of parts) {
     const g = partGeometry(p);
-    if (g) out.push({ name: p.name, color: p.color, geometry: g, z0: p.z0, z1: p.z1, role: p.role, shapes: p.shapes });
+    if (g) out.push({ name: p.name, color: p.color, geometry: g, z0: p.z0, z1: p.z1, role: p.role, shapes: p.shapes, layer: p.layer });
   }
   out.info = info;
   return out;

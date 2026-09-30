@@ -208,7 +208,9 @@ export function buildItems(rings, tol) {
 }
 
 /** 소스 좌표의 레이어들을 너비(mm)에 맞춰 스케일하고 모델로 만든다 */
-export function makeModel(layers, widthMm, tol) {
+/** refWidth: 이 폭(원래 단위)을 widthMm로 맞춤 (글자별 크기·이동이 있어도 나머지 글자 크기가 흔들리지 않게). 없으면 실제 폭
+ *  layer.plate: 받침판 모양용 — 범위 계산엔 넣고 model.plate로 따로 둠 */
+export function makeModel(layers, widthMm, tol, refWidth) {
   const bbox = (ftol) => {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const l of layers) {
@@ -230,17 +232,22 @@ export function makeModel(layers, widthMm, tol) {
   if (!isFinite(x0) || x1 - x0 <= 0) {
     return { width: widthMm, height: 0, tol, layers: [], ringCount: 0, nodeCount: 0 };
   }
-  const s = widthMm / (x1 - x0);
+  const s = widthMm / (refWidth || x1 - x0);
   const out = [];
+  let plate = null;
   let ringCount = 0;
   let nodeCount = 0;
   for (const l of layers) {
     const scaled = l.rings.filter((r) => r && r.length >= 2).map((r) => transformRing(closeRing(r.slice()), s, x0, y0));
     const items = buildItems(scaled, tol);
     if (!items.length) continue;
+    if (l.plate) {
+      plate = items;
+      continue;
+    }
     ringCount += items.length;
     for (const it of items) nodeCount += it.ring.length;
-    out.push({ color: l.color, items });
+    out.push(l.dz ? { color: l.color, items, dz: l.dz } : { color: l.color, items });
   }
-  return { width: widthMm, height: (y1 - y0) * s, tol, layers: out, ringCount, nodeCount };
+  return { width: (x1 - x0) * s, height: (y1 - y0) * s, tol, layers: out, ringCount, nodeCount, plate, xf: { s, x0, y0 } };
 }

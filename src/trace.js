@@ -25,43 +25,67 @@ export function pickFont(font, fallbacks, ch) {
   return fallbacks.find((f) => f && f.charToGlyphIndex(ch)) || font;
 }
 
-/** 한 줄을 글리프 단위로 배치 (GSUB 합자 등 고급 기능은 쓰지 않음 → 어떤 폰트도 안전하게 처리) */
-function layoutLine(font, line, size, fallbacks) {
+/** 한 줄을 글리프 단위로 배치 (GSUB 합자 등 고급 기능은 쓰지 않음 → 어떤 폰트도 안전하게 처리)
+ *  st(i): 글자별 모양 {s: 크기 배율, dx, dy: 이동(em), color, dz} — i는 전체 글자 번호 */
+function layoutLine(font, chars, i0, size, fallbacks, st) {
   const glyphs = [];
   let x = 0;
   let prev = null;
   let prevFont = null;
-  for (const ch of line) {
+  chars.forEach((ch, k) => {
     const f = pickFont(font, fallbacks, ch);
-    const scale = size / f.unitsPerEm;
+    const sty = st(i0 + k);
+    const sc = sty.s || 1;
+    const scale = (size * sc) / f.unitsPerEm;
     const g = f.charToGlyph(ch);
-    if (prev && prevFont === f) {
+    if (prev && prevFont === f && sc === 1) {
       try {
         x += (f.getKerningValue(prev, g) || 0) * scale;
       } catch (e) {}
     }
-    glyphs.push({ g, x });
+    glyphs.push({ g, x, i: i0 + k, sty, ch });
     x += (g.advanceWidth || 0) * scale;
     prev = g;
     prevFont = f;
-  }
+  });
   return { glyphs, width: x };
 }
 
-/** 텍스트 → 링 목록 (단일 검정 레이어). 좌표 단위는 em 기준 100 */
-export function textToLayers(font, text, { align = 'center', lineHeight = 1.2 } = {}, fallbacks = null) {
+const NO_STYLE = {};
+/** 텍스트 → 레이어 (글자별 색·높이차가 같으면 같은 레이어). 좌표 단위는 em 기준 100
+ *  반환 배열에 .chars = [{i, ch, box:[x0,y0,x1,y1]}] (글자 선택·끌기용), .plain = 글자별 모양 없는 배치의 범위 */
+export function textToLayers(font, text, { align = 'center', lineHeight = 1.2 } = {}, fallbacks = null, styles = null) {
   const size = 100;
-  const lines = text.replace(/\r/g, '').split('\n').map((l) => layoutLine(font, l, size, fallbacks));
-  const maxW = Math.max(...lines.map((l) => l.width), 1);
-  const rings = [];
-  lines.forEach((ln, li) => {
+  const all = [...text.replace(/\r/g, '')];
+  const st = (i) => (styles && styles[i]) || NO_STYLE;
+  const lines = [];
+  let cur = [], i0 = 0;
+  all.forEach((ch, i) => {
+    if (ch === '\n') {
+      lines.push({ chars: cur, i0 });
+      cur = [];
+      i0 = i + 1;
+    } else cur.push(ch);
+  });
+  lines.push({ chars: cur, i0 });
+  const laid = lines.map((l) => layoutLine(font, l.chars, l.i0, size, fallbacks, st));
+  const plainW = Math.max(...lines.map((l) => layoutLine(font, l.chars, l.i0, size, fallbacks, () => NO_STYLE).width), 1);
+  const maxW = Math.max(...laid.map((l) => l.width), 1);
+  const groups = new Map();
+  const chars = [];
+  laid.forEach((ln, li) => {
     if (!ln.glyphs.length) return;
     let x0 = 0;
     if (align === 'center') x0 = (maxW - ln.width) / 2;
     else if (align === 'right') x0 = maxW - ln.width;
     const y = size + li * size * lineHeight;
-    for (const { g, x } of ln.glyphs) {
-      const path = g.getPath(x0 + x, y, size); // getPath는 글리프가 속한 폰트의 unitsPerEm으로 크기를 맞춤
+    for (const { g, x, i, sty, ch } of ln.glyphs) {
+      const sc = sty.s || 1;
+      const gx = x0 + x + (sty.dx || 0) * size, gy = y - (sty.dy || 0) * size;
+      const path = g.getPath(gx, gy, size * sc); // getPath는 글리프가 속한 폰트의 unitsPerEm으로 크기를 맞춤
+      const key = (sty.color || '#000000') + '|' + (sty.dz || 0);
+      if (!groups.has(key)) groups.set(key, { color: sty.color || '#000000', dz: sty.dz || 0, rings: [] });
+      const rings = groups.get(key).rings;
       let cur = null;
       const flush = () => {
         if (cur && cur.length > 2) rings.push(closeRing(cur));
@@ -79,8 +103,14 @@ export function textToLayers(font, text, { align = 'center', lineHeight = 1.2 } 
         else if (c.type === 'Z') flush();
       }
       flush();
+      if (!/\s/.test(ch)) {
+        const bb = path.getBoundingBox();
+        if (isFinite(bb.x1) && bb.x2 > bb.x1) chars.push({ i, ch, box: [bb.x1, bb.y1, bb.x2, bb.y2] });
+      }
     }
   });
-  return rings.length ? [{ color: '#000000', rings }] : [];
+  const out = [...groups.values()].filter((g) => g.rings.length).sort((a, b) => (a.color === '#000000' && !a.dz ? -1 : 0) - (b.color === '#000000' && !b.dz ? -1 : 0));
+  out.chars = chars;
+  out.plainWidth = plainW;
+  return out;
 }
-

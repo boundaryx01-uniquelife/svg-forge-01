@@ -18,7 +18,7 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'bgRow', 'removeBg', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'dimsBtn', 'homeBtn', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -519,14 +519,18 @@ async function compute() {
       if (my !== seq) return;
       const p = { align: el.align.value, lineHeight: parseFloat(el.lineH.value) };
       const fb = fallbackFonts(font, text);
-      const key = 'txt|' + el.fontSel.value + '|' + text + '|' + JSON.stringify(p) + '|' + (fb ? fb.length : 0);
+      syncCharStyles(text);
+      const styles = Object.keys(S.charStyles).length ? S.charStyles : null;
+      const key = 'txt|' + el.fontSel.value + '|' + text + '|' + JSON.stringify(p) + '|' + (fb ? fb.length : 0) + '|' + JSON.stringify(styles);
       if (key === S.traceKey && S.layers) {
         layers = S.layers;
       } else {
-        layers = textToLayers(font, text, p, fb);
+        layers = textToLayers(font, text, p, fb, styles);
         S.layers = layers;
         S.traceKey = key;
       }
+      renderCharChips(text);
+      S.txtKey = 'k|' + el.fontSel.value + '|' + text + '|' + JSON.stringify(p) + '|' + (fb ? fb.length : 0);
       const miss = missingGlyphs(font, text, fb);
       if (fb && el.fontSel.value !== 'builtin') {
         const sub = [...new Set(text)].filter((c) => !/\s/.test(c) && !font.charToGlyphIndex(c) && !miss.includes(c));
@@ -541,8 +545,36 @@ async function compute() {
   }
   if (my !== seq) return;
 
-  S.model = makeModel(layers, width, tol);
+  let mlayers = layers;
+  let refW;
+  if (S.mode === 'image' && needPlate()) {
+    const key = S.imgId + '|' + el.res.value + '|' + el.upscale.value;
+    if (!S.plate || S.plate.key !== key) S.plate = { key, rings: silhouetteRings(await rasterize(S.img, parseInt(el.res.value, 10))) };
+    if (my !== seq) return;
+    if (S.plate.rings.length) mlayers = layers.concat([{ color: '#ffffff', plate: true, rings: S.plate.rings }]);
+  }
+  const prevXf = S.model && S.model.xf;
+  if (S.mode === 'text') {
+    // 글자 배율(mm/글자 단위)은 글자·폰트·너비 입력이 바뀔 때만 새로 정함 → 한 글자를 키우거나 옮겨도 다른 글자 크기는 그대로, 너비 칸은 실제 폭을 보여 줌
+    if (S.txtScaleKey !== S.txtKey || S.txtWidthIn !== width || !S.txtScale) {
+      S.txtScale = makeModel(mlayers, width, tol).xf.s;
+      S.txtScaleKey = S.txtKey;
+    }
+    S.model = makeModel(mlayers, S.txtScale, tol, 1);
+    const w = Math.round(S.model.width * 100) / 100;
+    if (Math.abs(w - width) > 0.005 && w >= 1) el.width.value = w;
+    S.txtWidthIn = Math.min(1000, Math.max(1, parseFloat(el.width.value) || 50));
+  } else S.model = makeModel(mlayers, width, tol, refW);
   const m = S.model;
+  if (S.mode === 'text') {
+    m.fromText = true;
+    m.chars = layers.chars || [];
+    // 글자를 옮겨 전체 범위가 바뀌어도 화면에서 나머지 글자가 제자리에 있게
+    if (S.vb2 && prevXf && m.xf && Math.abs(prevXf.s - m.xf.s) < 1e-9) {
+      S.vb2[0] += (prevXf.x0 - m.xf.x0) * m.xf.s;
+      S.vb2[1] += (prevXf.y0 - m.xf.y0) * m.xf.s;
+    }
+  }
   if (!m.layers.length) {
     S.dirty3d = true;
     render2d();
@@ -642,6 +674,23 @@ function render2d() {
   sv.style.overflow = 'visible';
   const W = m.width, H = m.height, M = Math.max(W, H);
   let box = [0, 0, W, H];
+  if (m.plate && needPlate()) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const pl = document.createElementNS(NS, 'path');
+    pl.setAttribute('d', m.plate.map((it) => 'M' + it.poly.map(([x, y]) => x.toFixed(3) + ' ' + y.toFixed(3)).join('L') + 'Z').join(''));
+    Object.entries({ fill: '#e9ecf2', stroke: '#9aa3b5', 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke', 'stroke-dasharray': '4 3', 'fill-rule': 'evenodd' }).forEach(([k, v]) => pl.setAttribute(k, v));
+    sv.insertBefore(pl, sv.firstChild);
+  }
+  if (S.mode === 'text' && S.selChar != null) {
+    const cb = charBoxMm(S.selChar);
+    if (cb) {
+      const NS = 'http://www.w3.org/2000/svg';
+      const r = document.createElementNS(NS, 'rect');
+      const pad = Math.max(W, H) * 0.012;
+      Object.entries({ x: cb[0] - pad, y: cb[1] - pad, width: cb[2] - cb[0] + 2 * pad, height: cb[3] - cb[1] + 2 * pad, fill: 'none', stroke: '#1d5fd6', 'stroke-width': 1.5, 'stroke-dasharray': '5 3', 'vector-effect': 'non-scaling-stroke', rx: pad }).forEach(([k, v]) => r.setAttribute(k, v));
+      sv.appendChild(r);
+    }
+  }
   if (S.showDims) {
     addDims2d(sv, W, H);
     box = [-M * 0.02, -M * 0.02, W + M * 0.16, H + M * 0.16];
@@ -666,8 +715,19 @@ function addDims2d(sv, W, H) {
     Object.entries({ x1, y1, x2, y2, stroke: col, 'stroke-width': 1.2, 'vector-effect': 'non-scaling-stroke' }).forEach(([k, v]) => l.setAttribute(k, v));
     g.appendChild(l);
   };
-  const text = (x, y, str, rot) => {
+  const text = (x, y, str, rot, edit) => {
     const t = document.createElementNS(NS, 'text');
+    if (edit) {
+      t.classList.add('edit');
+      t.addEventListener('pointerdown', (e) => e.stopPropagation());
+      t.addEventListener('click', (e) => {
+        const r = t.getBoundingClientRect();
+        openNumEditor(r.left + r.width / 2, r.top + r.height / 2, edit.v, edit.set);
+      });
+      const tt = document.createElementNS(NS, 'title');
+      tt.textContent = T('눌러서 치수 바꾸기');
+      t.appendChild(tt);
+    }
     Object.entries({ x, y, fill: col, 'font-size': fs, 'font-family': 'system-ui,sans-serif', 'font-weight': 600, 'text-anchor': 'middle', 'dominant-baseline': 'middle' }).forEach(([k, v]) => t.setAttribute(k, v));
     if (rot) t.setAttribute('transform', `rotate(90 ${x} ${y})`);
     t.textContent = str;
@@ -677,13 +737,167 @@ function addDims2d(sv, W, H) {
   line(0, H + d, W, H + d);
   line(0, H + d - tk, 0, H + d + tk);
   line(W, H + d - tk, W, H + d + tk);
-  text(W / 2, H + d + fs * 1.1, `${W.toFixed(1)} mm`);
+  text(W / 2, H + d + fs * 1.1, `${W.toFixed(1)} mm`, false, { v: W, set: (v) => setModelSize(v / W) });
   line(W + d, 0, W + d, H);
   line(W + d - tk, 0, W + d + tk, 0);
   line(W + d - tk, H, W + d + tk, H);
-  text(W + d + fs * 1.1, H / 2, `${H.toFixed(1)} mm`, true);
+  text(W + d + fs * 1.1, H / 2, `${H.toFixed(1)} mm`, true, { v: H, set: (v) => setModelSize(v / H) });
   sv.appendChild(g);
 }
+/** 도형 전체 크기를 배율만큼 (너비 입력값을 바꿈) */
+function setModelSize(k) {
+  if (!(k > 0) || !isFinite(k)) return;
+  const w = (parseFloat(el.width.value) || 50) * k;
+  el.width.value = Math.min(1000, Math.max(1, Math.round(w * 100) / 100));
+  schedule(0);
+}
+/** 숫자 바로 고치기: 화면 위치에 작은 입력 칸 */
+function openNumEditor(x, y, value, onSet) {
+  document.querySelectorAll('input.numedit').forEach((e) => e.remove());
+  const inp = document.createElement('input');
+  inp.type = 'number';
+  inp.step = '0.1';
+  inp.className = 'numedit';
+  inp.value = (Math.round(value * 100) / 100).toString();
+  inp.style.left = x + 'px';
+  inp.style.top = y + 'px';
+  document.body.appendChild(inp);
+  inp.focus();
+  inp.select();
+  let done = false;
+  const finish = (ok) => {
+    if (done) return;
+    done = true;
+    const v = parseFloat(inp.value);
+    inp.remove();
+    if (ok && isFinite(v) && Math.abs(v - value) > 1e-6) onSet(v);
+  };
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') finish(true);
+    else if (e.key === 'Escape') finish(false);
+  });
+  inp.addEventListener('blur', () => finish(true));
+}
+
+// ---------- 글자별 조절 ----------
+S.charStyles = {}; // 글자 번호 → {s, dx, dy(em), dz(mm), color}
+S.selChar = null;
+S.prevText = null;
+/** 글자를 고치면 앞·뒤 공통 부분의 글자 모양은 그대로 따라가게 */
+function syncCharStyles(text) {
+  const a = S.prevText == null ? null : [...S.prevText];
+  const b = [...text];
+  S.prevText = text;
+  if (!a || a.join('') === text) return;
+  let p = 0;
+  while (p < a.length && p < b.length && a[p] === b[p]) p++;
+  let q = 0;
+  while (q < a.length - p && q < b.length - p && a[a.length - 1 - q] === b[b.length - 1 - q]) q++;
+  const out = {};
+  for (const [k, v] of Object.entries(S.charStyles)) {
+    const i = +k;
+    if (i < p) out[i] = v;
+    else if (i >= a.length - q) out[i + b.length - a.length] = v;
+  }
+  S.charStyles = out;
+  if (S.selChar != null) {
+    if (S.selChar >= a.length - q) S.selChar += b.length - a.length;
+    else if (S.selChar >= p) S.selChar = null;
+  }
+}
+const isStyled = (st) => st && ((st.s && st.s !== 1) || st.dx || st.dy || st.dz || (st.color && st.color !== '#000000'));
+function renderCharChips(text) {
+  const chars = [...text];
+  const sig = text + '|' + S.selChar + '|' + JSON.stringify(S.charStyles);
+  if (el.charChips.dataset.sig === sig) return;
+  el.charChips.dataset.sig = sig;
+  el.charChips.innerHTML = '';
+  chars.forEach((ch, i) => {
+    if (/\s/.test(ch)) return;
+    const b = document.createElement('button');
+    b.className = 'chchip' + (S.selChar === i ? ' sel' : '') + (isStyled(S.charStyles[i]) ? ' mod' : '');
+    b.textContent = ch;
+    const st = S.charStyles[i];
+    if (st && st.color) b.style.color = st.color;
+    b.onclick = () => selectChar(S.selChar === i ? null : i);
+    el.charChips.appendChild(b);
+  });
+  el.chResetAll.classList.toggle('hide', !Object.keys(S.charStyles).length);
+  const st = S.selChar != null ? S.charStyles[S.selChar] || {} : null;
+  el.charEdit.classList.toggle('hide', !st);
+  el.charHint.classList.toggle('hide', !!st);
+  if (st) {
+    el.chScale.value = Math.round((st.s || 1) * 100);
+    el.chScaleVal.textContent = el.chScale.value + '%';
+    el.chDz.value = st.dz || 0;
+    el.chColor.value = st.color || '#000000';
+    const k = S.model && S.model.xf ? S.model.xf.s * 100 : 1;
+    if (document.activeElement !== el.chDx) el.chDx.value = (Math.round((st.dx || 0) * k * 10) / 10).toString();
+    if (document.activeElement !== el.chDy) el.chDy.value = (Math.round((st.dy || 0) * k * 10) / 10).toString();
+  }
+}
+function selectChar(i) {
+  S.selChar = i;
+  el.charChips.dataset.sig = '';
+  renderCharChips(el.text.value);
+  render2d();
+}
+function setCharStyle(i, patch) {
+  const st = { ...(S.charStyles[i] || {}), ...patch };
+  for (const k of Object.keys(st)) if (!st[k] || (k === 's' && st[k] === 1) || (k === 'color' && st[k] === '#000000')) delete st[k];
+  if (Object.keys(st).length) S.charStyles[i] = st;
+  else delete S.charStyles[i];
+  el.charChips.dataset.sig = '';
+  schedule(0);
+}
+/** 선택 글자의 범위 (mm, 미리보기 좌표) */
+function charBoxMm(i) {
+  const m = S.model;
+  if (!m || !m.chars || !m.xf) return null;
+  const c = m.chars.find((c) => c.i === i);
+  if (!c) return null;
+  const { s, x0, y0 } = m.xf;
+  return [(c.box[0] - x0) * s, (c.box[1] - y0) * s, (c.box[2] - x0) * s, (c.box[3] - y0) * s];
+}
+el.chScale.addEventListener('input', () => {
+  el.chScaleVal.textContent = el.chScale.value + '%';
+  if (S.selChar != null) setCharStyle(S.selChar, { s: parseInt(el.chScale.value, 10) / 100 });
+});
+el.chDz.addEventListener('input', () => S.selChar != null && setCharStyle(S.selChar, { dz: parseFloat(el.chDz.value) || 0 }));
+el.chColor.addEventListener('input', () => S.selChar != null && setCharStyle(S.selChar, { color: el.chColor.value.toLowerCase() }));
+const mmToEm = (v) => (S.model && S.model.xf ? v / (S.model.xf.s * 100) : 0);
+el.chDx.addEventListener('input', () => S.selChar != null && setCharStyle(S.selChar, { dx: mmToEm(parseFloat(el.chDx.value) || 0) }));
+el.chDy.addEventListener('input', () => S.selChar != null && setCharStyle(S.selChar, { dy: mmToEm(parseFloat(el.chDy.value) || 0) }));
+el.chReset.onclick = () => {
+  if (S.selChar == null) return;
+  delete S.charStyles[S.selChar];
+  el.charChips.dataset.sig = '';
+  schedule(0);
+};
+el.chResetAll.onclick = () => {
+  S.charStyles = {};
+  S.selChar = null;
+  el.charChips.dataset.sig = '';
+  schedule(0);
+};
+// 방향키로 선택 글자 미세 이동 (0.2mm, Shift: 1mm)
+window.addEventListener('keydown', (e) => {
+  const tag = (document.activeElement && document.activeElement.tagName) || '';
+  if (/INPUT|TEXTAREA|SELECT/.test(tag)) return;
+  if (e.key === 'd' || e.key === 'D') return el.dimsBtn.click();
+  if (e.key === 'h' || e.key === 'H') return el.homeBtn.click();
+  if (S.mode !== 'text' || S.selChar == null) return;
+  if (e.key === 'Escape') return selectChar(null);
+  const dirs = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
+  const d = dirs[e.key];
+  if (!d) return;
+  e.preventDefault();
+  const step = mmToEm(e.shiftKey ? 1 : 0.2);
+  const st = S.charStyles[S.selChar] || {};
+  if (!S.vb2 && S.fit2) S.vb2 = S.fit2.slice();
+  setCharStyle(S.selChar, { dx: (st.dx || 0) + d[0] * step, dy: (st.dy || 0) + d[1] * step });
+});
+
 // 2D 확대(휠)·이동(끌기)·처음으로(더블클릭)
 el.view2d.addEventListener(
   'wheel',
@@ -705,15 +919,51 @@ el.view2d.addEventListener(
 );
 {
   let pan = null;
+  let drag = null;
+  let raf = 0;
   el.view2d.addEventListener('pointerdown', (e) => {
     const sv = el.view2d.querySelector('svg');
     if (!sv || e.button !== 0 || !S.fit2) return;
     const ctm = sv.getScreenCTM();
+    // 글자 모드: 글자를 누르면 선택 + 끌어 옮기기
+    if (S.mode === 'text' && ctm && S.model && S.model.chars) {
+      const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+      let hit = null, ha = Infinity;
+      for (const c of S.model.chars) {
+        const b = charBoxMm(c.i);
+        const a = (b[2] - b[0]) * (b[3] - b[1]);
+        if (pt.x >= b[0] && pt.x <= b[2] && pt.y >= b[1] && pt.y <= b[3] && a < ha) {
+          hit = c.i;
+          ha = a;
+        }
+      }
+      if (hit != null) {
+        if (S.selChar !== hit) selectChar(hit);
+        if (!S.vb2) S.vb2 = S.fit2.slice();
+        const st = S.charStyles[hit] || {};
+        drag = { x: e.clientX, y: e.clientY, a: ctm.a, dx: st.dx || 0, dy: st.dy || 0, i: hit };
+        el.view2d.setPointerCapture(e.pointerId);
+        return;
+      }
+      if (S.selChar != null) selectChar(null);
+    }
     pan = { x: e.clientX, y: e.clientY, b: (S.vb2 || S.fit2).slice(), a: ctm ? ctm.a : 1, id: e.pointerId };
     el.view2d.setPointerCapture(e.pointerId);
     el.view2d.classList.add('panning');
   });
   el.view2d.addEventListener('pointermove', (e) => {
+    if (drag) {
+      const mx = (e.clientX - drag.x) / drag.a, my = (e.clientY - drag.y) / drag.a;
+      const st = S.charStyles[drag.i] || {};
+      S.charStyles[drag.i] = { ...st, dx: drag.dx + mmToEm(mx), dy: drag.dy - mmToEm(my) };
+      if (!raf)
+        raf = requestAnimationFrame(() => {
+          raf = 0;
+          el.charChips.dataset.sig = '';
+          compute();
+        });
+      return;
+    }
     if (!pan) return;
     const dx = (e.clientX - pan.x) / pan.a, dy = (e.clientY - pan.y) / pan.a;
     if (!S.vb2 && Math.hypot(dx, dy) * pan.a < 3) return;
@@ -722,6 +972,8 @@ el.view2d.addEventListener(
   });
   const end = () => {
     pan = null;
+    if (drag) setCharStyle(drag.i, {}); // 0에 가까운 값 정리 + 저장
+    drag = null;
     el.view2d.classList.remove('panning');
   };
   el.view2d.addEventListener('pointerup', end);
@@ -890,10 +1142,17 @@ function buildDims3d(t, geos, bb, maxH, so) {
   const off = Math.max(x1 - x0, y1 - y0) * 0.07;
   const pts = [];
   const seg = (a, b) => pts.push(new THREE.Vector3(...a), new THREE.Vector3(...b));
-  const label = (p, text, color) => {
+  const label = (p, text, color, edit) => {
     const d = document.createElement('div');
-    d.className = 'dl' + (color ? ' h' : '');
+    d.className = 'dl' + (color ? ' h' : '') + (edit ? ' edit' : '');
     d.textContent = text;
+    if (edit) {
+      d.title = T('눌러서 치수 바꾸기');
+      d.addEventListener('click', () => {
+        const r = d.getBoundingClientRect();
+        openNumEditor(r.left + r.width / 2, r.top + r.height / 2, edit.v, edit.set);
+      });
+    }
     if (color) {
       d.style.background = color;
       d.style.color = inkFor(color);
@@ -906,15 +1165,22 @@ function buildDims3d(t, geos, bb, maxH, so) {
   seg([x0, y0 - off, 0], [x1, y0 - off, 0]);
   seg([x0, y0 - off + tk, 0], [x0, y0 - off - tk, 0]);
   seg([x1, y0 - off + tk, 0], [x1, y0 - off - tk, 0]);
-  label([(x0 + x1) / 2, y0 - off * 1.8, 0], `${(x1 - x0).toFixed(1)} mm`);
+  const mw = S.model.width, mh = S.model.height;
+  label([(x0 + x1) / 2, y0 - off * 1.8, 0], `${(x1 - x0).toFixed(1)} mm`, null, { v: x1 - x0, set: (v) => setModelSize((mw + (v - (x1 - x0))) / mw) });
   seg([x0 - off, y0, 0], [x0 - off, y1, 0]);
   seg([x0 - off + tk, y0, 0], [x0 - off - tk, y0, 0]);
   seg([x0 - off + tk, y1, 0], [x0 - off - tk, y1, 0]);
-  label([x0 - off * 1.8, (y0 + y1) / 2, 0], `${(y1 - y0).toFixed(1)} mm`);
+  label([x0 - off * 1.8, (y0 + y1) / 2, 0], `${(y1 - y0).toFixed(1)} mm`, null, { v: y1 - y0, set: (v) => setModelSize((mh + (v - (y1 - y0))) / mh) });
   seg([x1 + off, y1, 0], [x1 + off, y1, maxH]);
   seg([x1 + off - tk, y1, maxH], [x1 + off + tk, y1, maxH]);
   seg([x1 + off - tk, y1, 0], [x1 + off + tk, y1, 0]);
-  label([x1 + off * 1.9, y1, maxH / 2], `${maxH.toFixed(1)} mm`);
+  label([x1 + off * 1.9, y1, maxH / 2], `${maxH.toFixed(1)} mm`, null, {
+    v: maxH,
+    set: (v) => {
+      el.thick.value = Math.max(0.2, Math.round(((parseFloat(el.thick.value) || 3) + v - maxH) * 100) / 100);
+      on3dChange(false);
+    },
+  });
   const g = new THREE.BufferGeometry().setFromPoints(pts);
   const ln = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: new THREE.Color(S.prefs.dimColor), depthTest: false, transparent: true }));
   ln.renderOrder = 10;
@@ -938,13 +1204,28 @@ function buildDims3d(t, geos, bb, maxH, so) {
     }
     const [px, py] = interiorPoint(big);
     const th = p.z1 - p.z0;
-    let text;
-    if (p.role === 'base') text = `${T('받침')} ${th.toFixed(1)}`;
-    else if (p.role === 'border') text = `${T('턱')} +${th.toFixed(1)}`;
-    else if (p.role === 'color' && so.textMode === 'engrave' && p.z0 === 0) text = `${T('깊이')} ${(baseTop - p.z1).toFixed(1)}`;
-    else if (p.z0 > 0) text = `+${th.toFixed(1)} (${p.z1.toFixed(1)})`;
-    else text = th.toFixed(1);
-    label([px, py, p.z1], text, p.role === 'color' || p.role === 'ring' ? p.color : null);
+    let text, edit;
+    const setNum = (e, v, lo) => {
+      e.value = Math.max(lo, Math.round(v * 100) / 100);
+      on3dChange(false);
+    };
+    // 색 파트 두께 → 그 색의 높이차로 맞춤
+    const setColorH = (v) => {
+      const L = S.model.layers[p.layer] || {};
+      S.heightByColor.set(L.color, Math.round((v - so.thickness - (L.dz || 0)) * 100) / 100);
+      el.colorHeights.dataset.sig = '';
+      renderHeightChips();
+      on3dChange(false);
+    };
+    if (p.role === 'base') (text = `${T('받침')} ${th.toFixed(1)}`), (edit = { v: th, set: (v) => setNum(el.baseH, v, 0.2) });
+    else if (p.role === 'border') (text = `${T('턱')} +${th.toFixed(1)}`), (edit = { v: th, set: (v) => setNum(el.borderH, v, 0.2) });
+    else if (p.role === 'color' && so.textMode === 'engrave' && p.z0 === 0) {
+      const dep = baseTop - p.z1;
+      text = `${T('깊이')} ${dep.toFixed(1)}`;
+      edit = { v: dep, set: setColorH };
+    } else if (p.role === 'color') (text = p.z0 > 0 ? `+${th.toFixed(1)} (${p.z1.toFixed(1)})` : th.toFixed(1)), (edit = { v: th, set: setColorH });
+    else (text = th.toFixed(1)), (edit = { v: th, set: (v) => setNum(el.thick, v, 0.2) });
+    label([px, py, p.z1], text, p.role === 'color' || p.role === 'ring' ? p.color : null, edit);
   }
 }
 
@@ -962,7 +1243,7 @@ function colorOffsets() {
 function renderHeightChips() {
   const m = S.model;
   const box = el.colorHeights;
-  const colors = m ? m.layers.map((l) => l.color) : [];
+  const colors = m ? [...new Set(m.layers.map((l) => l.color))] : [];
   const sig = colors.join(',');
   if (box.dataset.sig === sig) return;
   box.dataset.sig = sig;
@@ -1009,7 +1290,7 @@ function solidOpts() {
     },
     textMode: el.textMode.value === 'emboss_cut' ? 'emboss' : el.textMode.value,
     border: { on: el.baseOn.checked && el.borderOn.checked, width: nv(el.borderW, 1.2, 0.4), height: nv(el.borderH, 1, 0.2) },
-    ring: { on: el.ringOn.checked, pos: el.ringPos.value, outer: nv(el.ringOuter, 8, 3), hole: nv(el.ringHole, 4, 1), dx: parseFloat(el.ringDx.value) || 0, dy: parseFloat(el.ringDy.value) || 0, type: el.ringType.value },
+    ring: { on: el.ringOn.checked, list: (ringFromInputs(), S.rings.map((r) => ({ ...r }))) },
     edge: { type: el.edgeType.value, size: nv(el.edgeSize, 0.6, 0.1), onColor: el.edgeColor.checked, onBase: el.edgeBase.checked },
   };
 }
@@ -1032,7 +1313,8 @@ function rebuild3d() {
   const so = solidOpts();
   if (S.dragging) so.edge = { type: 'none' }; // 끄는 동안은 빠르게
   const geos = buildPartGeometries(m, so);
-  S.ringInfo = geos.info && geos.info.ring ? geos.info.ring : null;
+  S.ringInfos = (geos.info && geos.info.rings) || [];
+  S.ringInfo = S.ringInfos[S.ringSel] || null;
   let maxH = 0;
   for (const g of geos) {
     maxH = Math.max(maxH, g.z1);
@@ -1043,8 +1325,9 @@ function rebuild3d() {
   for (const g of geos) maxH = Math.max(maxH, g.z1);
   buildDims3d(t, geos, bb, maxH, so);
   el.badge3d.textContent = inf.size ? `${inf.size[0].toFixed(1)} × ${inf.size[1].toFixed(1)} × ${inf.size[2].toFixed(1)} mm · ${T('파트 {n}개', { n: geos.length })}` : '';
-  if (inf.ring && !inf.ring.attached) el.badge3d.textContent += ' · ' + T(inf.ring.type === 'hole' ? '⚠ 구멍이 가장자리에 걸림' : '⚠ 고리가 몸체에서 떨어져 있음');
-  else if (inf.ring) el.badge3d.textContent += ' · ' + T('고리는 끌어서 옮길 수 있음');
+  const badRing = (inf.rings || []).find((r) => !r.attached);
+  if (badRing) el.badge3d.textContent += ' · ' + T(badRing.type === 'hole' ? '⚠ 구멍이 가장자리에 걸림' : '⚠ 고리가 몸체에서 떨어져 있음');
+  else if (inf.rings && inf.rings.length) el.badge3d.textContent += ' · ' + T('고리는 끌어서 옮길 수 있음');
   if (inf.loose) el.badge3d.textContent += ' · ' + T('⚠ 떨어져 나가는 조각 {n}개 (o·e 안쪽 등)', { n: inf.loose });
   // 모서리 다듬기: 실제로 깎을 수 있는 최대치에서 입력값도 멈춤
   if (inf.bevelMax != null && so.edge.type !== 'none') {
@@ -1226,7 +1509,57 @@ el.textMode.addEventListener('change', () => {
 // 받침판 모양: 내 이미지(SVG·PNG)의 외곽
 el.baseShape.addEventListener('change', () => {
   if (el.baseShape.value === 'custom' && !S.baseCustom) el.baseImgFile.click();
+  if (needPlate() !== !!(S.model && S.model.plate)) schedule(0);
 });
+el.baseOn.addEventListener('change', () => {
+  if (needPlate() !== !!(S.model && S.model.plate)) schedule(0);
+});
+const needPlate = () => S.mode === 'image' && el.baseOn.checked && el.baseShape.value === 'imgsil';
+/** 불러온 이미지의 실루엣(투명하지 않은 곳, 없으면 가장자리 배경색이 아닌 곳) → 받침판 모양용 링 */
+function silhouetteRings(imgd) {
+  const { width: w, height: h, data: d } = imgd;
+  const N = w * h;
+  let transparent = false;
+  for (let i = 3; i < d.length; i += 16) if (d[i] < 250) {
+    transparent = true;
+    break;
+  }
+  const bg = new Uint8Array(N);
+  if (transparent) for (let i = 0; i < N; i++) bg[i] = d[i * 4 + 3] < 128 ? 1 : 0;
+  else {
+    // 네 모서리 평균색과 비슷하고 가장자리에서 이어진 곳만 배경 (그림 안쪽 흰 부분은 살림)
+    const cs = [0, w - 1, (h - 1) * w, h * w - 1];
+    const ref = [0, 1, 2].map((c) => cs.reduce((a, i) => a + d[i * 4 + c], 0) / 4);
+    const near = (i) => Math.abs(d[i * 4] - ref[0]) + Math.abs(d[i * 4 + 1] - ref[1]) + Math.abs(d[i * 4 + 2] - ref[2]) < 60;
+    const st = [];
+    const push = (i) => {
+      if (!bg[i] && near(i)) {
+        bg[i] = 1;
+        st.push(i);
+      }
+    };
+    for (let x = 0; x < w; x++) push(x), push((h - 1) * w + x);
+    for (let y = 0; y < h; y++) push(y * w), push(y * w + w - 1);
+    while (st.length) {
+      const i = st.pop(), x = i % w;
+      if (x > 0) push(i - 1);
+      if (x < w - 1) push(i + 1);
+      if (i >= w) push(i - w);
+      if (i < N - w) push(i + w);
+    }
+  }
+  const md = new ImageData(w, h);
+  for (let i = 0; i < N; i++) {
+    const v = bg[i] ? 255 : 0;
+    md.data[i * 4] = md.data[i * 4 + 1] = md.data[i * 4 + 2] = v;
+    md.data[i * 4 + 3] = 255;
+  }
+  const L = traceImage(md, {
+    colors: 1, threshold: 128, invert: false, removeBg: false, tol: 0.6, minArea: 60, cornerAngle: 40, blur: 1,
+    lineTol: 1, snapDeg: 3, arcs: true, parallel: false, equalWidth: false, align: false, symmetry: false, denoise: false,
+  });
+  return L.length ? L[0].rings : [];
+}
 el.baseImgBtn.onclick = () => el.baseImgFile.click();
 el.baseImgFile.onchange = () => {
   const f = el.baseImgFile.files[0];
@@ -1258,21 +1591,73 @@ async function loadBaseShape(file) {
   }
 }
 
-// 고리 위치: 자동 위치를 바꾸면 이동값 초기화
+// ---------- 키링 고리·구멍 여러 개 ----------
+const RING_DEF = { type: 'tab', pos: 'top', outer: 8, hole: 4, dx: 0, dy: 0 };
+S.rings = [{ ...RING_DEF }];
+S.ringSel = 0;
+function ringFromInputs() {
+  const r = S.rings[S.ringSel];
+  if (!r) return;
+  const nv = (e, d, lo) => Math.max(lo, parseFloat(e.value) || d);
+  Object.assign(r, { type: el.ringType.value, pos: el.ringPos.value, outer: nv(el.ringOuter, 8, 3), hole: nv(el.ringHole, 4, 1), dx: parseFloat(el.ringDx.value) || 0, dy: parseFloat(el.ringDy.value) || 0 });
+}
+function ringToInputs() {
+  S.ringSel = Math.min(Math.max(0, S.ringSel), S.rings.length - 1);
+  const r = S.rings[S.ringSel];
+  el.ringType.value = r.type;
+  el.ringPos.value = r.pos;
+  el.ringOuter.value = r.outer;
+  el.ringHole.value = r.hole;
+  el.ringDx.value = r.dx;
+  el.ringDy.value = r.dy;
+  renderRingSel();
+}
+function renderRingSel() {
+  el.ringSel.innerHTML = '';
+  S.rings.forEach((r, i) => el.ringSel.add(new Option(`${i + 1}·${T(r.type === "hole" ? "구멍" : "고리")}`, String(i))));
+  el.ringSel.value = String(S.ringSel);
+  el.ringDel.disabled = S.rings.length <= 1;
+}
+el.ringSel.onchange = () => {
+  ringFromInputs();
+  S.ringSel = parseInt(el.ringSel.value, 10) || 0;
+  ringToInputs();
+};
+el.ringAdd.onclick = () => {
+  ringFromInputs();
+  const used = new Set(S.rings.map((r) => r.pos));
+  const pos = ['top', 'bottom', 'left', 'right', 'topleft', 'topright', 'bottomleft', 'bottomright'].find((p) => !used.has(p)) || 'top';
+  S.rings.push({ ...RING_DEF, type: el.ringType.value, pos, outer: parseFloat(el.ringOuter.value) || 8, hole: parseFloat(el.ringHole.value) || 4 });
+  S.ringSel = S.rings.length - 1;
+  el.ringOn.checked = true;
+  ringToInputs();
+  on3dChange(true);
+};
+el.ringDel.onclick = () => {
+  if (S.rings.length <= 1) return;
+  S.rings.splice(S.ringSel, 1);
+  S.ringSel = Math.max(0, S.ringSel - 1);
+  ringToInputs();
+  on3dChange(true);
+};
+// 종류·위치를 바꾸면 이동값 초기화
 el.ringType.addEventListener('change', () => {
   el.ringDx.value = 0;
   el.ringDy.value = 0;
   if (!el.ringOn.checked) el.ringOn.checked = true;
-});
+  ringFromInputs();
+  renderRingSel();
+}, true);
 el.ringPos.addEventListener('change', () => {
   el.ringDx.value = 0;
   el.ringDy.value = 0;
-});
+}, true);
 el.ringReset.onclick = () => {
   el.ringDx.value = 0;
   el.ringDy.value = 0;
   on3dChange(true);
 };
+renderRingSel();
 
 // 3D 화면에서 고리 끌어 옮기기
 function setupRingDrag(t) {
@@ -1288,7 +1673,18 @@ function setupRingDrag(t) {
     const p = new THREE.Vector3();
     return ray.ray.intersectPlane(plane, p) ? p : null;
   };
-  const nearRing = (p) => S.ringInfo && p && Math.hypot(p.x - S.ringInfo.center[0], p.y - S.ringInfo.center[1]) <= (S.ringInfo.outer / 2) * 1.15;
+  const nearRing = (p) => {
+    if (!p) return false;
+    const k = (S.ringInfos || []).findIndex((r) => Math.hypot(p.x - r.center[0], p.y - r.center[1]) <= (r.outer / 2) * 1.15);
+    if (k < 0) return false;
+    if (k !== S.ringSel) {
+      ringFromInputs();
+      S.ringSel = k;
+      ringToInputs();
+    }
+    S.ringInfo = S.ringInfos[k];
+    return true;
+  };
   let grab = null;
   let raf = 0;
   dom.addEventListener('pointerdown', (ev) => {
@@ -1403,7 +1799,7 @@ el.fontRemove.onclick = () => {
 const PROJECT_VERSION = 1;
 function controlEls() {
   const list = [...document.querySelectorAll('#panelIn input, #panelIn select, #panelIn textarea, #panelOut input, #panelOut select'), el.laserSingle];
-  return list.filter((e) => e.id && e.type !== 'file' && e.id !== 'localFontSel' && e.id !== 'fontSel' && !e.closest('#colorHeights'));
+  return list.filter((e) => e.id && e.type !== 'file' && e.id !== 'localFontSel' && e.id !== 'fontSel' && e.id !== 'ringSel' && !e.closest('#colorHeights') && !e.closest('#charEdit'));
 }
 function blobToB64(blob) {
   return new Promise((res, rej) => {
@@ -1447,6 +1843,9 @@ async function serializeProject(forFile) {
     image,
     heightByColor: [...S.heightByColor.entries()],
     baseCustom: S.baseCustom || null,
+    rings: (ringFromInputs(), S.rings),
+    ringSel: S.ringSel,
+    charStyles: S.charStyles,
   };
 }
 async function applyProject(p) {
@@ -1477,6 +1876,13 @@ async function applyProject(p) {
   if (p.controls.baseCut && !('textMode' in p.controls)) el.textMode.value = 'emboss_cut'; // 예전 프로젝트
   syncLabels();
   S.baseCustom = p.baseCustom || null;
+  S.rings = Array.isArray(p.rings) && p.rings.length ? p.rings.map((r) => ({ ...RING_DEF, ...r })) : [{ ...RING_DEF, type: el.ringType.value, pos: el.ringPos.value, outer: parseFloat(el.ringOuter.value) || 8, hole: parseFloat(el.ringHole.value) || 4, dx: parseFloat(el.ringDx.value) || 0, dy: parseFloat(el.ringDy.value) || 0 }];
+  S.ringSel = p.ringSel || 0;
+  ringToInputs();
+  S.charStyles = p.charStyles || {};
+  S.prevText = el.text.value;
+  S.selChar = null;
+  el.charChips.dataset.sig = '';
   if (el.baseShape.value === 'custom' && !S.baseCustom) el.baseShape.value = 'outline';
   S.vb2 = null;
   S.heightByColor = new Map(p.heightByColor || []);
@@ -1596,6 +2002,12 @@ el.pResetCtl.onclick = () => {
   syncLabels();
   S.heightByColor = new Map();
   S.baseCustom = null;
+  S.rings = [{ ...RING_DEF }];
+  S.ringSel = 0;
+  ringToInputs();
+  S.charStyles = {};
+  S.selChar = null;
+  el.charChips.dataset.sig = '';
   el.colorHeights.dataset.sig = '';
   el.edgeSize.removeAttribute('max');
   syncColorUi();
@@ -1641,6 +2053,8 @@ el.langSel.onchange = () => {
   if (S.localList.length) renderLocalFonts();
   renderFontOptions();
   refreshCubeLabels();
+  renderRingSel();
+  el.charChips.dataset.sig = '';
   el.colorHeights.dataset.sig = '';
   renderHeightChips();
   S.dirty3d = false;

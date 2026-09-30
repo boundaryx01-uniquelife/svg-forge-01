@@ -95,7 +95,7 @@ function outersOnly(paths) {
 }
 
 /** 수직선 x에서 도형의 가장 위 y (없으면 null) */
-function topAtX(paths, x) {
+function topAtX(paths, x, sign = 1) {
   let best = null;
   for (const p of paths) for (let i = 0; i < p.length; i++) {
     const a = p[i], b = p[(i + 1) % p.length];
@@ -103,7 +103,7 @@ function topAtX(paths, x) {
     if ((ax - x) * (bx - x) > 0 || ax === bx) continue;
     const t = (x - ax) / (bx - ax);
     const y = (a.Y + (b.Y - a.Y) * t) / SC;
-    if (best === null || y > best) best = y;
+    if (best === null || y * sign > best * sign) best = y;
   }
   return best;
 }
@@ -117,6 +117,24 @@ function extremeAlong(paths, d) {
     }
   }
   return best;
+}
+const DIRS = { top: [0, 1], bottom: [0, -1], left: [-1, 0], right: [1, 0], topleft: [-1, 1], topright: [1, 1], bottomleft: [-1, -1], bottomright: [1, -1] };
+/** 위치 이름 → 몸체 가장자리의 점 p와 바깥 방향 n */
+function edgePoint(paths, pos) {
+  const d = DIRS[pos] || DIRS.top;
+  const [x0, y0, x1, y1] = bbox(paths);
+  if (d[0] && d[1]) {
+    const n = [d[0] * Math.SQRT1_2, d[1] * Math.SQRT1_2];
+    return { p: extremeAlong(paths, n), n };
+  }
+  if (d[1]) {
+    const x = (x0 + x1) / 2;
+    const y = topAtX(paths, x, d[1]);
+    return { p: [x, y === null ? (d[1] > 0 ? y1 : y0) : y], n: d };
+  }
+  const y = (y0 + y1) / 2;
+  const x = sideAtY(paths, y, d[0]);
+  return { p: [x === null ? (d[0] > 0 ? x1 : x0) : x, y], n: d };
 }
 function sideAtY(paths, y, sign) {
   let best = null;
@@ -252,6 +270,10 @@ export function buildParts(model, o) {
   const border = o.border || {};
   const ring = o.ring || {};
   let layerPaths = model.layers.map((l) => heal(union(l.items.map((it) => toPath(it.poly, H)), PF.pftEvenOdd)));
+  // 글자별 색·높이: 글자끼리 겹치면 뒤 글자가 앞 글자를 덮음 (파트끼리 겹치지 않게)
+  if (model.fromText && layerPaths.length > 1) {
+    for (let i = 0; i < layerPaths.length - 1; i++) layerPaths[i] = diff(layerPaths[i], union(layerPaths.slice(i + 1).flat()));
+  }
   const all = union(layerPaths.flat());
   const info = {};
   if (!all.length) return { parts: [], info };
@@ -268,6 +290,11 @@ export function buildParts(model, o) {
       basePaths = offset(rect, r);
     } else if (base.shape === 'square') {
       basePaths = [[[x0 - m, y0 - m], [x1 + m, y0 - m], [x1 + m, y1 + m], [x0 - m, y1 + m]].map(([x, y]) => ({ X: Math.round(x * SC), Y: Math.round(y * SC) }))];
+    } else if (base.shape === 'imgsil' && model.plate && model.plate.length) {
+      // 불러온 이미지의 실루엣 그대로
+      basePaths = union(model.plate.map((it) => toPath(it.poly, H)), PF.pftEvenOdd);
+      basePaths = outersOnly(basePaths);
+      if (m > 0) basePaths = offset(basePaths, m);
     } else if (unitShape(base.shape, base.custom)) {
       const content = m > 0 ? offset(outersOnly(all), m) : outersOnly(all);
       const unit = unitShape(base.shape, base.custom);
@@ -292,80 +319,56 @@ export function buildParts(model, o) {
   }
 
   const textMode = base.on ? o.textMode || 'emboss' : 'emboss';
-  // 키링 고리 (type 'hole': 몸체에 구멍만 뚫기)
-  let holeDisk = null;
+  // 키링 고리 여러 개 (type 'hole': 몸체에 구멍만 뚫기). 위치는 모두 원래 몸체 기준
   let ringPart = null;
-  if (ring.on && ring.type === 'hole') {
-    const R = Math.max(0.5, (ring.hole || 4) / 2);
-    const wall = Math.max(0.8, ((ring.outer || 8) - (ring.hole || 4)) / 2);
-    const target = basePaths || all;
-    const [x0, y0, x1, y1] = bbox(target);
-    const inset = R + wall;
-    let c;
-    if (ring.pos === 'left' || ring.pos === 'right') {
-      const y = (y0 + y1) / 2;
-      const sgn = ring.pos === 'left' ? -1 : 1;
-      const xe = sideAtY(target, y, sgn);
-      c = [(xe === null ? (sgn < 0 ? x0 : x1) : xe) - sgn * inset, y];
-    } else if (ring.pos === 'topleft' || ring.pos === 'topright') {
-      const d = ring.pos === 'topleft' ? [-Math.SQRT1_2, Math.SQRT1_2] : [Math.SQRT1_2, Math.SQRT1_2];
-      const p = extremeAlong(target, d);
-      c = [p[0] - d[0] * inset * 1.25, p[1] - d[1] * inset * 1.25];
+  const ringList = ring.on ? ring.list || [ring] : [];
+  info.rings = [];
+  const holes = [];
+  const disks = [];
+  const target = basePaths || all;
+  for (const rg of ringList) {
+    const { p, n } = edgePoint(target, rg.pos);
+    if (rg.type === 'hole') {
+      const R = Math.max(0.5, (rg.hole || 4) / 2);
+      const wall = Math.max(0.8, ((rg.outer || 8) - (rg.hole || 4)) / 2);
+      const inset = (R + wall) * (n[0] && n[1] ? 1.25 : 1);
+      const auto = [p[0] - n[0] * inset, p[1] - n[1] * inset];
+      const c = [auto[0] + (rg.dx || 0), auto[1] + (rg.dy || 0)];
+      holes.push(...circle(c[0], c[1], R));
+      const out = area(diff(circle(c[0], c[1], R + wall * 0.6), offset(target, 0.01)));
+      info.rings.push({ type: 'hole', center: c, auto, outer: 2 * (R + wall), hole: 2 * R, attached: out < 0.05, touchArea: 0, z: base.on ? z0 : thickness });
     } else {
-      const x = (x0 + x1) / 2;
-      const yt = topAtX(target, x);
-      c = [x, (yt === null ? y1 : yt) - inset];
+      const R = Math.max(1, (rg.outer || 8) / 2);
+      const r = Math.min(R - 0.6, Math.max(0.5, (rg.hole || 4) / 2));
+      const gap = r + (R - r) * 0.5; // 고리 중심 ~ 도형 가장자리 거리 (겹침 = (R-r)/2)
+      const auto = [p[0] + n[0] * gap, p[1] + n[1] * gap];
+      const c = [auto[0] + (rg.dx || 0), auto[1] + (rg.dy || 0)];
+      const disk = circle(c[0], c[1], R);
+      const hd = circle(c[0], c[1], r);
+      // 고리 몸통(구멍 제외)이 도형과 겹치는 면적 → 0이면 떨어져 있음
+      const touchArea = area(clip(CT.ctIntersection, diff(disk, hd), offset(target, 0.05)));
+      disks.push(...disk);
+      holes.push(...hd);
+      info.rings.push({ type: 'tab', center: c, auto, outer: 2 * R, hole: 2 * r, attached: touchArea > 0.3, touchArea, z: base.on ? z0 : thickness });
     }
-    const auto = c.slice();
-    c = [c[0] + (ring.dx || 0), c[1] + (ring.dy || 0)];
-    holeDisk = circle(c[0], c[1], R);
-    const out = area(diff(circle(c[0], c[1], R + wall * 0.6), offset(target, 0.01)));
-    info.ring = { type: 'hole', center: c, auto, outer: 2 * (R + wall), hole: 2 * R, attached: out < 0.05, touchArea: 0, z: base.on ? z0 : thickness };
-    if (basePaths) basePaths = diff(basePaths, holeDisk);
-    layerPaths = layerPaths.map((lp) => diff(lp, holeDisk));
-  } else if (ring.on) {
-    const R = Math.max(1, (ring.outer || 8) / 2);
-    const r = Math.min(R - 0.6, Math.max(0.5, (ring.hole || 4) / 2));
-    const target = basePaths || all;
-    const [x0, y0, x1, y1] = bbox(target);
-    const gap = r + (R - r) * 0.5; // 고리 중심 ~ 도형 가장자리 거리 (겹침 = (R-r)/2)
-    let c;
-    if (ring.pos === 'left' || ring.pos === 'right') {
-      const y = (y0 + y1) / 2;
-      const sgn = ring.pos === 'left' ? -1 : 1;
-      const xe = sideAtY(target, y, sgn);
-      c = [(xe === null ? (sgn < 0 ? x0 : x1) : xe) + sgn * gap, y];
-    } else if (ring.pos === 'topleft' || ring.pos === 'topright') {
-      const d = ring.pos === 'topleft' ? [-Math.SQRT1_2, Math.SQRT1_2] : [Math.SQRT1_2, Math.SQRT1_2];
-      const p = extremeAlong(target, d);
-      c = [p[0] + d[0] * gap, p[1] + d[1] * gap];
-    } else {
-      const x = (x0 + x1) / 2;
-      const yt = topAtX(target, x);
-      c = [x, (yt === null ? y1 : yt) + gap];
-    }
-    const auto = c.slice();
-    c = [c[0] + (ring.dx || 0), c[1] + (ring.dy || 0)];
-    const disk = circle(c[0], c[1], R);
-    holeDisk = circle(c[0], c[1], r);
-    // 고리 몸통(구멍 제외)이 도형과 겹치는 면적 → 0이면 떨어져 있음
-    const touch = clip(CT.ctIntersection, diff(disk, holeDisk), offset(target, 0.05));
-    const touchArea = touch.reduce((a, p) => a + Math.abs(ClipperLib.Clipper.Area(p)), 0) / (SC * SC);
-    info.ring = { center: c, auto, outer: 2 * R, hole: 2 * r, attached: touchArea > 0.3, touchArea, z: base.on ? z0 : thickness };
-    if (basePaths) basePaths = diff(union(basePaths.concat(disk)), holeDisk);
-    else {
-      const rp = diff(diff(disk, holeDisk), all);
+  }
+  if (ringList.length) {
+    const holeU = union(holes);
+    if (basePaths) basePaths = diff(disks.length ? union(basePaths.concat(disks)) : basePaths, holeU);
+    else if (disks.length) {
+      const rp = diff(diff(union(disks), holeU), all);
       if (rp.length) ringPart = rp;
     }
-    layerPaths = layerPaths.map((lp) => diff(lp, holeDisk));
+    layerPaths = layerPaths.map((lp) => diff(lp, holeU));
+    info.ring = info.rings[0];
   }
 
   const edge = o.edge || {};
   const bev = (flag) => (edge.type && edge.type !== 'none' && flag && edge.size > 0 ? { type: edge.type, size: edge.size } : null);
   const parts = [];
-  const add = (name, color, paths, z0_, z1_, role, bevel) => {
+  const add = (name, color, paths, z0_, z1_, role, bevel, layer) => {
     if (!paths.length) return;
-    parts.push({ name, color, paths, shapes: toShapes(paths), z0: z0_, z1: z1_, role, bevel });
+    parts.push({ name, color, paths, shapes: toShapes(paths), z0: z0_, z1: z1_, role, bevel, layer });
   };
   const allText = union(layerPaths.flat());
   if (basePaths && textMode === 'through') {
@@ -387,17 +390,17 @@ export function buildParts(model, o) {
   }
   model.layers.forEach((l, i) => {
     // 색별 높이차: offsets[i]가 있으면 그 값(음수 가능), 없으면 계단식 step. 최소 두께 0.2mm
-    const off = o.offsets && o.offsets[i] != null ? o.offsets[i] : i * step;
+    const off = (o.offsets && o.offsets[i] != null ? o.offsets[i] : i * step) + (l.dz || 0);
     const h = Math.max(0.2, thickness + off);
     if (textMode === 'through') return;
     if (textMode === 'engrave') {
       // 새김: 두께(+색별 높이차) = 파는 깊이. 파인 바닥은 글자 색으로 (다색 출력 시 홈 바닥이 그 색)
       const floor = Math.max(0.2, z0 - h);
       if (z0 - h < 0.2) info.depthClamped = true;
-      add(`색 ${i + 1} ${l.color}`, l.color, clip(CT.ctIntersection, layerPaths[i], basePaths), 0, floor, 'color', null);
+      add(`색 ${i + 1} ${l.color}`, l.color, clip(CT.ctIntersection, layerPaths[i], basePaths), 0, floor, 'color', null, i);
       return;
     }
-    add(`색 ${i + 1} ${l.color}`, l.color, layerPaths[i], z0, z0 + h, 'color', bev(edge.onColor));
+    add(`색 ${i + 1} ${l.color}`, l.color, layerPaths[i], z0, z0 + h, 'color', bev(edge.onColor), i);
   });
   if (ringPart) {
     const c0 = model.layers[0] ? model.layers[0].color : '#000000';
