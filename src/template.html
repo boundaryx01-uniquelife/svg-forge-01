@@ -111,6 +111,11 @@ input.numedit{position:fixed;z-index:50;width:80px;transform:translate(-50%,-50%
 #view3d[data-bg=dark]{background:linear-gradient(#323845,#1c2028)}
 dialog#prefs{border:1px solid var(--line);border-radius:12px;padding:14px 16px;width:330px;box-shadow:0 10px 40px rgba(0,0,0,.2);color:var(--ink);font:inherit}
 dialog#prefs::backdrop{background:rgba(20,25,35,.25)}
+dialog#help{border:1px solid var(--line);border-radius:12px;padding:14px 18px;width:min(460px,92vw);max-height:86vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.2);color:var(--ink);font:inherit}
+dialog#help::backdrop{background:rgba(20,25,35,.25)}
+dialog#help h3{margin:0 0 6px}
+dialog#help h4{margin:10px 0 2px;font-size:13px;color:var(--sub)}
+dialog#help ul{margin:2px 0;padding-left:18px;font-size:12.5px;line-height:1.5}
 dialog#prefs h3{margin:0 0 8px;font-size:15px}
 dialog#prefs .row label{flex-basis:70px}
 #cube{position:absolute;right:8px;top:8px;width:84px;height:84px;z-index:1}
@@ -150,6 +155,12 @@ dialog#prefs .row label{flex-basis:70px}
   .presetsel{max-width:72px}
   header{gap:8px}
   header .btn{padding:6px 8px}
+}
+/* 태블릿 세로: 머리줄이 넘치지 않게 두 줄로 */
+@media (max-width:1000px){
+  header{flex-wrap:wrap;row-gap:4px}
+  .exports{flex-wrap:wrap}
+  header .chk{white-space:nowrap}
 }
 /* 태블릿·휴대폰: 세로로 쌓고 스크롤 허용 */
 @media (max-width:760px){
@@ -319,8 +330,11 @@ dialog#prefs .row label{flex-basis:70px}
       <div class="view hide" id="view3d"><div class="badge3d" id="badge3d"></div><div id="cube" title="면을 누르면 그 방향에서 봅니다"></div><div id="dimLabels"></div></div>
       <div id="msg"></div>
       <div class="viewtools">
+        <button class="btn small" id="undoBtn" disabled title="실행 취소 (Ctrl+Z)" aria-label="실행 취소">↶</button>
+        <button class="btn small" id="redoBtn" disabled title="다시 실행 (Ctrl+Y)" aria-label="다시 실행">↷</button>
         <button class="btn small" id="dimsBtn" title="치수 보이기·숨기기 (단축키 D). 치수 숫자를 누르면 바로 고칠 수 있음">📏 치수</button>
         <button class="btn small" id="homeBtn" title="처음 보기로 (확대·회전 되돌리기, 단축키 H)">⌂ 처음으로</button>
+        <button class="btn small" id="helpBtn" title="사용법 · 단축키" aria-label="도움말">?</button>
       </div>
     </div>
     <div class="statusbar" id="status"></div>
@@ -393,6 +407,34 @@ dialog#prefs .row label{flex-basis:70px}
     </div>
   </aside>
 </main>
+<dialog id="help">
+  <form method="dialog">
+    <h3>사용법 · 단축키</h3>
+    <h4>시작</h4>
+    <ul>
+      <li>이미지를 화면에 끌어놓거나 Ctrl+V로 붙여넣으세요. 텍스트는 위쪽 '텍스트' 탭에서 입력합니다.</li>
+      <li>위쪽 '목적'에서 키링·레이저 등을 고르면 필요한 설정과 저장 버튼(노란 테두리)이 맞춰집니다.</li>
+    </ul>
+    <h4>화면 조작</h4>
+    <ul>
+      <li>2D: 휠 확대 · 끌어서 이동 · 더블클릭 또는 H 처음으로</li>
+      <li>3D: 끌어서 회전 · 오른쪽 끌기 이동 · 휠 확대 · 큐브의 면과 꼭지점 점을 누르면 그 방향에서 봄</li>
+      <li>D 치수 보이기·숨기기 · 치수 숫자를 누르면 바로 고침</li>
+    </ul>
+    <h4>편집</h4>
+    <ul>
+      <li>Ctrl+Z 실행 취소 · Ctrl+Y 다시 실행 (설정값 기준, 이미지 교체는 제외)</li>
+      <li>텍스트 탭: 글자를 눌러 끌면 옮겨지고 방향키로 미세 이동(Shift는 크게)</li>
+      <li>3D: 키링 고리는 끌어서 옮길 수 있음</li>
+    </ul>
+    <h4>어떤 저장 버튼?</h4>
+    <ul>
+      <li>MakerLab 업로드 → SVG · MakerLab / 레이저 가공 → SVG · 레이저 또는 DXF</li>
+      <li>3D 프린트 → 3MF(색·받침판·고리가 각각 파트) 또는 STL(한 덩어리)</li>
+    </ul>
+    <div class="row" style="justify-content:flex-end"><button class="btn pri" value="ok">닫기</button></div>
+  </form>
+</dialog>
 <dialog id="prefs">
   <form method="dialog">
     <h3>설정</h3>

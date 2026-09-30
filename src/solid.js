@@ -30,6 +30,47 @@ function offset(paths, deltaMm) {
   return out;
 }
 
+/**
+ * 3D 프린트로 잘 안 나올 수 있는 부분 찾기 (노즐 0.4mm 기준 기본값)
+ * thin: 폭 minWidth 미만으로 가는 부분 / island: 떨어진 아주 작은 조각 / hole: 아주 작은 구멍
+ */
+export function printabilityReport(model, o = {}) {
+  const minW = o.minWidth ?? 0.8, minIsland = o.minIsland ?? 1.0, minHole = o.minHole ?? 0.8;
+  const H = model.height;
+  const rep = { thin: 0, island: 0, hole: 0, minW, minIsland, minHole };
+  const A = (p) => ClipperLib.Clipper.Area(p) / (SC * SC); // mm²
+  for (const l of model.layers) {
+    const paths = heal(union(l.items.map((it) => toPath(it.poly, H)), PF.pftEvenOdd));
+    if (!paths.length) continue;
+    const keep = [];
+    for (const p of paths) {
+      const outer = ClipperLib.Clipper.Orientation(p);
+      const a = Math.abs(A(p));
+      if (outer && a < minIsland) rep.island++;
+      else {
+        if (!outer && a < minHole) rep.hole++;
+        keep.push(p);
+      }
+    }
+    const opened = offset(offset(keep, -minW / 2), minW / 2 + 0.03); // +0.03: 오프셋 반올림 오차로 남는 실선 조각 제거
+    const thin = diff(keep, opened);
+    // 뾰족한 끝은 원래 좁아지는 모양이라 제외: 한쪽만 몸체에 붙어 있고 끝이 뭉툭하게 남으면 '끝', 아니면 가는 선
+    const openedBig = offset(opened, 0.05);
+    for (const p of thin) {
+      if (!ClipperLib.Clipper.Orientation(p) || Math.abs(A(p)) <= 0.2) continue;
+      const touches = clip(CT.ctIntersection, [p], openedBig).filter((q) => ClipperLib.Clipper.Orientation(q)).length;
+      if (touches === 1) {
+        // 한쪽만 몸체에 붙음: 짧은 뾰족 끝은 정상, 길고 가는 바늘·수염(평균 폭 0.45mm 미만, 길이 3mm 초과)만 경고
+        const bb = bbox([p]);
+        const len = Math.hypot(bb[2] - bb[0], bb[3] - bb[1]);
+        if (!(len > 3 && Math.abs(A(p)) / len < 0.45)) continue;
+      }
+      rep.thin++;
+    }
+  }
+  return rep;
+}
+
 /** 닿아 있는 조각 이음매(폭 0 틈·겹친 모서리)를 없앰: 2µm 키웠다 줄이기 (모서리는 각지게 유지) */
 function heal(paths) {
   if (!paths.length) return paths;

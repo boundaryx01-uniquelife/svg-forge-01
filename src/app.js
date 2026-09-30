@@ -4,6 +4,7 @@ import { traceImage, otsuThreshold, estimateHardEdges, estimateColorCount, parse
 import { makeModel } from './geom.js';
 import { potracePathsToRings } from './pathparse.js';
 import { toFillSvg, toLaserSvg, toDxf } from './export.js';
+import { printabilityReport } from './solid.js';
 import { buildPartGeometries, buildStlBlob, build3mfBlob } from './mesh.js';
 import builtinFontData from '../assets/NotoSansKR-Bold-subset.otf';
 import hanjaFontData from '../assets/NotoSansCJKkr-Bold-hanja.otf';
@@ -18,7 +19,7 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'preset', 'advImage', 'bgRow', 'removeBg', 'keepRow', 'keepInner', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -203,6 +204,7 @@ async function loadFile(file, keep = false) {
     return;
   }
   S.img.file = file; // 프로젝트 저장용 원본
+  if (!keep) resetHist();
   S.imgId++;
   S.vb2 = null;
   S.dirty3d = true;
@@ -603,6 +605,17 @@ async function compute() {
     warnings.push(T(parseInt(el.colors.value, 10) > 1 ? 'Potrace 엔진은 흑백 전용이라 다색에는 기본 엔진을 썼습니다.' : 'Potrace 엔진: 디자인 보정(직선·원호·평행 등)은 적용되지 않습니다. GPL-2.0 라이선스.'));
   if (S.mode === 'image' && S.img && parseInt(el.upscale.value, 10) > 1 && Math.max(S.img.natW, S.img.natH) >= 1200)
     warnings.push(T('이미지가 이미 충분히 커서 AI 업스케일 효과가 작습니다. 작거나 흐린 이미지에 쓰세요.'));
+  if (m.ringCount <= 3000 && el.preset.value !== 'laser' && el.preset.value !== 'maker') {
+    // 3D 프린트로 잘 안 나올 수 있는 부분 (얇은 선·아주 작은 조각·아주 작은 구멍)
+    try {
+      const r = printabilityReport(m);
+      const parts = [];
+      if (r.thin) parts.push(T('가는 선 {n}곳 (폭 {w}mm 미만)', { n: r.thin, w: r.minW }));
+      if (r.island) parts.push(T('아주 작은 조각 {n}개', { n: r.island }));
+      if (r.hole) parts.push(T('아주 작은 구멍 {n}개', { n: r.hole }));
+      if (parts.length) warnings.push(T('⚠ 출력이 잘 안 될 수 있는 부분: {list}. 너비를 키우거나 노이즈 제거를 올려 보세요.', { list: parts.join(', ') }));
+    } catch (e) {}
+  }
   if (m.layers.length > 4) warnings.push(T('색이 {n}개입니다. MakerLab 도구에는 4색 이하를 권장합니다 (색 수를 줄여 보세요).', { n: m.layers.length }));
   if (m.ringCount > 3000) warnings.push(T("도형 조각이 {n}개로 많습니다. '노이즈 제거'나 '곡선 단순화'를 올리면 가벼워집니다.", { n: m.ringCount }));
   if (S.flash) {
@@ -621,6 +634,7 @@ async function compute() {
   );
   setMsg(warnings);
   autosave();
+  pushHist();
 }
 
 function fixSummary(layers, m) {
@@ -1579,10 +1593,12 @@ function on3dChange(showView) {
   el.edgeOpts.classList.toggle('hide', el.edgeType.value === 'none');
   if (showView && S.view !== '3d' && S.model) {
     setView('3d');
+    pushHist();
     return;
   }
   render3dIfVisible();
   autosave();
+  pushHist();
 }
 [el.thick, el.baseMargin, el.baseH, el.baseFill, el.edgeSize, el.ringDx, el.ringDy, el.borderW, el.borderH, el.ringOuter, el.ringHole].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
 [el.baseOn, el.baseShape, el.baseColor, el.baseStretch, el.textMode, el.ringType, el.edgeType, el.edgeColor, el.edgeBase, el.borderOn, el.borderFull, el.ringOn, el.ringPos].forEach((e) => e.addEventListener('change', () => on3dChange(true)));
@@ -1941,6 +1957,7 @@ async function serializeProject(forFile) {
 }
 async function applyProject(p) {
   if (!p || p.app !== 'svg-forge' || !p.controls) throw new Error('bad project');
+  resetHist();
   const notes = [];
   // 1) 폰트
   const pf = p.font || { id: 'builtin' };
@@ -2124,6 +2141,90 @@ el.dimsBtn.onclick = () => {
 };
 try { el.advImage.open = localStorage.getItem('svgforge.adv') === '1'; } catch (e) {}
 el.advImage.addEventListener('toggle', () => lsSet('svgforge.adv', el.advImage.open ? '1' : '0'));
+// ---------- 실행 취소 · 다시 실행 (설정값 기준, 이미지·폰트 파일은 제외) ----------
+S.hist = [];
+S.histI = -1;
+S.baseCache = {};
+let histTimer = 0;
+function histSnap() {
+  ringFromInputs();
+  const controls = {};
+  for (const e of controlEls()) controls[e.id] = e.type === 'checkbox' ? e.checked : e.value;
+  if (S.baseCustom) S.baseCache[S.baseCustom.key] = S.baseCustom;
+  return JSON.stringify({ controls, font: el.fontSel.value, mode: S.mode, hbc: [...S.heightByColor.entries()], baseKey: S.baseCustom ? S.baseCustom.key : null, rings: S.rings, ringSel: S.ringSel, charStyles: S.charStyles, v2mode: S.v2mode });
+}
+function updateUndoBtns() {
+  el.undoBtn.disabled = S.histI <= 0;
+  el.redoBtn.disabled = S.histI >= S.hist.length - 1;
+}
+function pushHist() {
+  if (S.restoreAt && Date.now() - S.restoreAt < 1500) return;
+  clearTimeout(histTimer);
+  histTimer = setTimeout(() => {
+    if (!S.model) return;
+    const s = histSnap();
+    if (S.hist[S.histI] === s) return;
+    S.hist = S.hist.slice(0, S.histI + 1);
+    S.hist.push(s);
+    if (S.hist.length > 60) S.hist.shift();
+    S.histI = S.hist.length - 1;
+    updateUndoBtns();
+  }, 450);
+}
+function resetHist() {
+  S.hist = [];
+  S.histI = -1;
+  updateUndoBtns();
+}
+function restoreHist(i) {
+  if (i < 0 || i >= S.hist.length) return;
+  clearTimeout(histTimer);
+  const p = JSON.parse(S.hist[i]);
+  S.restoreAt = Date.now();
+  for (const e of controlEls()) {
+    if (!(e.id in p.controls)) continue;
+    if (e.type === 'checkbox') e.checked = !!p.controls[e.id];
+    else e.value = p.controls[e.id];
+  }
+  if (fontEntry(p.font)) el.fontSel.value = p.font;
+  S.baseCustom = p.baseKey ? S.baseCache[p.baseKey] || null : null;
+  S.rings = p.rings.map((r) => ({ ...RING_DEF, ...r }));
+  S.ringSel = p.ringSel || 0;
+  ringToInputs();
+  S.charStyles = p.charStyles || {};
+  S.prevText = el.text.value;
+  S.selChar = null;
+  el.charChips.dataset.sig = '';
+  S.heightByColor = new Map(p.hbc || []);
+  el.colorHeights.dataset.sig = '';
+  S.v2mode = p.v2mode === 'line' ? 'line' : 'fill';
+  el.v2Fill.classList.toggle('on', S.v2mode === 'fill');
+  el.v2Line.classList.toggle('on', S.v2mode === 'line');
+  S.histI = i;
+  syncLabels();
+  syncColorUi();
+  setMode(p.mode === 'text' ? 'text' : 'image', true);
+  updateUndoBtns();
+  on3dChange(false);
+  schedule(0);
+}
+const undo = () => restoreHist(S.histI - 1);
+const redo = () => restoreHist(S.histI + 1);
+el.undoBtn.onclick = undo;
+el.redoBtn.onclick = redo;
+window.addEventListener('keydown', (e) => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k !== 'z' && k !== 'y') return;
+  const a = document.activeElement;
+  // 글자 입력칸에서는 그 칸 자체의 되돌리기를 그대로 둠
+  if (a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && /text|number/.test(a.type)))) return;
+  e.preventDefault();
+  if (k === 'y' || e.shiftKey) redo();
+  else undo();
+});
+el.helpBtn.onclick = () => (el.help.showModal ? el.help.showModal() : el.help.setAttribute('open', ''));
+
 el.homeBtn.onclick = () => {
   if (S.view === '3d') {
     S.dirty3d = true;
