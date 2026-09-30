@@ -287,7 +287,30 @@ export function traceImage(imgd, opts) {
     for (const p of corners) votes.set(label[p], (votes.get(label[p]) || 0) + 1);
     let best = -1, bv = 0;
     for (const [k, v] of votes) if (v > bv) { bv = v; best = k; }
-    if (best >= 0 && bv >= 2) drop.add(best);
+    if (best >= 0 && bv >= 2) {
+      drop.add(best);
+      // 가장자리와 이어진 배경만 제거: 내부에 갇힌 같은 색(예: 흰 면)은 새 라벨(같은 색)로 살린다
+      const reach = new Uint8Array(N);
+      const stack = [];
+      const push = (p) => { if (!reach[p] && label[p] === best) { reach[p] = 1; stack.push(p); } };
+      for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+      for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+      while (stack.length) {
+        const p = stack.pop();
+        const x = p % w, y = (p - x) / w;
+        if (x > 0) push(p - 1);
+        if (x < w - 1) push(p + 1);
+        if (y > 0) push(p - w);
+        if (y < h - 1) push(p + w);
+      }
+      let keep = -1;
+      for (let i = 0; i < N; i++) {
+        if (label[i] === best && !reach[i]) {
+          if (keep < 0) { keep = pal.length; pal.push({ ...pal[best] }); }
+          label[i] = keep;
+        }
+      }
+    }
   }
   const present = new Set();
   for (let i = 0; i < N; i++) present.add(label[i]);
