@@ -41,7 +41,16 @@ with sync_playwright() as p:
     pg.click('#homeBtn'); time.sleep(0.8)
     c3=pg.evaluate("()=>__svgforge.cam")
     res['home_resets']=max(abs(a-b) for a,b in zip(c2,c3))>1e-3
+    # 다른 기능(받침판·두께·모양)을 눌러도 보던 각도 유지
+    pg.mouse.click(vis[0][0],vis[0][1]); time.sleep(0.6)
+    DIR="()=>{const c=__svgforge.cam,t=__svgforge.tgt;const d=c.map((v,i)=>v-t[i]);const n=Math.hypot(...d);return d.map(v=>v/n)}"
+    d0=pg.evaluate(DIR)
+    pg.check('#baseOn'); time.sleep(1.2)
+    pg.select_option('#baseShape','hexagon'); time.sleep(1.2)
+    pg.fill('#thick','5'); pg.dispatch_event('#thick','input'); time.sleep(1.2)
+    d1=pg.evaluate(DIR)
+    res['angle_kept_after_options']=(max(abs(a-b) for a,b in zip(d0,d1))<1e-3,d0,d1)
     res['errors']=errs
 print(res)
-ok=any(abs(x)>1 for x in res['vtx_moved'][0]) and res['vb2_same_zoom'][0] and res['vtx_count']==8 and res['vtx_moved'][0]!=res['vtx_moved'][1] and res['cam_kept'][0] and res['home_resets'] and not errs and res['labels'][0]=='텍스트'
+ok=any(abs(x)>1 for x in res['vtx_moved'][0]) and res['vb2_same_zoom'][0] and res['vtx_count']==8 and res['vtx_moved'][0]!=res['vtx_moved'][1] and res['cam_kept'][0] and res['home_resets'] and res['angle_kept_after_options'][0] and not errs and res['labels'][0]=='텍스트'
 print('OK' if ok else 'FAIL')

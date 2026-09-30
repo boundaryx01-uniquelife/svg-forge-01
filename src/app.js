@@ -205,6 +205,7 @@ async function loadFile(file, keep = false) {
   S.img.file = file; // 프로젝트 저장용 원본
   S.imgId++;
   S.vb2 = null;
+  S.dirty3d = true;
   S.raster = null;
   el.fileName.textContent = `${name} (${Math.round(S.img.natW)}×${Math.round(S.img.natH)})`;
   el.fileName.title = name;
@@ -598,7 +599,7 @@ async function compute() {
     S.flash = '';
   }
   el.heightOut.textContent = m.height.toFixed(2);
-  S.dirty3d = !S.keepView || !S.frameSize;
+  S.dirty3d = S.dirty3d || !S.frameSize; // 새 이미지·모드·프로젝트·'처음으로' 때만 화면을 처음 자리로
   render2d();
   render3dIfVisible();
   S.keepView = false;
@@ -1362,10 +1363,20 @@ function rebuild3d() {
   if (inf.depthClamped) el.badge3d.textContent += ' · ' + T('새김 깊이를 받침 두께에 맞춰 줄임');
   const size = Math.max(bb[2] - bb[0], bb[3] - bb[1], maxH);
   const c = new THREE.Vector3((bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2, maxH / 2);
-  if (!S.keepView) t.controls.target.copy(c);
-  // 크기가 크게 바뀌면(받침 모양 변경 등) 다시 맞춤 (글자별 조절 중에는 보던 화면 유지)
-  if (!S.dragging && !S.keepView && S.frameSize && (size > S.frameSize * 1.12 || size < S.frameSize / 1.25)) S.dirty3d = true;
-  if (S.dirty3d) {
+  if (S.dirty3d || !S.frameSize) t.controls.target.copy(c);
+  else if (!S.dragging && (size > S.frameSize * 1.12 || size < S.frameSize / 1.25)) {
+    // 크기가 크게 바뀌면(받침 모양 변경 등) 보던 각도는 그대로 두고 거리만 비례해 맞춤
+    const k = size / S.frameSize;
+    const off = t.camera.position.clone().sub(t.controls.target).multiplyScalar(k);
+    t.controls.target.copy(c);
+    t.camera.position.copy(c).add(off);
+    S.frameSize = size;
+    t.camera.near = size / 100;
+    t.camera.far = size * 50;
+    t.camera.updateProjectionMatrix();
+    t.controls.update();
+  }
+  if (S.dirty3d || !S.frameSize) {
     S.frameSize = size;
     t.camera.position.set(c.x, c.y - size * 1.85, c.z + size * 2.2);
     t.camera.near = size / 100;
@@ -1389,7 +1400,7 @@ function setView(v) {
 
 // ---------- UI 연결 ----------
 function setMode(m, silent) {
-  if (S.mode !== m) S.vb2 = null;
+  if (S.mode !== m) (S.vb2 = null), (S.dirty3d = true);
   S.mode = m;
   el.modeImage.classList.toggle('on', m === 'image');
   el.modeText.classList.toggle('on', m === 'text');
@@ -1516,7 +1527,6 @@ function on3dChange(showView) {
   el.ringOpts.classList.toggle('hide', !el.ringOn.checked);
   el.edgeOpts.classList.toggle('hide', el.edgeType.value === 'none');
   if (showView && S.view !== '3d' && S.model) {
-    S.dirty3d = true;
     setView('3d');
     return;
   }
@@ -2128,6 +2138,7 @@ el.btn3mf.onclick = async () => {
 
 window.__svgforge = S;
 Object.defineProperty(S, 'cam', { get: () => (G3 && !G3.failed ? G3.camera.position.toArray() : null) }); // 테스트용
+Object.defineProperty(S, 'tgt', { get: () => (G3 && !G3.failed ? G3.controls.target.toArray() : null) }); // 테스트용
 initLang();
 applyLang();
 ctlDefaults = {};
