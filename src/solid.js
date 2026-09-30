@@ -30,6 +30,19 @@ function offset(paths, deltaMm) {
   return out;
 }
 
+/** 닿아 있는 조각 이음매(폭 0 틈·겹친 모서리)를 없앰: 2µm 키웠다 줄이기 (모서리는 각지게 유지) */
+function heal(paths) {
+  if (!paths.length) return paths;
+  const run = (ps, d) => {
+    const co = new ClipperLib.ClipperOffset(4, 0.01 * SC);
+    co.AddPaths(ps, ClipperLib.JoinType.jtMiter, ClipperLib.EndType.etClosedPolygon);
+    const out = new ClipperLib.Paths();
+    co.Execute(out, d);
+    return out;
+  };
+  return run(run(paths, 2), -2);
+}
+
 function circle(cx, cy, r, tol = 0.01) {
   const n = Math.max(24, Math.ceil(Math.PI / Math.acos(Math.max(-1, 1 - tol / Math.max(r, 1e-3)))));
   const p = [];
@@ -54,6 +67,7 @@ function bbox(paths) {
 /** 경로들 → [{outer, holes}] (섬은 따로 outer로) — mm 좌표 [[x,y],...] */
 function toShapes(paths) {
   const c = new ClipperLib.Clipper();
+  c.StrictlySimple = true; // 구멍이 외곽에 한 점으로 닿는 경우 등 → 삼각분할이 깨지지 않게 분리
   c.AddPaths(paths, PT.ptSubject, true);
   const tree = new ClipperLib.PolyTree();
   c.Execute(CT.ctUnion, tree, PF.pftNonZero, PF.pftNonZero);
@@ -117,6 +131,111 @@ function sideAtY(paths, y, sign) {
   return best;
 }
 
+// ---------- 받침판 모양 ----------
+const area = (paths) => paths.reduce((a, p) => a + ClipperLib.Clipper.Area(p), 0) / (SC * SC);
+const regular = (n, rot) => Array.from({ length: n }, (_, i) => {
+  const a = rot + (2 * Math.PI * i) / n;
+  return [Math.cos(a), Math.sin(a)];
+});
+const U = 10000; // 단위 도형 정수 배율
+const toU = (poly) => poly.map(([x, y]) => ({ X: Math.round(x * U), Y: Math.round(y * U) }));
+const circU = (cx, cy, r, n = 72) => toU(regular(n, 0).map(([x, y]) => [cx + x * r, cy + y * r]));
+const unitCache = new Map();
+/** 모양 → 단위 도형(정수 U 배율, 중심 0, 반지름 약 1, Y 위) */
+function unitShape(kind, custom) {
+  if (kind === 'custom') {
+    if (!custom || !custom.length) return null;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const p of custom) for (const [x, y] of p) {
+      x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+    }
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, k = 2 / Math.max(x1 - x0, y1 - y0, 1e-9);
+    return outersOnly(union(custom.map((p) => toU(p.map(([x, y]) => [(x - cx) * k, (y - cy) * k]))), PF.pftEvenOdd)); // 실루엣만
+  }
+  if (unitCache.has(kind)) return unitCache.get(kind);
+  let paths;
+  switch (kind) {
+    case 'ellipse': paths = [circU(0, 0, 1, 144)]; break;
+    case 'triangle': paths = [toU(regular(3, Math.PI / 2))]; break;
+    case 'pentagon': paths = [toU(regular(5, Math.PI / 2))]; break;
+    case 'hexagon': paths = [toU(regular(6, 0))]; break;
+    case 'octagon': paths = [toU(regular(8, Math.PI / 8))]; break;
+    case 'star': paths = [toU(regular(10, Math.PI / 2).map(([x, y], i) => (i % 2 ? [x * 0.5, y * 0.5] : [x, y])))]; break;
+    case 'heart': {
+      const pts = [];
+      for (let i = 0; i < 160; i++) {
+        const t = (2 * Math.PI * i) / 160;
+        pts.push([(16 * Math.sin(t) ** 3) / 17, (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t) + 2) / 17]);
+      }
+      paths = [toU(pts)];
+      break;
+    }
+    case 'cloud': {
+      const cs = [circU(0, -0.05, 0.62), circU(-0.55, -0.12, 0.42), circU(0.55, -0.12, 0.42), circU(-0.25, 0.28, 0.45), circU(0.28, 0.3, 0.5), circU(-0.8, -0.3, 0.28), circU(0.82, -0.3, 0.28)];
+      paths = union(cs.concat([toU([[-0.85, -0.58], [0.85, -0.58], [0.85, -0.2], [-0.85, -0.2]])]));
+      break;
+    }
+    case 'flower': {
+      const cs = [circU(0, 0, 0.78)];
+      for (let i = 0; i < 10; i++) {
+        const a = (2 * Math.PI * i) / 10 + Math.PI / 2;
+        cs.push(circU(0.78 * Math.cos(a), 0.78 * Math.sin(a), 0.24));
+      }
+      paths = union(cs);
+      break;
+    }
+    case 'shield': {
+      const side = [];
+      for (let i = 0; i <= 24; i++) {
+        const t = i / 24; // (0.85,0.15) → 제어점 (0.85,-0.55) → (0,-1)
+        side.push([(1 - t) ** 2 * 0.85 + 2 * (1 - t) * t * 0.85, (1 - t) ** 2 * 0.15 + 2 * (1 - t) * t * -0.55 + t * t * -1]);
+      }
+      const pts = [[-0.85, 0.85], [0.85, 0.85]].concat(side, side.slice(0, -1).reverse().map(([x, y]) => [-x, y]));
+      paths = [toU(pts)];
+      break;
+    }
+    default: return null;
+  }
+  unitCache.set(kind, paths);
+  return paths;
+}
+const place = (unit, s, ax, cx, cy) => unit.map((p) => p.map((q) => ({ X: Math.round(((q.X / U) * s * ax + cx) * SC), Y: Math.round(((q.Y / U) * s + cy) * SC) })));
+const fitCache = new Map();
+/** content(여백 포함 도형)를 모두 덮는 가장 작은 모양 (필요하면 세로 위치도 조정) */
+function fitShape(unit, content, stretch, key) {
+  const ck = key + '|' + stretch + '|' + content.length + '|' + area(content).toFixed(3) + '|' + bbox(content).map((v) => v.toFixed(3)).join(',');
+  if (fitCache.has(ck)) return fitCache.get(ck);
+  const [x0, y0, x1, y1] = bbox(content);
+  const bw = x1 - x0, bh = y1 - y0, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const [u0, v0, u1, v1] = bbox(unit).map((v) => (v * SC) / U);
+  const ax = stretch ? bw / Math.max(bh, 1e-6) / ((u1 - u0) / Math.max(v1 - v0, 1e-6)) : 1;
+  const simple = ClipperLib.Clipper.CleanPolygons(content, 0.02 * SC);
+  const covers = (s, dy) => area(diff(simple, place(unit, s, ax, cx, cy + dy * s))) < 0.02;
+  let best = null;
+  const diag = Math.hypot(bw, bh) + 1;
+  for (let f = -0.45; f <= 0.451; f += 0.05) {
+    let hi = diag / Math.min(1, ax);
+    let k = 0;
+    while (!covers(hi, f) && k++ < 8) hi *= 2;
+    if (!covers(hi, f)) continue;
+    let lo = 0;
+    if (best) {
+      if (!covers(best.s * 0.999, f)) continue;
+      hi = best.s;
+    }
+    for (let i = 0; i < 22; i++) {
+      const mid = (lo + hi) / 2;
+      if (covers(mid, f)) hi = mid;
+      else lo = mid;
+    }
+    best = { s: hi, f };
+  }
+  const out = best ? place(unit, best.s, ax, cx, cy + best.f * best.s) : content;
+  if (fitCache.size > 40) fitCache.clear();
+  fitCache.set(ck, out);
+  return out;
+}
+
 /**
  * model: makeModel 결과 (mm, Y 아래 방향)
  * o: { thickness, step,
@@ -132,7 +251,7 @@ export function buildParts(model, o) {
   const base = o.base || {};
   const border = o.border || {};
   const ring = o.ring || {};
-  let layerPaths = model.layers.map((l) => union(l.items.map((it) => toPath(it.poly, H)), PF.pftEvenOdd));
+  let layerPaths = model.layers.map((l) => heal(union(l.items.map((it) => toPath(it.poly, H)), PF.pftEvenOdd)));
   const all = union(layerPaths.flat());
   const info = {};
   if (!all.length) return { parts: [], info };
@@ -147,6 +266,12 @@ export function buildParts(model, o) {
       const rx0 = x0 - m + r, ry0 = y0 - m + r, rx1 = x1 + m - r, ry1 = y1 + m - r;
       const rect = [[{ X: rx0 * SC, Y: ry0 * SC }, { X: rx1 * SC, Y: ry0 * SC }, { X: rx1 * SC, Y: ry1 * SC }, { X: rx0 * SC, Y: ry1 * SC }].map((q) => ({ X: Math.round(q.X), Y: Math.round(q.Y) }))];
       basePaths = offset(rect, r);
+    } else if (base.shape === 'square') {
+      basePaths = [[[x0 - m, y0 - m], [x1 + m, y0 - m], [x1 + m, y1 + m], [x0 - m, y1 + m]].map(([x, y]) => ({ X: Math.round(x * SC), Y: Math.round(y * SC) }))];
+    } else if (unitShape(base.shape, base.custom)) {
+      const content = m > 0 ? offset(outersOnly(all), m) : outersOnly(all);
+      const unit = unitShape(base.shape, base.custom);
+      basePaths = fitShape(unit, content, base.shape === 'ellipse' || !!base.stretch, base.shape + (base.shape === 'custom' ? ':' + (base.customKey || '') : ''));
     } else if (base.shape === 'circle') {
       const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
       let rr = 0;
@@ -166,10 +291,39 @@ export function buildParts(model, o) {
     }
   }
 
-  // 키링 고리
+  const textMode = base.on ? o.textMode || 'emboss' : 'emboss';
+  // 키링 고리 (type 'hole': 몸체에 구멍만 뚫기)
   let holeDisk = null;
   let ringPart = null;
-  if (ring.on) {
+  if (ring.on && ring.type === 'hole') {
+    const R = Math.max(0.5, (ring.hole || 4) / 2);
+    const wall = Math.max(0.8, ((ring.outer || 8) - (ring.hole || 4)) / 2);
+    const target = basePaths || all;
+    const [x0, y0, x1, y1] = bbox(target);
+    const inset = R + wall;
+    let c;
+    if (ring.pos === 'left' || ring.pos === 'right') {
+      const y = (y0 + y1) / 2;
+      const sgn = ring.pos === 'left' ? -1 : 1;
+      const xe = sideAtY(target, y, sgn);
+      c = [(xe === null ? (sgn < 0 ? x0 : x1) : xe) - sgn * inset, y];
+    } else if (ring.pos === 'topleft' || ring.pos === 'topright') {
+      const d = ring.pos === 'topleft' ? [-Math.SQRT1_2, Math.SQRT1_2] : [Math.SQRT1_2, Math.SQRT1_2];
+      const p = extremeAlong(target, d);
+      c = [p[0] - d[0] * inset * 1.25, p[1] - d[1] * inset * 1.25];
+    } else {
+      const x = (x0 + x1) / 2;
+      const yt = topAtX(target, x);
+      c = [x, (yt === null ? y1 : yt) - inset];
+    }
+    const auto = c.slice();
+    c = [c[0] + (ring.dx || 0), c[1] + (ring.dy || 0)];
+    holeDisk = circle(c[0], c[1], R);
+    const out = area(diff(circle(c[0], c[1], R + wall * 0.6), offset(target, 0.01)));
+    info.ring = { type: 'hole', center: c, auto, outer: 2 * (R + wall), hole: 2 * R, attached: out < 0.05, touchArea: 0, z: base.on ? z0 : thickness };
+    if (basePaths) basePaths = diff(basePaths, holeDisk);
+    layerPaths = layerPaths.map((lp) => diff(lp, holeDisk));
+  } else if (ring.on) {
     const R = Math.max(1, (ring.outer || 8) / 2);
     const r = Math.min(R - 0.6, Math.max(0.5, (ring.hole || 4) / 2));
     const target = basePaths || all;
@@ -213,10 +367,17 @@ export function buildParts(model, o) {
     if (!paths.length) return;
     parts.push({ name, color, paths, shapes: toShapes(paths), z0: z0_, z1: z1_, role, bevel });
   };
+  const allText = union(layerPaths.flat());
+  if (basePaths && textMode === 'through') {
+    basePaths = diff(basePaths, allText);
+    const pieces = toShapes(basePaths).length;
+    if (pieces > 1) info.loose = pieces - 1; // 글자 안쪽(o·e)처럼 떨어져 나가는 조각
+  }
   if (basePaths) {
     const hasBorder = border.on;
+    const baseTop = textMode === 'engrave' ? diff(basePaths, allText) : basePaths;
     // 테두리 턱이 있으면 받침판 윗면 대신 턱 윗면을 다듬음
-    add('받침판', base.color || '#ffffff', basePaths, 0, z0, 'base', hasBorder ? null : bev(edge.onBase));
+    add('받침판', base.color || '#ffffff', baseTop, 0, z0, 'base', hasBorder ? null : bev(edge.onBase));
     if (hasBorder) {
       const w = Math.max(0.4, border.width || 1.2);
       let rim = diff(basePaths, offset(basePaths, -w));
@@ -227,7 +388,16 @@ export function buildParts(model, o) {
   model.layers.forEach((l, i) => {
     // 색별 높이차: offsets[i]가 있으면 그 값(음수 가능), 없으면 계단식 step. 최소 두께 0.2mm
     const off = o.offsets && o.offsets[i] != null ? o.offsets[i] : i * step;
-    add(`색 ${i + 1} ${l.color}`, l.color, layerPaths[i], z0, z0 + Math.max(0.2, thickness + off), 'color', bev(edge.onColor));
+    const h = Math.max(0.2, thickness + off);
+    if (textMode === 'through') return;
+    if (textMode === 'engrave') {
+      // 새김: 두께(+색별 높이차) = 파는 깊이. 파인 바닥은 글자 색으로 (다색 출력 시 홈 바닥이 그 색)
+      const floor = Math.max(0.2, z0 - h);
+      if (z0 - h < 0.2) info.depthClamped = true;
+      add(`색 ${i + 1} ${l.color}`, l.color, clip(CT.ctIntersection, layerPaths[i], basePaths), 0, floor, 'color', null);
+      return;
+    }
+    add(`색 ${i + 1} ${l.color}`, l.color, layerPaths[i], z0, z0 + h, 'color', bev(edge.onColor));
   });
   if (ringPart) {
     const c0 = model.layers[0] ? model.layers[0].color : '#000000';

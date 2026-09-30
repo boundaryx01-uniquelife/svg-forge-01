@@ -6,8 +6,9 @@ import { buildParts, beveledSolid } from './solid.js';
 
 /** 파트(도형+높이) → 지오메트리 */
 export function partGeometry(part) {
-  if (part.bevel && part.paths) {
-    const pos = beveledSolid(part.paths, part.z0, part.z1, part.bevel);
+  if (part.paths) {
+    // 모서리 다듬기 없으면 아주 작은 크기 → 층이 하나로 합쳐져 그냥 기둥. (자체 삼각분할 + T자 이음 보정으로 항상 닫힌 메시)
+    const pos = beveledSolid(part.paths, part.z0, part.z1, part.bevel || { type: 'chamfer', size: 0.001 });
     if (!pos.length) return null;
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -37,7 +38,7 @@ export function buildPartGeometries(model, opts) {
   const out = [];
   for (const p of parts) {
     const g = partGeometry(p);
-    if (g) out.push({ name: p.name, color: p.color, geometry: g, z1: p.z1, role: p.role });
+    if (g) out.push({ name: p.name, color: p.color, geometry: g, z0: p.z0, z1: p.z1, role: p.role, shapes: p.shapes });
   }
   out.info = info;
   return out;

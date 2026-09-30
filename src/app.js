@@ -6,6 +6,8 @@ import { potracePathsToRings } from './pathparse.js';
 import { toFillSvg, toLaserSvg, toDxf } from './export.js';
 import { buildPartGeometries, buildStlBlob, build3mfBlob } from './mesh.js';
 import builtinFontData from '../assets/NotoSansKR-Bold-subset.otf';
+import hanjaFontData from '../assets/NotoSansCJKkr-Bold-hanja.otf';
+import { CSS3DRenderer, CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
 import { kvGet, kvSet, kvDel, lsGet, lsSet } from './store.js';
 import { isCollection, splitCollection, fontDisplayName, fontPostscript } from './fontutil.js';
 import { T, applyLang, setLang, initLang, getLang } from './i18n.js';
@@ -16,7 +18,7 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'bgRow', 'removeBg', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseCut', 'borderOn', 'borderOpts', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'dimsBtn', 'homeBtn', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -41,7 +43,46 @@ const S = {
 {
   const u8 = builtinFontData;
   const buf = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
-  S.fonts.push({ id: 'builtin', name: 'Noto Sans KR Bold (내장)', font: parseFont(buf) });
+  S.fonts.push({ id: 'builtin', name: 'Noto Sans KR Bold (내장)', font: parseFont(buf), flags: { ko: true, hj: true } });
+}
+// 한자(KS X 1001 4,888자, Noto Sans CJK KR Bold): 필요할 때만 읽어 대체 폰트로 사용
+let hanjaFont = null;
+function getHanja() {
+  if (!hanjaFont) {
+    const u8 = hanjaFontData;
+    hanjaFont = parseFont(u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength));
+  }
+  return hanjaFont;
+}
+const hasChars = (f, str) => [...str].every((c) => f.charToGlyphIndex(c));
+const fontFlags = (font) => ({ ko: hasChars(font, '가한글'), hj: hasChars(font, '漢字') });
+const HANJA_RE = /[\u2E80-\u2FFF\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/;
+/** 선택 폰트에 없는 글자를 채울 대체 폰트 (내장 한글 → 내장 한자 → 불러온 다른 폰트) */
+function fallbackFonts(font, text) {
+  const need = [...new Set(text)].filter((c) => !/\s/.test(c) && !font.charToGlyphIndex(c));
+  if (!need.length) return null;
+  const list = [];
+  if (S.fonts[0].font !== font) list.push(S.fonts[0].font);
+  if (need.some((c) => HANJA_RE.test(c))) list.push(getHanja());
+  for (const f of S.fonts) if (f.font && f.font !== font && !list.includes(f.font)) list.push(f.font);
+  return list;
+}
+/** 폰트 목록: 한글 지원 / 한글 없음으로 나눠 표시 */
+function renderFontOptions() {
+  const cur = el.fontSel.value;
+  el.fontSel.innerHTML = '';
+  const groups = [
+    [T('한글 지원 폰트'), (f) => f.flags && f.flags.ko],
+    [T('한글 없는 폰트 (영문 등)'), (f) => f.flags && !f.flags.ko],
+    [T('확인 중…'), (f) => !f.flags],
+  ];
+  for (const [label, test] of groups) {
+    const g = document.createElement('optgroup');
+    g.label = label;
+    for (const f of S.fonts) if (test(f)) g.appendChild(new Option(f.id === 'builtin' ? T(f.name) : f.name + (f.flags && f.flags.hj ? ' · 漢' : ''), f.id));
+    if (g.children.length) el.fontSel.appendChild(g);
+  }
+  if (cur && fontEntry(cur)) el.fontSel.value = cur;
 }
 const fontEntry = (id) => S.fonts.find((f) => f.id === id);
 async function getFont(id) {
@@ -51,21 +92,26 @@ async function getFont(id) {
     if (!buf) throw new Error('font missing');
     f.font = parseFont(buf);
     f.buf = buf;
+    if (!f.flags) {
+      f.flags = fontFlags(f.font);
+      saveFontIndex();
+      renderFontOptions();
+    }
   }
   return f.font;
 }
 const fontKey = (name, buf) => 'u' + [...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, buf.byteLength >>> 0).toString(36);
 
 function saveFontIndex() {
-  kvSet('fonts', S.fonts.filter((f) => f.id !== 'builtin').map((f) => ({ id: f.id, name: f.name })));
+  kvSet('fonts', S.fonts.filter((f) => f.id !== 'builtin').map((f) => ({ id: f.id, name: f.name, flags: f.flags })));
 }
 function addFontEntry(name, buf, font) {
   const id = fontKey(name, buf);
   let f = fontEntry(id);
   if (!f) {
-    f = { id, name, font, buf };
+    f = { id, name, font, buf, flags: fontFlags(font) };
     S.fonts.push(f);
-    el.fontSel.add(new Option(name, id));
+    renderFontOptions();
     kvSet('font:' + id, buf).then(saveFontIndex);
   }
   return f;
@@ -106,11 +152,13 @@ async function restoreFonts() {
   const list = (await kvGet('fonts')) || [];
   for (const it of list) {
     if (fontEntry(it.id)) continue;
-    S.fonts.push({ id: it.id, name: it.name, font: null });
-    el.fontSel.add(new Option(it.name, it.id));
+    S.fonts.push({ id: it.id, name: it.name, font: null, flags: it.flags || null });
   }
+  renderFontOptions();
   const def = lsGet('svgforge.defaultFont');
   if (def && fontEntry(def)) el.fontSel.value = def;
+  // 예전에 기억한 폰트는 한글 지원 여부를 뒤에서 확인
+  for (const f of S.fonts) if (!f.flags) await getFont(f.id).catch(() => {});
 }
 
 // ---------- 메시지/상태 ----------
@@ -133,25 +181,30 @@ function svgNaturalSize(text) {
   return { w: 512, h: 512 };
 }
 
+async function decodeImage(file) {
+  const name = file.name || 'image';
+  const isSvg = file.type === 'image/svg+xml' || /\.svg$/i.test(name);
+  if (isSvg) {
+    const text = await file.text();
+    const { w, h } = svgNaturalSize(text);
+    return { name, kind: 'svg', svgText: text, natW: w, natH: h };
+  }
+  const bmp = await createImageBitmap(file);
+  return { name, kind: 'raster', bmp, natW: bmp.width, natH: bmp.height };
+}
+
 async function loadFile(file, keep = false) {
   if (!file) return;
   const name = file.name || 'image';
-  const isSvg = file.type === 'image/svg+xml' || /\.svg$/i.test(name);
   try {
-    if (isSvg) {
-      const text = await file.text();
-      const { w, h } = svgNaturalSize(text);
-      S.img = { name, kind: 'svg', svgText: text, natW: w, natH: h };
-    } else {
-      const bmp = await createImageBitmap(file);
-      S.img = { name, kind: 'raster', bmp, natW: bmp.width, natH: bmp.height };
-    }
+    S.img = await decodeImage(file);
   } catch (e) {
     setMsg([T('이미지를 열 수 없습니다. PNG/JPG/WebP/SVG 파일인지 확인해 주세요.')]);
     return;
   }
   S.img.file = file; // 프로젝트 저장용 원본
   S.imgId++;
+  S.vb2 = null;
   S.raster = null;
   el.fileName.textContent = `${name} (${Math.round(S.img.natW)}×${Math.round(S.img.natH)})`;
   el.fileName.title = name;
@@ -465,15 +518,20 @@ async function compute() {
       }
       if (my !== seq) return;
       const p = { align: el.align.value, lineHeight: parseFloat(el.lineH.value) };
-      const key = 'txt|' + el.fontSel.value + '|' + text + '|' + JSON.stringify(p);
+      const fb = fallbackFonts(font, text);
+      const key = 'txt|' + el.fontSel.value + '|' + text + '|' + JSON.stringify(p) + '|' + (fb ? fb.length : 0);
       if (key === S.traceKey && S.layers) {
         layers = S.layers;
       } else {
-        layers = textToLayers(font, text, p);
+        layers = textToLayers(font, text, p, fb);
         S.layers = layers;
         S.traceKey = key;
       }
-      const miss = missingGlyphs(font, text);
+      const miss = missingGlyphs(font, text, fb);
+      if (fb && el.fontSel.value !== 'builtin') {
+        const sub = [...new Set(text)].filter((c) => !/\s/.test(c) && !font.charToGlyphIndex(c) && !miss.includes(c));
+        if (sub.length) warnings.push(T('이 폰트에 없는 글자는 다른 폰트로 채웠습니다: {chars}', { chars: sub.slice(0, 12).map((c) => `<b>${escapeHtml(c)}</b>`).join(' ') + (sub.length > 12 ? ' …' : '') }));
+      }
       if (miss.length) warnings.push(T('선택한 폰트에 없는 글자: {chars} — 다른 폰트를 선택해 주세요.', { chars: miss.map((c) => `<b>${escapeHtml(c)}</b>`).join(' ') }));
     }
   } catch (e) {
@@ -579,6 +637,99 @@ function render2d() {
       ? toFillSvg(m, { xmlDecl: false })
       : toLaserSvg(m, { xmlDecl: false, single: false, strokeWidth: Math.max(0.1, m.width / 260) });
   el.view2d.innerHTML = svg;
+  const sv = el.view2d.querySelector('svg');
+  if (!sv) return;
+  sv.style.overflow = 'visible';
+  const W = m.width, H = m.height, M = Math.max(W, H);
+  let box = [0, 0, W, H];
+  if (S.showDims) {
+    addDims2d(sv, W, H);
+    box = [-M * 0.02, -M * 0.02, W + M * 0.16, H + M * 0.16];
+  }
+  const f = S.mode === 'text' ? 0.58 : 0.92; // 글자는 작게 시작 (화면 가득 차지 않게)
+  const bw = box[2] - box[0], bh = box[3] - box[1];
+  S.fit2 = [box[0] - (bw / f - bw) / 2, box[1] - (bh / f - bh) / 2, bw / f, bh / f];
+  applyVb2();
+}
+function applyVb2() {
+  const sv = el.view2d.querySelector('svg');
+  const b = S.vb2 || S.fit2;
+  if (sv && b) sv.setAttribute('viewBox', b.map((v) => +v.toFixed(4)).join(' '));
+}
+/** 2D 치수선 (화면 표시용, 저장 파일에는 없음) */
+function addDims2d(sv, W, H) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const M = Math.max(W, H), d = M * 0.06, fs = M * 0.036, col = '#1d5fd6';
+  const g = document.createElementNS(NS, 'g');
+  const line = (x1, y1, x2, y2) => {
+    const l = document.createElementNS(NS, 'line');
+    Object.entries({ x1, y1, x2, y2, stroke: col, 'stroke-width': 1.2, 'vector-effect': 'non-scaling-stroke' }).forEach(([k, v]) => l.setAttribute(k, v));
+    g.appendChild(l);
+  };
+  const text = (x, y, str, rot) => {
+    const t = document.createElementNS(NS, 'text');
+    Object.entries({ x, y, fill: col, 'font-size': fs, 'font-family': 'system-ui,sans-serif', 'font-weight': 600, 'text-anchor': 'middle', 'dominant-baseline': 'middle' }).forEach(([k, v]) => t.setAttribute(k, v));
+    if (rot) t.setAttribute('transform', `rotate(90 ${x} ${y})`);
+    t.textContent = str;
+    g.appendChild(t);
+  };
+  const tk = d * 0.35;
+  line(0, H + d, W, H + d);
+  line(0, H + d - tk, 0, H + d + tk);
+  line(W, H + d - tk, W, H + d + tk);
+  text(W / 2, H + d + fs * 1.1, `${W.toFixed(1)} mm`);
+  line(W + d, 0, W + d, H);
+  line(W + d - tk, 0, W + d + tk, 0);
+  line(W + d - tk, H, W + d + tk, H);
+  text(W + d + fs * 1.1, H / 2, `${H.toFixed(1)} mm`, true);
+  sv.appendChild(g);
+}
+// 2D 확대(휠)·이동(끌기)·처음으로(더블클릭)
+el.view2d.addEventListener(
+  'wheel',
+  (e) => {
+    const sv = el.view2d.querySelector('svg');
+    if (!sv || !S.fit2) return;
+    e.preventDefault();
+    const b = (S.vb2 || S.fit2).slice();
+    const ctm = sv.getScreenCTM();
+    if (!ctm) return;
+    const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+    let k = Math.pow(1.0015, e.deltaY);
+    const nw = Math.min(S.fit2[2] * 4, Math.max(S.fit2[2] / 40, b[2] * k));
+    k = nw / b[2];
+    S.vb2 = [pt.x - (pt.x - b[0]) * k, pt.y - (pt.y - b[1]) * k, b[2] * k, b[3] * k];
+    applyVb2();
+  },
+  { passive: false }
+);
+{
+  let pan = null;
+  el.view2d.addEventListener('pointerdown', (e) => {
+    const sv = el.view2d.querySelector('svg');
+    if (!sv || e.button !== 0 || !S.fit2) return;
+    const ctm = sv.getScreenCTM();
+    pan = { x: e.clientX, y: e.clientY, b: (S.vb2 || S.fit2).slice(), a: ctm ? ctm.a : 1, id: e.pointerId };
+    el.view2d.setPointerCapture(e.pointerId);
+    el.view2d.classList.add('panning');
+  });
+  el.view2d.addEventListener('pointermove', (e) => {
+    if (!pan) return;
+    const dx = (e.clientX - pan.x) / pan.a, dy = (e.clientY - pan.y) / pan.a;
+    if (!S.vb2 && Math.hypot(dx, dy) * pan.a < 3) return;
+    S.vb2 = [pan.b[0] - dx, pan.b[1] - dy, pan.b[2], pan.b[3]];
+    applyVb2();
+  });
+  const end = () => {
+    pan = null;
+    el.view2d.classList.remove('panning');
+  };
+  el.view2d.addEventListener('pointerup', end);
+  el.view2d.addEventListener('pointercancel', end);
+  el.view2d.addEventListener('dblclick', () => {
+    S.vb2 = null;
+    applyVb2();
+  });
 }
 
 // ---------- 3D 미리보기 ----------
@@ -603,10 +754,18 @@ function init3d() {
   scene.add(dl);
   const group = new THREE.Group();
   scene.add(group);
+  camera.up.set(0, 0, 1); // Z가 위 (출력판 기준으로 돌아감)
   const controls = new OrbitControls(camera, renderer.domElement);
-  controls.addEventListener('change', () => renderer.render(scene, camera));
-  G3 = { renderer, scene, camera, group, controls };
+  const dims = new THREE.Group();
+  scene.add(dims);
+  const draw = () => {
+    renderer.render(scene, camera);
+    drawOverlay3d();
+  };
+  controls.addEventListener('change', draw);
+  G3 = { renderer, scene, camera, group, controls, dims, draw };
   setupRingDrag(G3);
+  setupCube(G3);
 
   new ResizeObserver(() => resize3d()).observe(el.view3d);
   return G3;
@@ -620,7 +779,173 @@ function resize3d() {
   G3.renderer.setSize(w, h, false);
   G3.camera.aspect = w / h;
   G3.camera.updateProjectionMatrix();
-  G3.renderer.render(G3.scene, G3.camera);
+  G3.draw();
+}
+
+// ---------- 3D 뷰 큐브 · 치수 표시 ----------
+const CUBE_FACES = [
+  ['위', [0, 0, 1]],
+  ['아래', [0, 0, -1]],
+  ['앞', [0, -1, 0]],
+  ['뒤', [0, 1, 0]],
+  ['왼쪽', [-1, 0, 0]],
+  ['오른쪽', [1, 0, 0]],
+];
+function setupCube(t) {
+  try {
+    const cr = new CSS3DRenderer();
+    cr.setSize(84, 84);
+    el.cube.appendChild(cr.domElement);
+    const cs = new THREE.Scene();
+    const cc = new THREE.OrthographicCamera(-42, 42, 42, -42, 1, 1000);
+    for (const [name, n] of CUBE_FACES) {
+      const d = document.createElement('div');
+      d.className = 'face';
+      d.dataset.ko = name;
+      d.textContent = T(name);
+      d.style.backfaceVisibility = 'hidden';
+      const o = new CSS3DObject(d);
+      const v = new THREE.Vector3(...n);
+      o.position.copy(v).multiplyScalar(24);
+      o.up.set(0, n[2] ? 1 : 0, n[2] ? 0 : 1);
+      o.lookAt(v.clone().multiplyScalar(100));
+      cs.add(o);
+      d.addEventListener('click', () => viewFrom(v));
+    }
+    t.cube = { cr, cs, cc };
+  } catch (e) {
+    el.cube.classList.add('hide');
+  }
+}
+function refreshCubeLabels() {
+  el.cube.querySelectorAll('.face').forEach((d) => (d.textContent = T(d.dataset.ko)));
+}
+function viewFrom(n) {
+  const t = G3;
+  if (!t || t.failed) return;
+  const dist = t.camera.position.distanceTo(t.controls.target);
+  const v = n.clone();
+  if (Math.abs(v.z) > 0.99) v.set(0, -0.003, Math.sign(v.z)).normalize();
+  t.camera.position.copy(t.controls.target).addScaledVector(v, dist);
+  t.camera.lookAt(t.controls.target);
+  t.controls.update();
+  t.draw();
+}
+function drawOverlay3d() {
+  const t = G3;
+  if (!t || t.failed) return;
+  if (t.cube) {
+    const dir = t.camera.position.clone().sub(t.controls.target).normalize();
+    t.cube.cc.position.copy(dir).multiplyScalar(200);
+    t.cube.cc.up.copy(t.camera.up);
+    t.cube.cc.lookAt(0, 0, 0);
+    t.cube.cr.render(t.cube.cs, t.cube.cc);
+  }
+  const w = el.view3d.clientWidth, h = el.view3d.clientHeight;
+  for (const L of S.dimLabels || []) {
+    const v = L.p.clone().project(t.camera);
+    const vis = v.z < 1 && Math.abs(v.x) < 1.2 && Math.abs(v.y) < 1.2;
+    L.el.style.display = vis ? '' : 'none';
+    if (vis) {
+      L.el.style.left = ((v.x + 1) / 2) * w + 'px';
+      L.el.style.top = ((1 - v.y) / 2) * h + 'px';
+    }
+  }
+}
+/** 도형 안쪽의 한 점 (가장 넓은 가로 구간의 가운데) */
+function interiorPoint(shape) {
+  const all = [shape.outer, ...shape.holes];
+  let y0 = Infinity, y1 = -Infinity;
+  for (const [, y] of shape.outer) {
+    y0 = Math.min(y0, y);
+    y1 = Math.max(y1, y);
+  }
+  let best = null;
+  for (const f of [0.5, 0.4, 0.6, 0.3, 0.7]) {
+    const y = y0 + (y1 - y0) * f;
+    const xs = [];
+    for (const ring of all)
+      for (let i = 0; i < ring.length; i++) {
+        const a = ring[i], b = ring[(i + 1) % ring.length];
+        if ((a[1] - y) * (b[1] - y) < 0) xs.push(a[0] + ((y - a[1]) / (b[1] - a[1])) * (b[0] - a[0]));
+      }
+    xs.sort((p, q) => p - q);
+    for (let i = 0; i + 1 < xs.length; i += 2) if (!best || xs[i + 1] - xs[i] > best.w) best = { w: xs[i + 1] - xs[i], x: (xs[i] + xs[i + 1]) / 2, y };
+  }
+  return best ? [best.x, best.y] : shape.outer[0];
+}
+const inkFor = (hex) => {
+  const n = parseInt(hex.slice(1), 16);
+  return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 150 ? '#1c2230' : '#ffffff';
+};
+function buildDims3d(t, geos, bb, maxH, so) {
+  for (const ch of [...t.dims.children]) {
+    ch.geometry.dispose();
+    t.dims.remove(ch);
+  }
+  el.dimLabels.innerHTML = '';
+  S.dimLabels = [];
+  if (!S.showDims || !geos.length) return;
+  const [x0, y0, x1, y1] = bb;
+  const off = Math.max(x1 - x0, y1 - y0) * 0.07;
+  const pts = [];
+  const seg = (a, b) => pts.push(new THREE.Vector3(...a), new THREE.Vector3(...b));
+  const label = (p, text, color) => {
+    const d = document.createElement('div');
+    d.className = 'dl' + (color ? ' h' : '');
+    d.textContent = text;
+    if (color) {
+      d.style.background = color;
+      d.style.color = inkFor(color);
+      d.style.borderColor = inkFor(color) === '#ffffff' ? 'rgba(255,255,255,.8)' : 'rgba(0,0,0,.35)';
+    }
+    el.dimLabels.appendChild(d);
+    S.dimLabels.push({ p: new THREE.Vector3(...p), el: d });
+  };
+  const tk = off * 0.35;
+  seg([x0, y0 - off, 0], [x1, y0 - off, 0]);
+  seg([x0, y0 - off + tk, 0], [x0, y0 - off - tk, 0]);
+  seg([x1, y0 - off + tk, 0], [x1, y0 - off - tk, 0]);
+  label([(x0 + x1) / 2, y0 - off * 1.8, 0], `${(x1 - x0).toFixed(1)} mm`);
+  seg([x0 - off, y0, 0], [x0 - off, y1, 0]);
+  seg([x0 - off + tk, y0, 0], [x0 - off - tk, y0, 0]);
+  seg([x0 - off + tk, y1, 0], [x0 - off - tk, y1, 0]);
+  label([x0 - off * 1.8, (y0 + y1) / 2, 0], `${(y1 - y0).toFixed(1)} mm`);
+  seg([x1 + off, y1, 0], [x1 + off, y1, maxH]);
+  seg([x1 + off - tk, y1, maxH], [x1 + off + tk, y1, maxH]);
+  seg([x1 + off - tk, y1, 0], [x1 + off + tk, y1, 0]);
+  label([x1 + off * 1.9, y1, maxH / 2], `${maxH.toFixed(1)} mm`);
+  const g = new THREE.BufferGeometry().setFromPoints(pts);
+  const ln = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x1d5fd6, depthTest: false, transparent: true }));
+  ln.renderOrder = 10;
+  t.dims.add(ln);
+  // 파트별 두께·높이 (색으로 구분)
+  const baseTop = so.base.on ? Math.max(0.2, so.base.height || 1.5) : 0;
+  const seen = new Set();
+  for (const p of geos) {
+    if (!p.shapes || !p.shapes.length) continue;
+    const k = p.color + '|' + p.z0 + '|' + p.z1 + '|' + p.role;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    let big = p.shapes[0], ba = -1;
+    for (const sh of p.shapes) {
+      let a = 0;
+      for (let i = 0, o = sh.outer; i < o.length; i++) a += o[i][0] * o[(i + 1) % o.length][1] - o[(i + 1) % o.length][0] * o[i][1];
+      if (Math.abs(a) > ba) {
+        ba = Math.abs(a);
+        big = sh;
+      }
+    }
+    const [px, py] = interiorPoint(big);
+    const th = p.z1 - p.z0;
+    let text;
+    if (p.role === 'base') text = `${T('받침')} ${th.toFixed(1)}`;
+    else if (p.role === 'border') text = `${T('턱')} +${th.toFixed(1)}`;
+    else if (p.role === 'color' && so.textMode === 'engrave' && p.z0 === 0) text = `${T('깊이')} ${(baseTop - p.z1).toFixed(1)}`;
+    else if (p.z0 > 0) text = `+${th.toFixed(1)} (${p.z1.toFixed(1)})`;
+    else text = th.toFixed(1);
+    label([px, py, p.z1], text, p.role === 'color' || p.role === 'ring' ? p.color : null);
+  }
 }
 
 function render3dIfVisible() {
@@ -677,9 +1002,14 @@ function solidOpts() {
   return {
     thickness: nv(el.thick, 3, 0.2),
     offsets: colorOffsets(),
-    base: { on: el.baseOn.checked, shape: el.baseShape.value, margin: Math.max(0, parseFloat(el.baseMargin.value) || 0), height: nv(el.baseH, 1.5, 0.2), color: el.baseColor.value, fill: Math.max(0, parseFloat(el.baseFill.value) || 0), cutHoles: el.baseCut.checked },
+    base: {
+      on: el.baseOn.checked, shape: el.baseShape.value, margin: Math.max(0, parseFloat(el.baseMargin.value) || 0), height: nv(el.baseH, 1.5, 0.2), color: el.baseColor.value,
+      fill: Math.max(0, parseFloat(el.baseFill.value) || 0), cutHoles: el.textMode.value === 'emboss_cut', stretch: el.baseStretch.checked,
+      custom: S.baseCustom ? S.baseCustom.polys : null, customKey: S.baseCustom ? S.baseCustom.key : '',
+    },
+    textMode: el.textMode.value === 'emboss_cut' ? 'emboss' : el.textMode.value,
     border: { on: el.baseOn.checked && el.borderOn.checked, width: nv(el.borderW, 1.2, 0.4), height: nv(el.borderH, 1, 0.2) },
-    ring: { on: el.ringOn.checked, pos: el.ringPos.value, outer: nv(el.ringOuter, 8, 3), hole: nv(el.ringHole, 4, 1), dx: parseFloat(el.ringDx.value) || 0, dy: parseFloat(el.ringDy.value) || 0 },
+    ring: { on: el.ringOn.checked, pos: el.ringPos.value, outer: nv(el.ringOuter, 8, 3), hole: nv(el.ringHole, 4, 1), dx: parseFloat(el.ringDx.value) || 0, dy: parseFloat(el.ringDy.value) || 0, type: el.ringType.value },
     edge: { type: el.edgeType.value, size: nv(el.edgeSize, 0.6, 0.1), onColor: el.edgeColor.checked, onBase: el.edgeBase.checked },
   };
 }
@@ -694,6 +1024,7 @@ function rebuild3d() {
   }
   const m = S.model;
   if (!m || !m.layers.length) {
+    buildDims3d(t, [], null, 0, {});
     el.badge3d.textContent = '';
     resize3d();
     return;
@@ -709,14 +1040,21 @@ function rebuild3d() {
   }
   const inf = geos.info || {};
   const bb = inf.bbox || [0, 0, m.width, m.height];
+  for (const g of geos) maxH = Math.max(maxH, g.z1);
+  buildDims3d(t, geos, bb, maxH, so);
   el.badge3d.textContent = inf.size ? `${inf.size[0].toFixed(1)} × ${inf.size[1].toFixed(1)} × ${inf.size[2].toFixed(1)} mm · ${T('파트 {n}개', { n: geos.length })}` : '';
-  if (inf.ring && !inf.ring.attached) el.badge3d.textContent += ' · ' + T('⚠ 고리가 몸체에서 떨어져 있음');
+  if (inf.ring && !inf.ring.attached) el.badge3d.textContent += ' · ' + T(inf.ring.type === 'hole' ? '⚠ 구멍이 가장자리에 걸림' : '⚠ 고리가 몸체에서 떨어져 있음');
   else if (inf.ring) el.badge3d.textContent += ' · ' + T('고리는 끌어서 옮길 수 있음');
+  if (inf.loose) el.badge3d.textContent += ' · ' + T('⚠ 떨어져 나가는 조각 {n}개 (o·e 안쪽 등)', { n: inf.loose });
+  if (inf.depthClamped) el.badge3d.textContent += ' · ' + T('새김 깊이를 받침 두께에 맞춰 줄임');
   const size = Math.max(bb[2] - bb[0], bb[3] - bb[1], maxH);
   const c = new THREE.Vector3((bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2, maxH / 2);
   t.controls.target.copy(c);
+  // 크기가 크게 바뀌면(받침 모양 변경 등) 다시 맞춤
+  if (!S.dragging && S.frameSize && (size > S.frameSize * 1.12 || size < S.frameSize / 1.25)) S.dirty3d = true;
   if (S.dirty3d) {
-    t.camera.position.set(c.x, c.y - size * 0.95, c.z + size * 1.85);
+    S.frameSize = size;
+    t.camera.position.set(c.x, c.y - size * 1.85, c.z + size * 2.2);
     t.camera.near = size / 100;
     t.camera.far = size * 50;
     t.camera.updateProjectionMatrix();
@@ -738,6 +1076,7 @@ function setView(v) {
 
 // ---------- UI 연결 ----------
 function setMode(m, silent) {
+  if (S.mode !== m) S.vb2 = null;
   S.mode = m;
   el.modeImage.classList.toggle('on', m === 'image');
   el.modeText.classList.toggle('on', m === 'text');
@@ -846,7 +1185,14 @@ el.tol.addEventListener('change', () => schedule(0));
 function on3dChange(showView) {
   el.baseOpts.classList.toggle('hide', !el.baseOn.checked);
   el.borderOpts.classList.toggle('hide', !el.borderOn.checked);
-  el.baseFillRow.classList.toggle('hide', el.baseShape.value !== 'outline');
+  const sh = el.baseShape.value;
+  const poly = !['outline', 'rect', 'square', 'circle', 'ellipse', 'custom'].includes(sh);
+  el.baseFillRow.classList.toggle('hide', !(sh === 'outline' || sh === 'custom' || poly));
+  el.baseFillLbl.classList.toggle('hide', sh !== 'outline');
+  el.baseFill.classList.toggle('hide', sh !== 'outline');
+  el.baseImgBtn.classList.toggle('hide', sh !== 'custom');
+  el.baseStretchLbl.classList.toggle('hide', !(poly || sh === 'custom'));
+  el.baseImgBtn.textContent = S.baseCustom ? '🖼 ' + S.baseCustom.name.slice(0, 14) : T('모양 이미지…');
   el.ringOpts.classList.toggle('hide', !el.ringOn.checked);
   el.edgeOpts.classList.toggle('hide', el.edgeType.value === 'none');
   if (showView && S.view !== '3d' && S.model) {
@@ -858,12 +1204,59 @@ function on3dChange(showView) {
   autosave();
 }
 [el.thick, el.baseMargin, el.baseH, el.baseFill, el.edgeSize, el.ringDx, el.ringDy, el.borderW, el.borderH, el.ringOuter, el.ringHole].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
-[el.baseOn, el.baseShape, el.baseColor, el.baseCut, el.edgeType, el.edgeColor, el.edgeBase, el.borderOn, el.ringOn, el.ringPos].forEach((e) => e.addEventListener('change', () => on3dChange(true)));
+[el.baseOn, el.baseShape, el.baseColor, el.baseStretch, el.textMode, el.ringType, el.edgeType, el.edgeColor, el.edgeBase, el.borderOn, el.ringOn, el.ringPos].forEach((e) => e.addEventListener('change', () => on3dChange(true)));
 
 el.stepAuto.onclick = () => setAllOffsets((i) => i * 0.4);
 el.stepZero.onclick = () => setAllOffsets(() => 0);
 
+// 새김: 두께가 곧 파는 깊이 → 받침판이 얇으면 알맞게 맞춰 줌
+el.textMode.addEventListener('change', () => {
+  if (el.textMode.value !== 'engrave') return;
+  const bh = parseFloat(el.baseH.value) || 1.5;
+  if (bh < 2.5) el.baseH.value = 3;
+  if ((parseFloat(el.thick.value) || 3) > (parseFloat(el.baseH.value) || 3) - 0.8) el.thick.value = 1;
+}, true);
+// 받침판 모양: 내 이미지(SVG·PNG)의 외곽
+el.baseShape.addEventListener('change', () => {
+  if (el.baseShape.value === 'custom' && !S.baseCustom) el.baseImgFile.click();
+});
+el.baseImgBtn.onclick = () => el.baseImgFile.click();
+el.baseImgFile.onchange = () => {
+  const f = el.baseImgFile.files[0];
+  el.baseImgFile.value = '';
+  if (f) loadBaseShape(f);
+};
+async function loadBaseShape(file) {
+  try {
+    const img = await decodeImage(file);
+    const up = S.upInfo;
+    const imgd = await rasterize(img, 600, true);
+    S.upInfo = up;
+    const layers = traceImage(imgd, {
+      colors: 1, threshold: otsuThreshold(imgd), invert: false, removeBg: true, tol: 0.6, minArea: 40, cornerAngle: 40, blur: 1,
+      lineTol: 1, snapDeg: 3, arcs: true, parallel: false, equalWidth: false, align: false, symmetry: false, denoise: false,
+    });
+    const mm = makeModel(layers, 100, 0.05);
+    const polys = mm.layers.flatMap((l) => l.items.map((it) => it.poly.map(([x, y]) => [+x.toFixed(3), +(-y).toFixed(3)])));
+    if (!polys.length) throw new Error('empty');
+    S.baseCustom = { name: file.name, polys, key: Date.now().toString(36) };
+    el.baseShape.value = 'custom';
+    el.baseOn.checked = true;
+    on3dChange(true);
+  } catch (e) {
+    console.error(e);
+    setMsg([T('모양 이미지를 읽지 못했습니다. 배경이 밝고 모양이 진한 SVG·PNG를 써 주세요.')]);
+    if (!S.baseCustom) el.baseShape.value = 'outline';
+    on3dChange(false);
+  }
+}
+
 // 고리 위치: 자동 위치를 바꾸면 이동값 초기화
+el.ringType.addEventListener('change', () => {
+  el.ringDx.value = 0;
+  el.ringDy.value = 0;
+  if (!el.ringOn.checked) el.ringOn.checked = true;
+});
 el.ringPos.addEventListener('change', () => {
   el.ringDx.value = 0;
   el.ringDy.value = 0;
@@ -951,11 +1344,22 @@ el.fontLocalBtn.onclick = async () => {
     return;
   }
   S.localList.sort((a, b) => a.fullName.localeCompare(b.fullName, getLang()));
-  el.localFontSel.innerHTML = '';
-  el.localFontSel.add(new Option(T('폰트를 선택하세요…'), ''));
-  S.localList.forEach((fd, i) => el.localFontSel.add(new Option(fd.fullName, String(i))));
+  renderLocalFonts();
   el.localFontRow.classList.remove('hide');
 };
+// 설치 폰트 목록은 파일을 열어 보기 전엔 글자 범위를 알 수 없어 이름으로 한글 폰트를 추정
+const KO_FONT_RE = /[가-힣]|malgun|gulim|batang|dotum|gungsuh|nanum|noto\s*(sans|serif)\s*(kr|cjk|korean)|source\s*han|pretendard|spoqa|apple\s*sd|applegothic|applemyungjo|kopub|ibm\s*plex\s*sans\s*kr|gowun|jua|do\s*hyeon|black\s*han|gmarket|cafe24|jalnan|maplestory|nexon|binggrae|s-core|suit\b|wanted|paperlogy|hancom|함초롬|hamchorom|hy[a-z가-힣]|hcr\s|yoon|sandoll|kbiz|seoul\s*(namsan|hangang)|d2coding|bm\s|baemin|school\s*safe|ownglyph|kcc|elice|kakao|lineseed.*kr|one\s*mobile|tmoney|dx|jeju|chosun/i;
+function renderLocalFonts() {
+  el.localFontSel.innerHTML = '';
+  el.localFontSel.add(new Option(T('폰트를 선택하세요…'), ''));
+  const gK = document.createElement('optgroup');
+  gK.label = T('한글 폰트 (이름으로 추정)');
+  const gO = document.createElement('optgroup');
+  gO.label = T('기타 폰트');
+  S.localList.forEach((fd, i) => (KO_FONT_RE.test(fd.fullName + ' ' + fd.family) ? gK : gO).appendChild(new Option(fd.fullName, String(i))));
+  if (gK.children.length) el.localFontSel.appendChild(gK);
+  if (gO.children.length) el.localFontSel.appendChild(gO);
+}
 el.localFontSel.onchange = async () => {
   const fd = S.localList[parseInt(el.localFontSel.value, 10)];
   if (!fd) return;
@@ -979,7 +1383,7 @@ el.fontRemove.onclick = () => {
   const f = fontEntry(el.fontSel.value);
   if (!f || f.id === 'builtin') return setMsg([T('내장 폰트는 뺄 수 없습니다.')]);
   S.fonts.splice(S.fonts.indexOf(f), 1);
-  [...el.fontSel.options].find((o) => o.value === f.id)?.remove();
+  renderFontOptions();
   kvDel('font:' + f.id);
   saveFontIndex();
   if (lsGet('svgforge.defaultFont') === f.id) lsSet('svgforge.defaultFont', 'builtin');
@@ -1035,6 +1439,7 @@ async function serializeProject(forFile) {
     font,
     image,
     heightByColor: [...S.heightByColor.entries()],
+    baseCustom: S.baseCustom || null,
   };
 }
 async function applyProject(p) {
@@ -1062,7 +1467,11 @@ async function applyProject(p) {
     if (e.type === 'checkbox') e.checked = !!v;
     else e.value = v;
   }
+  if (p.controls.baseCut && !('textMode' in p.controls)) el.textMode.value = 'emboss_cut'; // 예전 프로젝트
   syncLabels();
+  S.baseCustom = p.baseCustom || null;
+  if (el.baseShape.value === 'custom' && !S.baseCustom) el.baseShape.value = 'outline';
+  S.vb2 = null;
   S.heightByColor = new Map(p.heightByColor || []);
   el.colorHeights.dataset.sig = '';
   syncColorUi();
@@ -1133,6 +1542,27 @@ async function resumeLast() {
   }
 }
 
+// ---------- 치수 표시 · 처음으로 ----------
+S.showDims = lsGet('svgforge.dims', '1') === '1';
+el.dimsBtn.classList.toggle('on', S.showDims);
+el.dimsBtn.onclick = () => {
+  S.showDims = !S.showDims;
+  lsSet('svgforge.dims', S.showDims ? '1' : '0');
+  el.dimsBtn.classList.toggle('on', S.showDims);
+  render2d();
+  S.dirty3d = false;
+  render3dIfVisible();
+};
+el.homeBtn.onclick = () => {
+  if (S.view === '3d') {
+    S.dirty3d = true;
+    rebuild3d();
+  } else {
+    S.vb2 = null;
+    applyVb2();
+  }
+};
+
 // ---------- 화면 언어 ----------
 function refreshLang() {
   document.title = T('SVG Forge — 이미지·글자를 SVG · DXF · STL로');
@@ -1143,7 +1573,9 @@ el.langSel.onchange = () => {
   setLang(el.langSel.value);
   refreshLang();
   syncLabels();
-  if (el.localFontSel.options[0] && el.localFontSel.options[0].value === '') el.localFontSel.options[0].text = T('폰트를 선택하세요…');
+  if (S.localList.length) renderLocalFonts();
+  renderFontOptions();
+  refreshCubeLabels();
   el.colorHeights.dataset.sig = '';
   renderHeightChips();
   S.dirty3d = false;
