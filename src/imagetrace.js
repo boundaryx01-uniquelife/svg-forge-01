@@ -181,7 +181,7 @@ export function bilateral(imgd, sigmaS = 1.6, sigmaR = 28) {
 export function traceImage(imgd, opts) {
   if (opts.denoise) imgd = bilateral(bilateral(imgd));
   const {
-    colors, threshold, invert, removeBg, tol, minArea, cornerAngle, blur,
+    colors, threshold, invert, removeBg, keepInner = true, tol, minArea, cornerAngle, blur,
     lineTol = 1, snapDeg = 3, arcs = true, parallel = true, equalWidth = true, align = true, symmetry = false,
   } = opts;
   const w = imgd.width, h = imgd.height, d = imgd.data;
@@ -290,6 +290,7 @@ export function traceImage(imgd, opts) {
     if (best >= 0 && bv >= 2) {
       drop.add(best);
       // 가장자리와 이어진 배경만 제거: 내부에 갇힌 같은 색(예: 흰 면)은 새 라벨(같은 색)로 살린다
+      if (keepInner) {
       const reach = new Uint8Array(N);
       const stack = [];
       const push = (p) => { if (!reach[p] && label[p] === best) { reach[p] = 1; stack.push(p); } };
@@ -309,6 +310,7 @@ export function traceImage(imgd, opts) {
           if (keep < 0) { keep = pal.length; pal.push({ ...pal[best] }); }
           label[i] = keep;
         }
+      }
       }
     }
   }

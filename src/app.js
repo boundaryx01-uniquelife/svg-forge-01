@@ -7,7 +7,7 @@ import { toFillSvg, toLaserSvg, toDxf } from './export.js';
 import { buildPartGeometries, buildStlBlob, build3mfBlob } from './mesh.js';
 import builtinFontData from '../assets/NotoSansKR-Bold-subset.otf';
 import hanjaFontData from '../assets/NotoSansCJKkr-Bold-hanja.otf';
-import { CSS3DRenderer, CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
+import { CSS3DRenderer, CSS3DObject, CSS3DSprite } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
 import { kvGet, kvSet, kvDel, lsGet, lsSet } from './store.js';
 import { isCollection, splitCollection, fontDisplayName, fontPostscript } from './fontutil.js';
 import { T, applyLang, setLang, initLang, getLang, setHints, applyHints } from './i18n.js';
@@ -16,7 +16,7 @@ const $ = (s) => document.querySelector(s);
 const el = {};
 [
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
-  'invert', 'invertRow', 'bgRow', 'removeBg', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
+  'invert', 'invertRow', 'bgRow', 'removeBg', 'keepRow', 'keepInner', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
   'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
@@ -482,6 +482,7 @@ async function compute() {
         threshold: parseInt(el.thr.value, 10),
         invert: el.invert.checked,
         removeBg: el.removeBg.checked,
+        keepInner: el.keepInner.checked,
         tol: parseFloat(el.tres.value),
         minArea: parseFloat(el.omit.value),
         cornerAngle: parseFloat(el.corner.value),
@@ -508,7 +509,7 @@ async function compute() {
       }
     } else {
       const text = el.text.value;
-      if (!text.trim()) return showEmpty(T('글자를 입력하면 여기에 미리보기가 나타납니다.'));
+      if (!text.trim()) return showEmpty(T('텍스트를 입력하면 여기에 미리보기가 나타납니다.'));
       let font;
       try {
         font = await getFont(el.fontSel.value);
@@ -597,9 +598,10 @@ async function compute() {
     S.flash = '';
   }
   el.heightOut.textContent = m.height.toFixed(2);
-  S.dirty3d = true;
+  S.dirty3d = !S.keepView || !S.frameSize;
   render2d();
   render3dIfVisible();
+  S.keepView = false;
   updateButtons();
   const sw = m.layers.map((l) => `<span><i class="sw" style="background:${l.color}"></i>${l.color}</span>`).join(' ');
   setStatus(
@@ -848,7 +850,13 @@ function setCharStyle(i, patch) {
   if (Object.keys(st).length) S.charStyles[i] = st;
   else delete S.charStyles[i];
   el.charChips.dataset.sig = '';
+  holdView();
   schedule(0);
+}
+/** 글자별 조절 중에는 지금 보고 있는 화면(확대·각도)을 그대로 둔다 */
+function holdView() {
+  S.keepView = true;
+  if (S.view === '2d' && !S.vb2 && S.fit2) S.vb2 = S.fit2.slice();
 }
 /** 선택 글자의 범위 (mm, 미리보기 좌표) */
 function charBoxMm(i) {
@@ -872,12 +880,14 @@ el.chReset.onclick = () => {
   if (S.selChar == null) return;
   delete S.charStyles[S.selChar];
   el.charChips.dataset.sig = '';
+  holdView();
   schedule(0);
 };
 el.chResetAll.onclick = () => {
   S.charStyles = {};
   S.selChar = null;
   el.charChips.dataset.sig = '';
+  holdView();
   schedule(0);
 };
 // 방향키로 선택 글자 미세 이동 (0.2mm, Shift: 1mm)
@@ -960,6 +970,7 @@ el.view2d.addEventListener(
         raf = requestAnimationFrame(() => {
           raf = 0;
           el.charChips.dataset.sig = '';
+          holdView();
           compute();
         });
       return;
@@ -1064,6 +1075,17 @@ function setupCube(t) {
       cs.add(o);
       d.addEventListener('click', () => viewFrom(v));
     }
+    // 꼭지점 8개: 눌러서 모서리 방향(등각) 시점으로
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
+      const d = document.createElement('div');
+      d.className = 'vtx';
+      d.title = T('꼭지점 시점');
+      const o = new CSS3DSprite(d);
+      const v = new THREE.Vector3(sx, sy, sz);
+      o.position.copy(v).multiplyScalar(26);
+      cs.add(o);
+      d.addEventListener('click', () => viewFrom(v));
+    }
     t.cube = { cr, cs, cc };
   } catch (e) {
     el.cube.classList.add('hide');
@@ -1071,12 +1093,13 @@ function setupCube(t) {
 }
 function refreshCubeLabels() {
   el.cube.querySelectorAll('.face').forEach((d) => (d.textContent = T(d.dataset.ko)));
+  el.cube.querySelectorAll('.vtx').forEach((d) => (d.title = T('꼭지점 시점')));
 }
 function viewFrom(n) {
   const t = G3;
   if (!t || t.failed) return;
   const dist = t.camera.position.distanceTo(t.controls.target);
-  const v = n.clone();
+  const v = n.clone().normalize();
   if (Math.abs(v.z) > 0.99) v.set(0, -0.003, Math.sign(v.z)).normalize();
   t.camera.position.copy(t.controls.target).addScaledVector(v, dist);
   t.camera.lookAt(t.controls.target);
@@ -1339,9 +1362,9 @@ function rebuild3d() {
   if (inf.depthClamped) el.badge3d.textContent += ' · ' + T('새김 깊이를 받침 두께에 맞춰 줄임');
   const size = Math.max(bb[2] - bb[0], bb[3] - bb[1], maxH);
   const c = new THREE.Vector3((bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2, maxH / 2);
-  t.controls.target.copy(c);
-  // 크기가 크게 바뀌면(받침 모양 변경 등) 다시 맞춤
-  if (!S.dragging && S.frameSize && (size > S.frameSize * 1.12 || size < S.frameSize / 1.25)) S.dirty3d = true;
+  if (!S.keepView) t.controls.target.copy(c);
+  // 크기가 크게 바뀌면(받침 모양 변경 등) 다시 맞춤 (글자별 조절 중에는 보던 화면 유지)
+  if (!S.dragging && !S.keepView && S.frameSize && (size > S.frameSize * 1.12 || size < S.frameSize / 1.25)) S.dirty3d = true;
   if (S.dirty3d) {
     S.frameSize = size;
     t.camera.position.set(c.x, c.y - size * 1.85, c.z + size * 2.2);
@@ -1380,6 +1403,8 @@ function syncColorUi() {
   el.thrRow.classList.toggle('hide', !one);
   el.invertRow.classList.toggle('hide', !one);
   el.bgRow.classList.toggle('hide', one);
+  el.keepRow.classList.toggle('hide', one);
+  el.keepInner.disabled = !el.removeBg.checked;
 }
 
 el.modeImage.onclick = () => setMode('image');
@@ -1466,7 +1491,7 @@ el.colors.onchange = () => {
   syncColorUi();
   schedule(0);
 };
-[el.invert, el.removeBg, el.res, el.align, el.axisSnap, el.optArcs, el.optParallel, el.optWidth, el.optAlign, el.optSym, el.upscale, el.denoise, el.engine].forEach((c) => c.addEventListener('change', () => schedule(0)));
+[el.invert, el.removeBg, el.keepInner, el.res, el.align, el.axisSnap, el.optArcs, el.optParallel, el.optWidth, el.optAlign, el.optSym, el.upscale, el.denoise, el.engine].forEach((c) => c.addEventListener('change', () => schedule(0)));
 el.text.addEventListener('input', () => schedule(250));
 el.fontSel.addEventListener('change', () => schedule(0));
 el.width.addEventListener('input', () => schedule(200));
@@ -2042,7 +2067,7 @@ el.homeBtn.onclick = () => {
 
 // ---------- 화면 언어 ----------
 function refreshLang() {
-  document.title = T('SVG Forge — 이미지·글자를 SVG · DXF · STL로');
+  document.title = T('SVG Forge — 이미지·텍스트를 SVG · DXF · STL로');
   el.view2d.dataset.drop = el.view3d.dataset.drop = T('여기에 놓으면 불러옵니다');
   if (el.langSel.value !== getLang()) el.langSel.value = getLang();
 }
@@ -2059,7 +2084,7 @@ el.langSel.onchange = () => {
   renderHeightChips();
   S.dirty3d = false;
   render3dIfVisible();
-  if (el.text.value === '글자 입력' || el.text.value === 'Text') el.text.value = T('글자 입력');
+  if (el.text.value === '텍스트 입력' || el.text.value === 'Text') el.text.value = T('텍스트 입력');
   schedule(0);
 };
 
@@ -2096,11 +2121,12 @@ el.btn3mf.onclick = async () => {
 };
 
 window.__svgforge = S;
+Object.defineProperty(S, 'cam', { get: () => (G3 && !G3.failed ? G3.camera.position.toArray() : null) }); // 테스트용
 initLang();
 applyLang();
 ctlDefaults = {};
 for (const e of controlEls()) ctlDefaults[e.id] = e.type === 'checkbox' ? e.checked : e.value;
-if (getLang() !== 'ko' && el.text.value === '글자 입력') el.text.value = T('글자 입력');
+if (getLang() !== 'ko' && el.text.value === '텍스트 입력') el.text.value = T('텍스트 입력');
 applyPrefs();
 refreshLang();
 syncLabels();

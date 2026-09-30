@@ -49,6 +49,8 @@ def run():
         wait_done(page)
         page.select_option('#colors', '4')
         wait_done(page)
+        page.uncheck('#keepInner')  # 도넛 안쪽 흰색은 구멍으로 (옵션 끔)
+        wait_done(page)
         print('multi status:', page.inner_text('#status').replace('\n', ' | '))
         page.screenshot(path=str(OUT / 'shot_multi_2d.png'))
         save_dl(page, '#btnFill', 'multi_makerlab.svg')

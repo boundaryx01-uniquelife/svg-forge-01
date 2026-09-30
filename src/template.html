@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SVG Forge — 이미지·글자를 SVG · DXF · STL로</title>
+<title>SVG Forge — 이미지·텍스트를 SVG · DXF · STL로</title>
 <style>
 :root{
   --bg:#f3f4f7; --card:#fff; --ink:#1c2230; --sub:#5d6678; --line:#dfe3ea; --pri:#1d5fd6; --pri-ink:#fff; --pri-soft:#e8f0fd; --warn:#8a4f00; --warn-bg:#fff4dd;
@@ -107,6 +107,8 @@ dialog#prefs .row label{flex-basis:70px}
 #cube{position:absolute;right:8px;top:8px;width:84px;height:84px;z-index:1}
 #cube .face{width:48px;height:48px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#3b4456;
   background:rgba(250,251,253,.93);border:1px solid #aab3c3;cursor:pointer;user-select:none;box-sizing:border-box}
+#cube .vtx{width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #7d8aa3;box-sizing:border-box;cursor:pointer}
+#cube .vtx:hover{background:var(--pri);border-color:var(--pri)}
 #cube .face:hover{background:var(--pri-soft);color:var(--pri);border-color:var(--pri)}
 #dimLabels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .dl{position:absolute;transform:translate(-50%,-50%);font:600 var(--dim-fs)/1.2 system-ui,sans-serif;padding:1px 5px;border-radius:5px;white-space:nowrap;
@@ -154,12 +156,12 @@ dialog#prefs .row label{flex-basis:70px}
   <h1>SVG Forge</h1>
   <div class="tabs" id="modeTabs">
     <button id="modeImage" class="on">이미지</button>
-    <button id="modeText">글자</button>
+    <button id="modeText">텍스트</button>
   </div>
   <div class="exports proj">
     <span class="lbl">프로젝트</span>
     <button class="btn small" id="projOpen" title="프로젝트 파일(.svgforge) 열기 — 저장했던 작업을 그대로 이어서 수정">열기</button>
-    <button class="btn small" id="projSave" title="지금 작업(설정·이미지·글자·폰트·높이·고리 위치)을 .svgforge 파일로 저장">저장</button>
+    <button class="btn small" id="projSave" title="지금 작업(설정·이미지·텍스트·폰트·높이·고리 위치)을 .svgforge 파일로 저장">저장</button>
     <input id="projFile" type="file" accept=".svgforge,.json" class="hide">
   </div>
   <div class="spacer"></div>
@@ -198,6 +200,7 @@ dialog#prefs .row label{flex-basis:70px}
       </div>
       <label class="chk" id="invertRow"><input type="checkbox" id="invert"> 밝은 부분을 도형으로 (반전)</label>
       <label class="chk hide" id="bgRow"><input type="checkbox" id="removeBg" checked> 배경색(모서리 색) 제거</label>
+      <label class="chk hide" id="keepRow" title="바깥 배경만 지우고, 그림 안쪽에 갇힌 같은 색 면(예: 흰 면)은 남깁니다. 끄면 도넛처럼 안쪽 면도 구멍으로 뚫립니다."><input type="checkbox" id="keepInner" checked> 안쪽 같은 색 면은 남김</label>
       <h2>선 품질</h2>
       <div class="row" id="engineRow"><label for="engine" title="Potrace: 널리 쓰이는 오픈소스 트레이서(GPL-2.0). 흑백 전용, 디자인 보정은 적용되지 않음">엔진</label>
         <select id="engine" class="grow">
@@ -241,8 +244,8 @@ dialog#prefs .row label{flex-basis:70px}
     </div>
 
     <div id="paneText" class="hide">
-      <h2>글자</h2>
-      <textarea id="text" placeholder="글자를 입력하세요 (여러 줄 가능)">글자 입력</textarea>
+      <h2>텍스트</h2>
+      <textarea id="text" placeholder="텍스트를 입력하세요 (여러 줄 가능)">텍스트 입력</textarea>
       <h2>폰트</h2>
       <div class="row"><select id="fontSel" class="grow" aria-label="폰트"><option value="builtin">Noto Sans KR Bold (내장)</option></select></div>
       <div class="row">
@@ -311,7 +314,7 @@ dialog#prefs .row label{flex-basis:70px}
         <option value="0.2">0.2 mm</option>
       </select></div>
     <h2>3D 출력 (STL·3MF)</h2>
-    <div class="row"><label for="thick" title="글자·색 기본 두께 (mm)">두께 (mm)</label>
+    <div class="row"><label for="thick" title="텍스트·색 기본 두께 (mm)">두께 (mm)</label>
       <input id="thick" class="mini" type="number" min="0.2" max="200" step="0.2" value="3" title="기본 두께 (mm)"></div>
     <div class="hlabel" title="색마다 기본 두께에 더할 높이 (mm). 음수면 낮아짐 (최소 0.2mm)">색별 높이 ±mm
       <button class="btn small" id="stepAuto" style="margin-left:6px;padding:1px 7px" title="밝기 순서대로 계단식 높이차를 채움 (0, +0.4, +0.8 …)">계단</button>
@@ -321,7 +324,7 @@ dialog#prefs .row label{flex-basis:70px}
       <select id="edgeType" class="grow"><option value="none" selected>그대로</option><option value="chamfer">모따기</option><option value="fillet">모깎기</option></select>
       <input id="edgeSize" class="mini" type="number" min="0.1" max="10" step="0.1" value="0.6" title="크기 (mm)"></div>
     <div class="row hide" id="edgeOpts" style="margin-left:12px">
-      <label class="chk" style="margin:0 10px 0 0"><input type="checkbox" id="edgeColor" checked> 글자·색</label>
+      <label class="chk" style="margin:0 10px 0 0"><input type="checkbox" id="edgeColor" checked> 텍스트·색</label>
       <label class="chk" style="margin:0"><input type="checkbox" id="edgeBase" checked> 받침·턱</label></div>
     <label class="chk"><input type="checkbox" id="baseOn"> 받침판</label>
     <div id="baseOpts" class="sub hide">
@@ -336,7 +339,7 @@ dialog#prefs .row label{flex-basis:70px}
         <button class="btn small" id="baseImgBtn" title="SVG·PNG 그림의 외곽을 받침판 모양으로 씁니다">모양 이미지…</button>
         <label class="chk" id="baseStretchLbl" style="margin:0;flex:0 0 auto" title="모양을 글자 가로세로 비율에 맞게 늘입니다"><input type="checkbox" id="baseStretch"> 늘여 맞춤</label>
         <input id="baseImgFile" type="file" accept="image/*,.svg" class="hide"></div>
-      <div class="row"><label for="textMode" title="받침판 위 글자·그림을 어떻게 만들지">글자</label>
+      <div class="row"><label for="textMode" title="받침판 위 텍스트·그림을 어떻게 만들지">텍스트</label>
         <select id="textMode" class="grow">
           <option value="emboss">돌출 (볼록)</option>
           <option value="emboss_cut">돌출 + 안쪽(o·e) 뚫기</option>
@@ -376,7 +379,7 @@ dialog#prefs .row label{flex-basis:70px}
     <label class="chk"><input type="checkbox" id="pHints"> 마우스를 올리면 영어 용어도 표시</label>
     <label class="chk"><input type="checkbox" id="pAutosave"> 마지막 작업 자동 저장</label>
     <div class="row" style="margin-top:8px">
-      <button type="button" class="btn small" id="pResetCtl" title="왼쪽·오른쪽 설정을 처음 값으로 (글자·이미지는 그대로)">작업 설정 처음값으로</button>
+      <button type="button" class="btn small" id="pResetCtl" title="왼쪽·오른쪽 설정을 처음 값으로 (텍스트·이미지는 그대로)">작업 설정 처음값으로</button>
       <button type="button" class="btn small" id="pResetPrefs">이 창 기본값</button></div>
     <div class="row" style="justify-content:flex-end;margin-bottom:0"><button class="btn pri small" value="close">닫기</button></div>
   </form>
