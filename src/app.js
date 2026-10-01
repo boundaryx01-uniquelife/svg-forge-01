@@ -767,7 +767,7 @@ function addDims2d(sv, W, H) {
       t.appendChild(tt);
     }
     Object.entries({ x, y, fill: col, 'font-size': fs, 'font-family': 'system-ui,sans-serif', 'font-weight': 600, 'text-anchor': 'middle', 'dominant-baseline': 'middle' }).forEach(([k, v]) => t.setAttribute(k, v));
-    if (rot) t.setAttribute('transform', `rotate(90 ${x} ${y})`);
+    if (rot) t.setAttribute('transform', `rotate(-90 ${x} ${y})`);
     t.textContent = str;
     g.appendChild(t);
   };
@@ -775,11 +775,11 @@ function addDims2d(sv, W, H) {
   line(0, H + d, W, H + d);
   line(0, H + d - tk, 0, H + d + tk);
   line(W, H + d - tk, W, H + d + tk);
-  text(W / 2, H + d + fs * 1.1, `${W.toFixed(1)} mm`, false, { v: W, set: (v) => setModelSize(v / W) });
+  text(W / 2, H + d - fs * 1.1, `${W.toFixed(1)} mm`, false, { v: W, set: (v) => setModelSize(v / W) });
   line(W + d, 0, W + d, H);
   line(W + d - tk, 0, W + d + tk, 0);
   line(W + d - tk, H, W + d + tk, H);
-  text(W + d + fs * 1.1, H / 2, `${H.toFixed(1)} mm`, true, { v: H, set: (v) => setModelSize(v / H) });
+  text(W + d - fs * 1.1, H / 2, `${H.toFixed(1)} mm`, true, { v: H, set: (v) => setModelSize(v / H) });
   sv.appendChild(g);
 }
 /** 도형 전체 크기를 배율만큼 (너비 입력값을 바꿈) */
