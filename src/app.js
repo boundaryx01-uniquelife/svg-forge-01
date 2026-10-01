@@ -12,6 +12,7 @@ import hanjaFontData from '../assets/NotoSansCJKkr-Bold-hanja.otf';
 import { CSS3DRenderer, CSS3DObject, CSS3DSprite } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
 import { kvGet, kvSet, kvDel, lsGet, lsSet } from './store.js';
 import { isCollection, splitCollection, fontDisplayName, fontPostscript } from './fontutil.js';
+import { startCredit } from './credit.js';
 import { T, applyLang, setLang, initLang, getLang, setHints, applyHints } from './i18n.js';
 
 const $ = (s) => document.querySelector(s);
@@ -2533,6 +2534,7 @@ for (const e of controlEls()) ctlDefaults[e.id] = e.type === 'checkbox' ? e.chec
 if (getLang() !== 'ko' && el.text.value === '텍스트 입력') el.text.value = T('텍스트 입력');
 applyPrefs();
 refreshLang();
+startCredit();
 syncLabels();
 syncColorUi();
 updateButtons();

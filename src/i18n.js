@@ -358,6 +358,7 @@ const EN = {
   '이동 mm': 'Move mm',
   '회전': 'Rotate',
   '치수 mm': 'Size mm',
+  'Claude로 제작': 'Made with Claude',
   '이 글자의 가로 · 세로 크기 (mm). 가로나 세로 하나만 고치면 그 방향으로만 늘어납니다. 회전한 글자는 비율을 유지합니다': 'Width · height of this character (mm). Changing only one stretches in that direction. Rotated characters keep their proportions',
   '가로 (mm)': 'Width (mm)',
   '세로 (mm)': 'Height (mm)',

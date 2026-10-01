@@ -2,8 +2,8 @@
   "name": "svg-forge-desktop",
   "productName": "SVG Forge",
   "version": "1.0.0",
-  "description": "SVG Forge 설치형 (이미지·텍스트 → SVG/DXF/STL/3MF)",
-  "author": "SVG Forge",
+  "description": "SVG Forge 설치형 by uniquelife (이미지·텍스트 → SVG/DXF/STL/3MF)",
+  "author": "uniquelife",
   "main": "main.js",
   "private": true,
   "scripts": {
@@ -44,7 +44,8 @@
     },
     "portable": {
       "artifactName": "SVG-Forge-Portable-${version}.${ext}"
-    }
+    },
+    "copyright": "© 2026 uniquelife — made with Claude"
   },
   "devDependencies": {
     "electron": "^33.4.11",

@@ -114,7 +114,7 @@ export function build3mfFiles(model, opts, title = 'SVG Forge') {
   const modelXml =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">\n' +
-    ` <metadata name="Title">${xmlEsc(title)}</metadata>\n <metadata name="Application">SVG Forge</metadata>\n` +
+    ` <metadata name="Title">${xmlEsc(title)}</metadata>\n <metadata name="Application">SVG Forge by uniquelife (made with Claude)</metadata>\n` +
     ' <resources>\n' +
     `  <basematerials id="1">${mats}</basematerials>\n` +
     body +
