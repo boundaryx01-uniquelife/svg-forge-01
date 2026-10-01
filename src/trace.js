@@ -83,6 +83,25 @@ export function textToLayers(font, text, { align = 'center', lineHeight = 1.2 } 
       const sc = sty.s || 1;
       const gx = x0 + x + (sty.dx || 0) * size, gy = y - (sty.dy || 0) * size;
       const path = g.getPath(gx, gy, size * sc); // getPath는 글리프가 속한 폰트의 unitsPerEm으로 크기를 맞춤
+      // 회전(도, 시계 방향): 글자 범위의 중심 기준
+      let rc = null;
+      if (sty.r) {
+        const b0 = path.getBoundingBox();
+        if (isFinite(b0.x1) && b0.x2 > b0.x1) {
+          rc = [(b0.x1 + b0.x2) / 2, (b0.y1 + b0.y2) / 2];
+          const a = (sty.r * Math.PI) / 180, ca = Math.cos(a), sa = Math.sin(a);
+          const rot = (o, kx, ky) => {
+            const x = o[kx] - rc[0], y = o[ky] - rc[1];
+            o[kx] = rc[0] + ca * x - sa * y;
+            o[ky] = rc[1] + sa * x + ca * y;
+          };
+          for (const c of path.commands) {
+            if (c.x !== undefined) rot(c, 'x', 'y');
+            if (c.x1 !== undefined) rot(c, 'x1', 'y1');
+            if (c.x2 !== undefined) rot(c, 'x2', 'y2');
+          }
+        }
+      }
       const key = (sty.color || '#000000') + '|' + (sty.dz || 0);
       if (!groups.has(key)) groups.set(key, { color: sty.color || '#000000', dz: sty.dz || 0, rings: [] });
       const rings = groups.get(key).rings;
@@ -105,7 +124,7 @@ export function textToLayers(font, text, { align = 'center', lineHeight = 1.2 } 
       flush();
       if (!/\s/.test(ch)) {
         const bb = path.getBoundingBox();
-        if (isFinite(bb.x1) && bb.x2 > bb.x1) chars.push({ i, ch, box: [bb.x1, bb.y1, bb.x2, bb.y2] });
+        if (isFinite(bb.x1) && bb.x2 > bb.x1) chars.push({ i, ch, box: [bb.x1, bb.y1, bb.x2, bb.y2], o: [gx, gy], c: rc || [(bb.x1 + bb.x2) / 2, (bb.y1 + bb.y2) / 2] });
       }
     }
   });

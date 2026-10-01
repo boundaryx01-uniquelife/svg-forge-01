@@ -20,7 +20,7 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'preset', 'advImage', 'bgRow', 'removeBg', 'keepRow', 'keepInner', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -712,16 +712,7 @@ function render2d() {
     Object.entries({ fill: '#e9ecf2', stroke: '#9aa3b5', 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke', 'stroke-dasharray': '4 3', 'fill-rule': 'evenodd' }).forEach(([k, v]) => pl.setAttribute(k, v));
     sv.insertBefore(pl, sv.firstChild);
   }
-  if (S.mode === 'text' && S.selChar != null) {
-    const cb = charBoxMm(S.selChar);
-    if (cb) {
-      const NS = 'http://www.w3.org/2000/svg';
-      const r = document.createElementNS(NS, 'rect');
-      const pad = Math.max(W, H) * 0.012;
-      Object.entries({ x: cb[0] - pad, y: cb[1] - pad, width: cb[2] - cb[0] + 2 * pad, height: cb[3] - cb[1] + 2 * pad, fill: 'none', stroke: '#1d5fd6', 'stroke-width': 1.5, 'stroke-dasharray': '5 3', 'vector-effect': 'non-scaling-stroke', rx: pad }).forEach(([k, v]) => r.setAttribute(k, v));
-      sv.appendChild(r);
-    }
-  }
+  drawSelUi(sv);
   if (S.showDims) {
     addDims2d(sv, W, H);
     box = [-M * 0.02, -M * 0.02, W + M * 0.16, H + M * 0.16];
@@ -738,10 +729,41 @@ function render2d() {
   }
   applyVb2();
 }
+/** 선택 글자 상자 · 크기 점 · 회전 점 · 크기 표시 (확대·축소해도 같은 크기로 보이게 매번 다시 그림) */
+function drawSelUi(sv) {
+  sv.querySelectorAll('g.chui').forEach((n) => n.remove());
+  if (S.mode !== 'text' || S.selChar == null || !S.model) return;
+  const cb = charBoxMm(S.selChar);
+  if (!cb) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  const g = document.createElementNS(NS, 'g');
+  g.setAttribute('class', 'chui');
+  const mk = (tag, attrs, text) => {
+    const n = document.createElementNS(NS, tag);
+    Object.entries(attrs).forEach(([k, v]) => n.setAttribute(k, v));
+    if (text != null) n.textContent = text;
+    g.appendChild(n);
+    return n;
+  };
+  const vb = S.vb2 || S.fit2;
+  const upp = vb ? vb[2] / Math.max(1, el.view2d.clientWidth) : 0.2; // 화면 1px = upp mm
+  const pad = 4 * upp, hs = 4.5 * upp;
+  const X0 = cb[0] - pad, Y0 = cb[1] - pad, X1 = cb[2] + pad, Y1 = cb[3] + pad;
+  mk('rect', { x: X0, y: Y0, width: X1 - X0, height: Y1 - Y0, fill: 'none', stroke: '#1d5fd6', 'stroke-width': 1.5, 'stroke-dasharray': '5 3', 'vector-effect': 'non-scaling-stroke', 'pointer-events': 'none' });
+  for (const [nm, hx, hy] of [['nw', X0, Y0], ['ne', X1, Y0], ['sw', X0, Y1], ['se', X1, Y1]]) {
+    mk('rect', { x: hx - hs, y: hy - hs, width: hs * 2, height: hs * 2, fill: '#fff', stroke: '#1d5fd6', 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke', class: 'chhandle h-' + nm, 'data-h': nm });
+  }
+  const rx = (X0 + X1) / 2, ry = Y0 - 22 * upp;
+  mk('line', { x1: rx, y1: Y0, x2: rx, y2: ry, stroke: '#1d5fd6', 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke', 'pointer-events': 'none' });
+  mk('circle', { cx: rx, cy: ry, r: hs * 1.2, fill: '#1d5fd6', stroke: '#fff', 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke', class: 'chhandle rot', 'data-h': 'rot' });
+  mk('text', { x: rx, y: Y1 - 7 * upp, 'font-size': 11 * upp, 'font-family': 'system-ui,sans-serif', 'font-weight': 600, fill: '#1d5fd6', stroke: '#fff', 'stroke-width': 3 * upp, 'paint-order': 'stroke', 'text-anchor': 'middle', class: 'chsize', 'data-h': 'size' }, `${(cb[2] - cb[0]).toFixed(1)} × ${(cb[3] - cb[1]).toFixed(1)} mm`);
+  sv.appendChild(g);
+}
 function applyVb2() {
   const sv = el.view2d.querySelector('svg');
   const b = S.vb2 || S.fit2;
   if (sv && b) sv.setAttribute('viewBox', b.map((v) => +v.toFixed(4)).join(' '));
+  if (sv) drawSelUi(sv);
 }
 /** 2D 치수선 (화면 표시용, 저장 파일에는 없음) */
 function addDims2d(sv, W, H) {
@@ -843,7 +865,7 @@ function syncCharStyles(text) {
     else if (S.selChar >= p) S.selChar = null;
   }
 }
-const isStyled = (st) => st && ((st.s && st.s !== 1) || st.dx || st.dy || st.dz || (st.color && st.color !== '#000000'));
+const isStyled = (st) => st && ((st.s && st.s !== 1) || st.r || st.dx || st.dy || st.dz || (st.color && st.color !== '#000000'));
 function renderCharChips(text) {
   const chars = [...text];
   const sig = text + '|' + S.selChar + '|' + JSON.stringify(S.charStyles);
@@ -867,6 +889,8 @@ function renderCharChips(text) {
   if (st) {
     el.chScale.value = Math.round((st.s || 1) * 100);
     el.chScaleVal.textContent = el.chScale.value + '%';
+    el.chRot.value = Math.round(st.r || 0);
+    el.chRotVal.textContent = el.chRot.value + '°';
     el.chDz.value = st.dz || 0;
     el.chColor.value = st.color || '#000000';
     const k = S.model && S.model.xf ? S.model.xf.s * 100 : 1;
@@ -903,9 +927,39 @@ function charBoxMm(i) {
   const { s, x0, y0 } = m.xf;
   return [(c.box[0] - x0) * s, (c.box[1] - y0) * s, (c.box[2] - x0) * s, (c.box[3] - y0) * s];
 }
+/** 선택 글자의 기준점들 (mm): 범위 cb, 글자 기준점 O(크기 조절 기준), 회전 중심 C */
+function charAnchor(i) {
+  const m = S.model;
+  const cb = charBoxMm(i);
+  if (!cb) return null;
+  const c = m.chars.find((c) => c.i === i);
+  const { s, x0, y0 } = m.xf;
+  return { cb, O: [(c.o[0] - x0) * s, (c.o[1] - y0) * s], C: [(c.c[0] - x0) * s, (c.c[1] - y0) * s] };
+}
+/** 글자 크기 숫자를 눌러 가로 mm를 직접 입력 (비율 유지, 글자 중심 고정) */
+el.view2d.addEventListener('click', (e) => {
+  const h = e.target.closest && e.target.closest('[data-h="size"]');
+  if (!h || S.selChar == null) return;
+  const an = charAnchor(S.selChar);
+  if (!an) return;
+  const w = an.cb[2] - an.cb[0];
+  const r = h.getBoundingClientRect();
+  openNumEditor(r.left + r.width / 2, r.top + r.height / 2, w, (v) => {
+    const st = S.charStyles[S.selChar] || {};
+    const s1 = Math.min(5, Math.max(0.1, (st.s || 1) * (v / w)));
+    const k = s1 / (st.s || 1);
+    const F = [(an.cb[0] + an.cb[2]) / 2, (an.cb[1] + an.cb[3]) / 2], f = (1 - k) / (S.model.xf.s * 100);
+    if (!S.vb2 && S.fit2) S.vb2 = S.fit2.slice();
+    setCharStyle(S.selChar, { s: s1, dx: (st.dx || 0) + (F[0] - an.O[0]) * f, dy: (st.dy || 0) - (F[1] - an.O[1]) * f });
+  });
+});
 el.chScale.addEventListener('input', () => {
   el.chScaleVal.textContent = el.chScale.value + '%';
   if (S.selChar != null) setCharStyle(S.selChar, { s: parseInt(el.chScale.value, 10) / 100 });
+});
+el.chRot.addEventListener('input', () => {
+  el.chRotVal.textContent = el.chRot.value + '°';
+  if (S.selChar != null) setCharStyle(S.selChar, { r: parseFloat(el.chRot.value) || 0 });
 });
 el.chDz.addEventListener('input', () => S.selChar != null && setCharStyle(S.selChar, { dz: parseFloat(el.chDz.value) || 0 }));
 el.chColor.addEventListener('input', () => S.selChar != null && setCharStyle(S.selChar, { color: el.chColor.value.toLowerCase() }));
@@ -966,11 +1020,32 @@ el.view2d.addEventListener(
 {
   let pan = null;
   let drag = null;
+  let hd = null;
   let raf = 0;
   el.view2d.addEventListener('pointerdown', (e) => {
     const sv = el.view2d.querySelector('svg');
     if (!sv || e.button !== 0 || !S.fit2) return;
     const ctm = sv.getScreenCTM();
+    // 글자 모드: 선택 상자의 크기 점 · 회전 점
+    const hEl = S.mode === 'text' && S.selChar != null && e.target.closest ? e.target.closest('[data-h]') : null;
+    if (hEl && ctm) {
+      const kind = hEl.getAttribute('data-h');
+      if (kind === 'size') return; // click에서 처리
+      const an = charAnchor(S.selChar);
+      if (an) {
+        const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+        const st = S.charStyles[S.selChar] || {};
+        if (!S.vb2) S.vb2 = S.fit2.slice();
+        const cb = an.cb;
+        const corner = { nw: [cb[0], cb[1]], ne: [cb[2], cb[1]], sw: [cb[0], cb[3]], se: [cb[2], cb[3]] }[kind];
+        const opp = { nw: 'se', ne: 'sw', sw: 'ne', se: 'nw' }[kind];
+        const F = kind === 'rot' ? null : { nw: [cb[0], cb[1]], ne: [cb[2], cb[1]], sw: [cb[0], cb[3]], se: [cb[2], cb[3]] }[opp];
+        hd = { kind, i: S.selChar, x: e.clientX, y: e.clientY, a: ctm.a, P, st0: { s: st.s || 1, r: st.r || 0, dx: st.dx || 0, dy: st.dy || 0 }, an, corner, F, ang0: Math.atan2(P.y - an.C[1], P.x - an.C[0]) };
+        el.view2d.setPointerCapture(e.pointerId);
+        e.preventDefault();
+        return;
+      }
+    }
     // 글자 모드: 글자를 누르면 선택 + 끌어 옮기기
     if (S.mode === 'text' && ctm && S.model && S.model.chars) {
       const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
@@ -998,6 +1073,31 @@ el.view2d.addEventListener(
     el.view2d.classList.add('panning');
   });
   el.view2d.addEventListener('pointermove', (e) => {
+    if (hd) {
+      const P = { x: hd.P.x + (e.clientX - hd.x) / hd.a, y: hd.P.y + (e.clientY - hd.y) / hd.a };
+      if (hd.kind === 'rot') {
+        let r = hd.st0.r + ((Math.atan2(P.y - hd.an.C[1], P.x - hd.an.C[0]) - hd.ang0) * 180) / Math.PI;
+        if (e.shiftKey) r = Math.round(r / 15) * 15;
+        r = ((((r + 180) % 360) + 360) % 360) - 180;
+        S.charStyles[hd.i] = { ...(S.charStyles[hd.i] || {}), r: Math.round(r * 10) / 10 };
+      } else {
+        const F = hd.F, c = hd.corner;
+        const vx = c[0] - F[0], vy = c[1] - F[1];
+        let k = ((P.x - F[0]) * vx + (P.y - F[1]) * vy) / (vx * vx + vy * vy);
+        const s1 = Math.min(5, Math.max(0.1, hd.st0.s * k));
+        k = s1 / hd.st0.s;
+        const O = hd.an.O, f = (1 - k) / (S.model.xf.s * 100);
+        S.charStyles[hd.i] = { ...(S.charStyles[hd.i] || {}), s: s1, dx: hd.st0.dx + (F[0] - O[0]) * f, dy: hd.st0.dy - (F[1] - O[1]) * f };
+      }
+      if (!raf)
+        raf = requestAnimationFrame(() => {
+          raf = 0;
+          el.charChips.dataset.sig = '';
+          holdView();
+          compute();
+        });
+      return;
+    }
     if (drag) {
       const mx = (e.clientX - drag.x) / drag.a, my = (e.clientY - drag.y) / drag.a;
       const st = S.charStyles[drag.i] || {};
@@ -1020,7 +1120,9 @@ el.view2d.addEventListener(
   const end = () => {
     pan = null;
     if (drag) setCharStyle(drag.i, {}); // 0에 가까운 값 정리 + 저장
+    if (hd) setCharStyle(hd.i, {});
     drag = null;
+    hd = null;
     el.view2d.classList.remove('panning');
   };
   el.view2d.addEventListener('pointerup', end);
@@ -1061,7 +1163,15 @@ function init3d() {
     renderer.render(scene, camera);
     drawOverlay3d();
   };
-  controls.addEventListener('change', draw);
+  controls.addEventListener('change', () => {
+    // 면 시점에서 돌리면 다시 원근 시점으로
+    const t = G3;
+    if (t && t.ortho && t.orthoDir) {
+      const dir = t.camera.position.clone().sub(t.controls.target).normalize();
+      if (dir.angleTo(t.orthoDir) > 0.01) leaveOrtho(t);
+    }
+    draw();
+  });
   G3 = { renderer, scene, camera, group, controls, dims, draw };
   setupRingDrag(G3);
   setupCube(G3);
@@ -1109,7 +1219,7 @@ function setupCube(t) {
       o.up.set(0, n[2] ? 1 : 0, n[2] ? 0 : 1);
       o.lookAt(v.clone().multiplyScalar(100));
       cs.add(o);
-      d.addEventListener('click', () => viewFrom(v));
+      d.addEventListener('click', () => viewFrom(v, true));
     }
     // 꼭지점 8개: 눌러서 모서리 방향(등각) 시점으로
     for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
@@ -1131,14 +1241,46 @@ function refreshCubeLabels() {
   el.cube.querySelectorAll('.face').forEach((d) => (d.textContent = T(d.dataset.ko)));
   el.cube.querySelectorAll('.vtx').forEach((d) => (d.title = T('꼭지점 시점')));
 }
-function viewFrom(n) {
+// 면 시점(앞·뒤·위·아래·좌·우)은 원근감 없이: 시야각을 아주 좁히고 그만큼 멀리서 봄 (보이는 크기는 그대로)
+const ORTHO_FOV = 1;
+const tanH = (deg) => Math.tan((deg * Math.PI) / 360);
+function enterOrtho(t) {
+  if (t.ortho) return;
+  const cam = t.camera, d0 = cam.position.distanceTo(t.controls.target);
+  t.ortho = { fov: cam.fov, near: cam.near, far: cam.far, d0 };
+  const d = (d0 * tanH(cam.fov)) / tanH(ORTHO_FOV);
+  const dir = cam.position.clone().sub(t.controls.target).normalize();
+  cam.fov = ORTHO_FOV;
+  cam.position.copy(t.controls.target).addScaledVector(dir, d);
+  cam.near = Math.max(1, d - d0 * 4);
+  cam.far = d + d0 * 4;
+  cam.updateProjectionMatrix();
+  t.orthoDir = dir.clone();
+}
+function leaveOrtho(t) {
+  if (!t.ortho) return;
+  const cam = t.camera, o = t.ortho;
+  const d = cam.position.distanceTo(t.controls.target);
+  const d1 = (d * tanH(ORTHO_FOV)) / tanH(o.fov);
+  const dir = cam.position.clone().sub(t.controls.target).normalize();
+  cam.fov = o.fov;
+  cam.position.copy(t.controls.target).addScaledVector(dir, d1);
+  cam.near = o.near;
+  cam.far = o.far;
+  cam.updateProjectionMatrix();
+  t.ortho = null;
+  t.orthoDir = null;
+}
+function viewFrom(n, ortho) {
   const t = G3;
   if (!t || t.failed) return;
+  leaveOrtho(t);
   const dist = t.camera.position.distanceTo(t.controls.target);
   const v = n.clone().normalize();
   if (Math.abs(v.z) > 0.99) v.set(0, -0.003, Math.sign(v.z)).normalize();
   t.camera.position.copy(t.controls.target).addScaledVector(v, dist);
   t.camera.lookAt(t.controls.target);
+  if (ortho) enterOrtho(t);
   t.controls.update();
   t.draw();
 }
@@ -1401,6 +1543,8 @@ function rebuild3d() {
   const A3 = Math.max(0.5, (el.view3d.clientWidth || 800) / (el.view3d.clientHeight || 500));
   const fitSize = S.mode === 'text' ? Math.max(bb[3] - bb[1], (bb[2] - bb[0]) / (A3 * 1.05), maxH) : size;
   const c = new THREE.Vector3((bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2, maxH / 2);
+  const wasOrtho = !!t.ortho && !(S.dirty3d || !S.frameSize);
+  if (t.ortho) leaveOrtho(t);
   if (S.dirty3d || !S.frameSize) t.controls.target.copy(c);
   else if (!S.dragging && !S.keepView && (fitSize > S.frameSize * 1.12 || fitSize < S.frameSize / 1.25)) {
     // 크기가 크게 바뀌면(받침 모양 변경 등) 보던 각도는 그대로 두고 거리만 비례해 맞춤
@@ -1423,6 +1567,11 @@ function rebuild3d() {
     t.controls.update();
   }
   S.dirty3d = false;
+  if (wasOrtho) {
+    t.camera.lookAt(t.controls.target);
+    enterOrtho(t);
+    t.controls.update();
+  }
   resize3d();
 }
 
@@ -2338,6 +2487,7 @@ el.btn3mf.onclick = async () => {
 
 window.__svgforge = S;
 Object.defineProperty(S, 'cam', { get: () => (G3 && !G3.failed ? G3.camera.position.toArray() : null) }); // 테스트용
+Object.defineProperty(S, 'fov', { get: () => (G3 && !G3.failed ? G3.camera.fov : null) }); // 테스트용
 Object.defineProperty(S, 'tgt', { get: () => (G3 && !G3.failed ? G3.controls.target.toArray() : null) }); // 테스트용
 initLang();
 applyLang();
