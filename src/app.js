@@ -746,7 +746,7 @@ function applyVb2() {
 /** 2D 치수선 (화면 표시용, 저장 파일에는 없음) */
 function addDims2d(sv, W, H) {
   const NS = 'http://www.w3.org/2000/svg';
-  const M = Math.max(W, H), d = M * 0.06, fs = M * 0.036 * S.prefs.dimSize, col = S.prefs.dimColor;
+  const M = Math.max(W, H), d = M * 0.06, fs = M * 0.026 * S.prefs.dimSize, col = S.prefs.dimColor;
   const g = document.createElementNS(NS, 'g');
   const line = (x1, y1, x2, y2) => {
     const l = document.createElementNS(NS, 'line');
@@ -775,11 +775,11 @@ function addDims2d(sv, W, H) {
   line(0, H + d, W, H + d);
   line(0, H + d - tk, 0, H + d + tk);
   line(W, H + d - tk, W, H + d + tk);
-  text(W / 2, H + d - fs * 1.1, `${W.toFixed(1)} mm`, false, { v: W, set: (v) => setModelSize(v / W) });
+  text(W / 2, H + d - fs * 0.7, `${W.toFixed(1)} mm`, false, { v: W, set: (v) => setModelSize(v / W) });
   line(W + d, 0, W + d, H);
   line(W + d - tk, 0, W + d + tk, 0);
   line(W + d - tk, H, W + d + tk, H);
-  text(W + d - fs * 1.1, H / 2, `${H.toFixed(1)} mm`, true, { v: H, set: (v) => setModelSize(v / H) });
+  text(W + d - fs * 0.7, H / 2, `${H.toFixed(1)} mm`, true, { v: H, set: (v) => setModelSize(v / H) });
   sv.appendChild(g);
 }
 /** 도형 전체 크기를 배율만큼 (너비 입력값을 바꿈) */
