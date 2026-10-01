@@ -33,7 +33,8 @@
       "allowToChangeInstallationDirectory": true,
       "perMachine": false,
       "createDesktopShortcut": true,
-      "shortcutName": "SVG Forge"
+      "shortcutName": "SVG Forge",
+      "artifactName": "SVG-Forge-Setup-${version}.${ext}"
     },
     "mac": {
       "icon": "build/icon.png",
@@ -41,7 +42,9 @@
         "dmg"
       ]
     },
-    "artifactName": "SVG-Forge-${version}-${os}.${ext}"
+    "portable": {
+      "artifactName": "SVG-Forge-Portable-${version}.${ext}"
+    }
   },
   "devDependencies": {
     "electron": "^33.4.11",
