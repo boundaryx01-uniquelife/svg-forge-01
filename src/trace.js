@@ -83,6 +83,15 @@ export function textToLayers(font, text, { align = 'center', lineHeight = 1.2 } 
       const sc = sty.s || 1;
       const gx = x0 + x + (sty.dx || 0) * size, gy = y - (sty.dy || 0) * size;
       const path = g.getPath(gx, gy, size * sc); // getPath는 글리프가 속한 폰트의 unitsPerEm으로 크기를 맞춤
+      // 가로·세로 따로 늘이기 (글자 기준점 기준)
+      if ((sty.sx && sty.sx !== 1) || (sty.sy && sty.sy !== 1)) {
+        const fx = sty.sx || 1, fy = sty.sy || 1;
+        for (const c of path.commands) {
+          if (c.x !== undefined) (c.x = gx + (c.x - gx) * fx), (c.y = gy + (c.y - gy) * fy);
+          if (c.x1 !== undefined) (c.x1 = gx + (c.x1 - gx) * fx), (c.y1 = gy + (c.y1 - gy) * fy);
+          if (c.x2 !== undefined) (c.x2 = gx + (c.x2 - gx) * fx), (c.y2 = gy + (c.y2 - gy) * fy);
+        }
+      }
       // 회전(도, 시계 방향): 글자 범위의 중심 기준
       let rc = null;
       if (sty.r) {

@@ -329,6 +329,9 @@ dialog#prefs .row label{flex-basis:70px}
         <div class="row"><label title="가로 · 세로 이동 (mm, +오른쪽 · +위)">이동 mm</label>
           <input id="chDx" class="mini" type="number" step="0.5" value="0" title="가로 (mm, +오른쪽)">
           <input id="chDy" class="mini" type="number" step="0.5" value="0" title="세로 (mm, +위)"></div>
+        <div class="row"><label for="chW" title="이 글자의 가로 · 세로 크기 (mm). 가로나 세로 하나만 고치면 그 방향으로만 늘어납니다. 회전한 글자는 비율을 유지합니다">치수 mm</label>
+          <input id="chW" class="mini" type="number" min="0.5" step="0.1" value="0" title="가로 (mm)"><span class="val" style="flex:0 0 auto">×</span>
+          <input id="chH" class="mini" type="number" min="0.5" step="0.1" value="0" title="세로 (mm)"></div>
         <div class="row"><label for="chRot" title="시계 방향이 +. 미리보기에서 글자 위의 ● 점을 끌어도 됩니다 (Shift: 15° 단위)">회전</label>
           <input id="chRot" class="grow" type="range" min="-180" max="180" step="1" value="0"><span class="val" id="chRotVal">0°</span></div>
       </div>

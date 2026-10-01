@@ -20,7 +20,7 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'preset', 'advImage', 'bgRow', 'removeBg', 'keepRow', 'keepInner', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -616,11 +616,11 @@ async function compute() {
       if (r.thin) parts.push(T('가는 선 {n}곳 (폭 {w}mm 미만)', { n: r.thin, w: r.minW }));
       if (r.island) parts.push(T('아주 작은 조각 {n}개', { n: r.island }));
       if (r.hole) parts.push(T('아주 작은 구멍 {n}개', { n: r.hole }));
-      if (parts.length) warnings.push(T('⚠ 출력이 잘 안 될 수 있는 부분: {list}. 너비를 키우거나 노이즈 제거를 올려 보세요.', { list: parts.join(', ') }));
+      if (parts.length) warnings.push(T(S.mode === 'text' ? '⚠ 출력이 잘 안 될 수 있는 부분: {list}. 너비를 키우거나 두꺼운 폰트를 써 보세요.' : '⚠ 출력이 잘 안 될 수 있는 부분: {list}. 너비를 키우거나 고급 설정의 노이즈 제거를 올려 보세요.', { list: parts.join(', ') }));
     } catch (e) {}
   }
   if (m.layers.length > 4) warnings.push(T('색이 {n}개입니다. MakerLab 도구에는 4색 이하를 권장합니다 (색 수를 줄여 보세요).', { n: m.layers.length }));
-  if (m.ringCount > 3000) warnings.push(T("도형 조각이 {n}개로 많습니다. '노이즈 제거'나 '곡선 단순화'를 올리면 가벼워집니다.", { n: m.ringCount }));
+  if (m.ringCount > 3000) warnings.push(T(S.mode === 'text' ? '도형 조각이 {n}개로 많습니다. 곡선 정밀도를 낮추면 가벼워집니다.' : "도형 조각이 {n}개로 많습니다. 고급 설정의 '노이즈 제거'나 '곡선 허용오차'를 올리면 가벼워집니다.", { n: m.ringCount }));
   if (S.flash) {
     warnings.unshift(S.flash);
     S.flash = '';
@@ -756,7 +756,18 @@ function drawSelUi(sv) {
   const rx = (X0 + X1) / 2, ry = Y0 - 22 * upp;
   mk('line', { x1: rx, y1: Y0, x2: rx, y2: ry, stroke: '#1d5fd6', 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke', 'pointer-events': 'none' });
   mk('circle', { cx: rx, cy: ry, r: hs * 1.2, fill: '#1d5fd6', stroke: '#fff', 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke', class: 'chhandle rot', 'data-h': 'rot' });
-  mk('text', { x: rx, y: Y1 - 7 * upp, 'font-size': 11 * upp, 'font-family': 'system-ui,sans-serif', 'font-weight': 600, fill: '#1d5fd6', stroke: '#fff', 'stroke-width': 3 * upp, 'paint-order': 'stroke', 'text-anchor': 'middle', class: 'chsize', 'data-h': 'size' }, `${(cb[2] - cb[0]).toFixed(1)} × ${(cb[3] - cb[1]).toFixed(1)} mm`);
+  mk('text', { x: rx, y: Y1 - 7 * upp, 'font-size': 11 * upp, 'font-family': 'system-ui,sans-serif', 'font-weight': 600, fill: '#1d5fd6', stroke: '#fff', 'stroke-width': 3 * upp, 'paint-order': 'stroke', 'text-anchor': 'middle', class: 'chsize', 'data-h': 'size' }, null);
+  {
+    const tx = g.lastChild;
+    const a = document.createElementNS(NS, 'tspan'), b = document.createElementNS(NS, 'tspan'), c = document.createElementNS(NS, 'tspan');
+    a.setAttribute('data-h', 'sizew'); a.textContent = (cb[2] - cb[0]).toFixed(1);
+    b.textContent = ' × ';
+    c.setAttribute('data-h', 'sizeh'); c.textContent = (cb[3] - cb[1]).toFixed(1);
+    const u = document.createElementNS(NS, 'tspan'); u.textContent = ' mm';
+    [a, b, c, u].forEach((n) => tx.appendChild(n));
+  }
+  if (document.activeElement !== el.chW) el.chW.value = (cb[2] - cb[0]).toFixed(1);
+  if (document.activeElement !== el.chH) el.chH.value = (cb[3] - cb[1]).toFixed(1);;
   sv.appendChild(g);
 }
 function applyVb2() {
@@ -865,7 +876,7 @@ function syncCharStyles(text) {
     else if (S.selChar >= p) S.selChar = null;
   }
 }
-const isStyled = (st) => st && ((st.s && st.s !== 1) || st.r || st.dx || st.dy || st.dz || (st.color && st.color !== '#000000'));
+const isStyled = (st) => st && ((st.s && st.s !== 1) || (st.sx && st.sx !== 1) || (st.sy && st.sy !== 1) || st.r || st.dx || st.dy || st.dz || (st.color && st.color !== '#000000'));
 function renderCharChips(text) {
   const chars = [...text];
   const sig = text + '|' + S.selChar + '|' + JSON.stringify(S.charStyles);
@@ -906,7 +917,7 @@ function selectChar(i) {
 }
 function setCharStyle(i, patch) {
   const st = { ...(S.charStyles[i] || {}), ...patch };
-  for (const k of Object.keys(st)) if (!st[k] || (k === 's' && st[k] === 1) || (k === 'color' && st[k] === '#000000')) delete st[k];
+  for (const k of Object.keys(st)) if (!st[k] || ((k === 's' || k === 'sx' || k === 'sy') && st[k] === 1) || (k === 'color' && st[k] === '#000000')) delete st[k];
   if (Object.keys(st).length) S.charStyles[i] = st;
   else delete S.charStyles[i];
   el.charChips.dataset.sig = '';
@@ -936,23 +947,49 @@ function charAnchor(i) {
   const { s, x0, y0 } = m.xf;
   return { cb, O: [(c.o[0] - x0) * s, (c.o[1] - y0) * s], C: [(c.c[0] - x0) * s, (c.c[1] - y0) * s] };
 }
-/** 글자 크기 숫자를 눌러 가로 mm를 직접 입력 (비율 유지, 글자 중심 고정) */
+/** 선택 글자 치수(mm) 바꾸기: 가로만 / 세로만(따로 늘임) / 둘 다 같은 비율(회전한 글자). 글자 범위의 중심은 그대로 */
+function applyCharSize(i, wNew, hNew) {
+  const an = charAnchor(i);
+  if (!an) return;
+  const st = S.charStyles[i] || {};
+  const w = an.cb[2] - an.cb[0], h = an.cb[3] - an.cb[1];
+  let kx = wNew > 0 ? wNew / w : 1, ky = hNew > 0 ? hNew / h : 1;
+  const patch = {};
+  if (Math.abs(st.r || 0) > 0.01) {
+    const k = wNew > 0 ? kx : ky;
+    const s1 = Math.min(5, Math.max(0.1, (st.s || 1) * k));
+    kx = ky = s1 / (st.s || 1);
+    patch.s = s1;
+  } else {
+    if (wNew > 0) {
+      const v = Math.min(8, Math.max(0.1, (st.sx || 1) * kx));
+      kx = v / (st.sx || 1);
+      patch.sx = v;
+    }
+    if (hNew > 0) {
+      const v = Math.min(8, Math.max(0.1, (st.sy || 1) * ky));
+      ky = v / (st.sy || 1);
+      patch.sy = v;
+    }
+  }
+  const F = [(an.cb[0] + an.cb[2]) / 2, (an.cb[1] + an.cb[3]) / 2], q = 1 / (S.model.xf.s * 100);
+  if (!S.vb2 && S.fit2) S.vb2 = S.fit2.slice();
+  patch.dx = (st.dx || 0) + (F[0] - an.O[0]) * (1 - kx) * q;
+  patch.dy = (st.dy || 0) - (F[1] - an.O[1]) * (1 - ky) * q;
+  setCharStyle(i, patch);
+}
+// 크기 숫자(가로 · 세로)를 눌러 직접 입력
 el.view2d.addEventListener('click', (e) => {
-  const h = e.target.closest && e.target.closest('[data-h="size"]');
+  const h = e.target.closest && e.target.closest('[data-h^="size"]');
   if (!h || S.selChar == null) return;
   const an = charAnchor(S.selChar);
   if (!an) return;
-  const w = an.cb[2] - an.cb[0];
+  const isW = h.getAttribute('data-h') === 'sizew';
   const r = h.getBoundingClientRect();
-  openNumEditor(r.left + r.width / 2, r.top + r.height / 2, w, (v) => {
-    const st = S.charStyles[S.selChar] || {};
-    const s1 = Math.min(5, Math.max(0.1, (st.s || 1) * (v / w)));
-    const k = s1 / (st.s || 1);
-    const F = [(an.cb[0] + an.cb[2]) / 2, (an.cb[1] + an.cb[3]) / 2], f = (1 - k) / (S.model.xf.s * 100);
-    if (!S.vb2 && S.fit2) S.vb2 = S.fit2.slice();
-    setCharStyle(S.selChar, { s: s1, dx: (st.dx || 0) + (F[0] - an.O[0]) * f, dy: (st.dy || 0) - (F[1] - an.O[1]) * f });
-  });
+  openNumEditor(r.left + r.width / 2, r.top + r.height / 2, isW ? an.cb[2] - an.cb[0] : an.cb[3] - an.cb[1], (v) => applyCharSize(S.selChar, isW ? v : 0, isW ? 0 : v));
 });
+el.chW.addEventListener('change', () => S.selChar != null && applyCharSize(S.selChar, parseFloat(el.chW.value) || 0, 0));
+el.chH.addEventListener('change', () => S.selChar != null && applyCharSize(S.selChar, 0, parseFloat(el.chH.value) || 0));
 el.chScale.addEventListener('input', () => {
   el.chScaleVal.textContent = el.chScale.value + '%';
   if (S.selChar != null) setCharStyle(S.selChar, { s: parseInt(el.chScale.value, 10) / 100 });
@@ -1030,7 +1067,7 @@ el.view2d.addEventListener(
     const hEl = S.mode === 'text' && S.selChar != null && e.target.closest ? e.target.closest('[data-h]') : null;
     if (hEl && ctm) {
       const kind = hEl.getAttribute('data-h');
-      if (kind === 'size') return; // click에서 처리
+      if (kind.startsWith('size')) return; // click에서 처리
       const an = charAnchor(S.selChar);
       if (an) {
         const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
