@@ -27,13 +27,17 @@ function arcToCubics(from, c) {
   return out;
 }
 
-export function ringToPath(ring, p = 3, closed = true) {
+export function ringToPath(ring, p = 3, closed = true, cubicOnly = false) {
   let d = '';
   let cur = [0, 0];
   for (const c of ring) {
     if (c[0] === 'M') d += `M${f(c[1], p)} ${f(c[2], p)}`;
     else if (c[0] === 'L') d += `L${f(c[1], p)} ${f(c[2], p)}`;
-    else if (c[0] === 'Q') d += `Q${f(c[1], p)} ${f(c[2], p)} ${f(c[3], p)} ${f(c[4], p)}`;
+    else if (c[0] === 'Q' && cubicOnly) {
+      // 일부 프로그램(RDWorks 등)은 2차 곡선(Q)을 못 읽어서 3차(C)로 바꿔 저장
+      const k = 2 / 3;
+      d += `C${f(cur[0] + (c[1] - cur[0]) * k, p)} ${f(cur[1] + (c[2] - cur[1]) * k, p)} ${f(c[3] + (c[1] - c[3]) * k, p)} ${f(c[4] + (c[2] - c[4]) * k, p)} ${f(c[3], p)} ${f(c[4], p)}`;
+    } else if (c[0] === 'Q') d += `Q${f(c[1], p)} ${f(c[2], p)} ${f(c[3], p)} ${f(c[4], p)}`;
     else if (c[0] === 'A') {
       for (const [c1, c2, p3] of arcToCubics(cur, c)) d += `C${f(c1[0], p)} ${f(c1[1], p)} ${f(c2[0], p)} ${f(c2[1], p)} ${f(p3[0], p)} ${f(p3[1], p)}`;
     } else d += `C${f(c[1], p)} ${f(c[2], p)} ${f(c[3], p)} ${f(c[4], p)} ${f(c[5], p)} ${f(c[6], p)}`;
@@ -169,7 +173,7 @@ export function toFillSvg(model, { p = 3, xmlDecl = true } = {}) {
 export function toLaserSvg(model, { p = 3, xmlDecl = true, single = false, strokeWidth = 0.1 } = {}) {
   let s = head(model, p, xmlDecl);
   laserLayers(model, single).forEach((g, i) => {
-    const d = g.paths.map((pt) => ringToPath(pt.cmds, p, pt.closed)).join(' ');
+    const d = g.paths.map((pt) => ringToPath(pt.cmds, p, pt.closed, true)).join(' ');
     if (g.engrave) s += `  <path id="engrave${i + 1}" fill="${g.color}" fill-rule="evenodd" stroke="none" d="${d}"/>\n`;
     else s += `  <path id="${single ? 'cut' : 'layer' + (i + 1)}" fill="none" stroke="${g.color}" stroke-width="${strokeWidth}" d="${d}"/>\n`;
   });

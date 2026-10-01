@@ -1710,7 +1710,7 @@ const bindRange = (input, label, fmt = (v) => v) => {
 const PRESETS = {
   keyring: { base: true, border: true, ring: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판·테두리·고리를 켰습니다. 위쪽 저장에서 노란 테두리 버튼(3MF는 색 나눔, STL은 한 덩어리)을 누르세요.' },
   print3d: { base: false, border: false, ring: false, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판 없이 도형만 만듭니다. 노란 테두리 버튼(3MF 또는 STL)으로 저장하세요.' },
-  laser: { base: false, border: false, ring: false, view3d: false, rec: ['btnLaser', 'btnDxf'], hint: '윤곽선만 저장합니다. 노란 테두리 버튼(SVG·레이저 또는 DXF)을 LightBurn·RDWorks에서 여세요.' },
+  laser: { base: false, border: false, ring: false, view3d: false, rec: ['btnLaser', 'btnDxf'], hint: '윤곽선만 저장합니다. 노란 테두리 버튼 파일을 여세요 (RDWorks는 DXF · 레이저, LightBurn은 둘 다).' },
   maker: { base: false, border: false, ring: false, view3d: false, rec: ['btnFill'], hint: 'MakerLab용 SVG입니다. 노란 테두리 버튼으로 저장해 MakerLab에 올리세요.' },
 };
 function showPresetRec() {
