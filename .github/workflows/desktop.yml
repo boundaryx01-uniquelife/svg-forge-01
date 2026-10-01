@@ -1,0 +1,33 @@
+# 설치형(Windows) 만들기: Actions 탭 → "Build desktop app" → Run workflow
+# 끝나면 해당 실행 화면 아래 Artifacts 에서 설치 파일(.exe)을 받습니다.
+name: Build desktop app
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+jobs:
+  win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Build web app (GPL 제외 빌드)
+        run: |
+          npm ci
+          node build.mjs --no-potrace
+      - name: Copy into desktop shell
+        shell: bash
+        run: |
+          mkdir -p desktop/app
+          cp dist/svg-forge-nogpl.html desktop/app/index.html
+      - name: Package (installer + portable)
+        working-directory: desktop
+        run: |
+          npm install
+          npx electron-builder --win nsis portable --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SVG-Forge-Windows
+          path: |
+            desktop/dist/*.exe

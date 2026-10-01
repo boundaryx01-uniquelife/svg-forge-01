@@ -1,0 +1,50 @@
+{
+  "name": "svg-forge-desktop",
+  "productName": "SVG Forge",
+  "version": "1.0.0",
+  "description": "SVG Forge 설치형 (이미지·텍스트 → SVG/DXF/STL/3MF)",
+  "author": "SVG Forge",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis portable --publish never"
+  },
+  "build": {
+    "appId": "kr.svgforge.app",
+    "productName": "SVG Forge",
+    "files": [
+      "main.js",
+      "app/**/*"
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "SVG Forge"
+    },
+    "mac": {
+      "icon": "build/icon.png",
+      "target": [
+        "dmg"
+      ]
+    },
+    "artifactName": "SVG-Forge-${version}-${os}.${ext}"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  }
+}
