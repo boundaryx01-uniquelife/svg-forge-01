@@ -166,6 +166,8 @@ async function restoreFonts() {
 // ---------- 메시지/상태 ----------
 function setMsg(list) {
   el.msg.innerHTML = list.map((t) => `<div class="note">${t}</div>`).join('');
+  // 메모 영역이 미리보기 밖이라 미리보기 높이가 바뀜 → 텍스트 맞춤 다시 계산
+  if (S.mode === 'text' && S.model && !S.vb2) requestAnimationFrame(() => render2d());
 }
 function setStatus(html) {
   el.status.innerHTML = html;
@@ -1576,9 +1578,14 @@ el.tol.addEventListener('change', () => schedule(0));
 /** '모두 채움'이면 폭·높이 칸은 자동이라 잠금 */
 function syncBorderUi() {
   el.borderW.disabled = el.borderH.disabled = el.borderFull.checked;
+  if (!el.baseOn.checked) el.ringOn.checked = false;
+  el.ringOn.disabled = el.ringAdd.disabled = el.ringDel.disabled = !el.baseOn.checked;
 }
 // 3D 설정: 바꾸면 3D 미리보기로 보여줌
 function on3dChange(showView) {
+  // 키링 고리는 받침판이 있을 때만
+  if (!el.baseOn.checked) el.ringOn.checked = false;
+  el.ringOn.disabled = el.ringAdd.disabled = el.ringDel.disabled = !el.baseOn.checked;
   el.baseOpts.classList.toggle('hide', !el.baseOn.checked);
   el.borderOpts.classList.toggle('hide', !el.borderOn.checked);
   syncBorderUi();
