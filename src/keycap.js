@@ -215,6 +215,12 @@ export function buildKeycap(model, o) {
     if (D.mode === 'emboss') add(`글자 ${i + 1} ${l.color}`, l.color, layerPaths[i], D.H, D.H + Math.max(0.2, lh + off), 'kclegend', i);
     else if (D.mode === 'inlay') add(`글자 ${i + 1} ${l.color}`, l.color, layerPaths[i], D.zT, D.H + Math.max(-(D.depth - 0.2), off), 'kclegend', i);
   });
+  // 윤곽 벽: 글자·그림 둘레에 담 (윗면 안에서만, 윗면 위로 솟음)
+  if (o.wall && o.wall.on && legendAll.length) {
+    const g = Math.max(0, o.wall.gap || 0), w = Math.max(0.4, o.wall.width || 1.2);
+    const wp = clip(CT.ctIntersection, diff(offset(legendAll, g + w), offset(legendAll, g)), topFace);
+    add('윤곽 벽', o.wall.color || '#ffffff', wp, D.H, D.H + Math.max(0.2, o.wall.height || 2), 'outwall', undefined, false);
+  }
   // 십자 스템 (MX): 바깥 Ø5.5, 구멍 4.1 × 1.35 (+공차)
   const tol = Math.min(0.5, Math.max(0, k.tol == null ? 0.1 : k.tol));
   const L = 4.1 + tol, Wd = 1.35 + tol;

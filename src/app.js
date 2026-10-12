@@ -2031,7 +2031,7 @@ function solidOpts() {
     },
     textMode: el.textMode.value === 'emboss_cut' ? 'emboss' : el.textMode.value,
     border: { on: el.baseOn.checked && el.borderOn.checked, width: nv(el.borderW, 1.2, 0.4), height: nv(el.borderH, 1, 0.2), full: el.borderFull.checked },
-    wall: { on: el.wallOn.checked && !el.kcOn.checked, width: nv(el.wallW, 1.2, 0.4), height: nv(el.wallH, 2, 0.2), gap: Math.max(0, parseFloat(el.wallGap.value) || 0), color: el.wallColor.value },
+    wall: { on: el.wallOn.checked, width: nv(el.wallW, 1.2, 0.4), height: nv(el.wallH, 2, 0.2), gap: Math.max(0, parseFloat(el.wallGap.value) || 0), color: el.wallColor.value },
     ring: { on: el.ringOn.checked, list: (ringFromInputs(), S.rings.map((r) => ({ ...r }))) },
     edge: { type: el.edgeType.value, size: nv(el.edgeSize, 0.6, 0.1), onColor: el.edgeColor.checked, onBase: el.edgeBase.checked },
     keycap: kcOpts(),
