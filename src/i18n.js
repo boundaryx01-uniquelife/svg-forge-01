@@ -415,6 +415,8 @@ const EN = {
   '도형 {n}개 선택': '{n} shapes selected',
   '여러 개 선택(이미지·텍스트): Ctrl(Shift)+클릭으로 추가·해제, 빈 곳을 끌어 사각형으로 영역 선택. 화면 이동은 휠 버튼 끌기 또는 Space+끌기': 'Multi-select (image & text): Ctrl/Shift+click to add/remove, drag on empty space for a box. Pan with the middle button or Space+drag',
   '색 칸을 누르면 5×5 색 타일이 열립니다 (아래에 지금 그림에 쓰인 색)': 'Click a colour box to open a 5×5 tile palette (colours used in the artwork are listed below)',
+  '💧 같은 색으로': '💧 Same colour as…',
+  '스포이드: 선택한 도형을 눌러 둔 채 이어서 다른 면을 누르면, 그 면의 색을 그대로 가져와 같은 색(같은 높이·필라멘트 설정)으로 묶습니다. 그 면의 색은 바뀌지 않습니다. Esc로 취소': 'Eyedropper: with shapes selected, click another face to take its exact colour, grouping them (same height/filament). That face keeps its colour. Esc cancels',
   '그림에 쓰인 색': 'Colours in the artwork',
   '✂ 끊기': '✂ Cut',
   '연결된 부분을 끊기: 켜고 미리보기에서 끊을 곳을 가로질러 끌면 (화면 이동은 휠 버튼 끌기) 그 선을 따라 도려냅니다 (선택한 도형이 있으면 그 도형만, 없으면 닿는 모든 도형). Esc로 끄기': 'Cut connected parts (middle-button drag pans): turn on, then drag across the spot in the preview to cut along that line (only the selected shape if one is selected, otherwise every shape it touches). Esc to turn off',

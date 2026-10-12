@@ -26,7 +26,7 @@ const el = {};
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
   'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'tabSim', 'viewSim', 'simCv', 'simHead', 'simPlay', 'simRst', 'simPos', 'simTime', 'simSpd', 'simCut', 'simEng', 'simTrv', 'simInfo',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
-  'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear', 'edCut', 'edCutW', 'edText', 'textDlg', 'tdText', 'tdSize', 'tdColor',
+  'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear', 'edCut', 'edCutW', 'edText', 'edDrop', 'textDlg', 'tdText', 'tdSize', 'tdColor',
 ].forEach((id) => (el[id] = document.getElementById(id)));
 
 const S = {
@@ -1229,6 +1229,7 @@ window.addEventListener('keydown', (e) => {
     }
     if (e.key === 'Escape') return setSels([], []);
   }
+  if (S.eyedrop && e.key === 'Escape') return setDrop(false);
   if (S.placeText && e.key === 'Escape') return setPlace(false);
   if (S.cutMode && e.key === 'Escape') return setCut(false);
   if (S.mode !== 'text' || S.selChar == null) return;
@@ -1265,6 +1266,12 @@ function setCut(on) {
   el.view2d.style.cursor = S.cutMode ? 'crosshair' : '';
 }
 el.edScope.onchange = updateEditBar;
+function setDrop(on) {
+  S.eyedrop = !!on && S.sels.length > 0;
+  el.edDrop.classList.toggle('on', S.eyedrop);
+  el.view2d.style.cursor = S.eyedrop ? 'cell' : S.placeText ? 'copy' : S.cutMode ? 'crosshair' : '';
+}
+el.edDrop.onclick = () => setDrop(!S.eyedrop);
 function setPlace(on) {
   if (!on) S.placeText = null;
   el.view2d.style.cursor = S.placeText ? 'copy' : S.cutMode ? 'crosshair' : '';
@@ -1380,6 +1387,17 @@ el.view2d.addEventListener(
       cutDrag = { a: [P.x, P.y], b: [P.x, P.y], ctm, id: e.pointerId };
       el.view2d.setPointerCapture(e.pointerId);
       e.preventDefault();
+      return;
+    }
+    if (S.eyedrop && S.mode === 'image' && ctm && S.model) {
+      const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+      const h = hitItem(S.model, P.x, P.y);
+      e.preventDefault();
+      if (h) {
+        const to = h.c.toLowerCase();
+        setDrop(false);
+        if (!S.sels.every((q) => q.c.toLowerCase() === to)) editOp('col', { to });
+      }
       return;
     }
     if (S.placeText && S.mode === 'image' && ctm && S.model) {
