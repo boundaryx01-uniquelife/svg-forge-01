@@ -25,6 +25,29 @@ function offsetRings(items, d) {
     });
 }
 
+const polyArea = (p) => {
+  let a = 0;
+  for (let i = 0, j = p.length - 1; i < p.length; j = i++) a += (p[j][0] - p[i][0]) * (p[j][1] + p[i][1]);
+  return Math.abs(a) / 2;
+};
+
+/** 겹친 도형이 있으면(겹친 부분이 구멍으로 읽히는 문제) 한 레이어를 합집합으로 합침. 겹침이 없으면 그대로 */
+function fixOverlap(L, tol) {
+  const items = L.items;
+  if (items.length < 2) return L;
+  let sum = 0;
+  for (const it of items) sum += (it.hole ? -1 : 1) * polyArea(it.poly);
+  const c = new ClipperLib.Clipper();
+  c.AddPaths(toPaths(items), ClipperLib.PolyType.ptSubject, true);
+  const u = new ClipperLib.Paths();
+  c.Execute(ClipperLib.ClipType.ctUnion, u, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  let ua = 0;
+  for (const q of u) ua += Math.abs(ClipperLib.Clipper.Area(q)) / (SC * SC) * (ClipperLib.Clipper.Orientation(q) ? 1 : -1);
+  if (Math.abs(ua - sum) < Math.max(0.01, sum * 1e-4)) return L;
+  const rings = u.filter((q) => q.length >= 3).map((q) => closeRing(q.map((pt, k) => [k ? 'L' : 'M', pt.X / SC, pt.Y / SC])));
+  return { ...L, items: buildItems(rings, tol) };
+}
+
 /** i번 도형 + 그 안의 직접 구멍들의 번호 */
 export function groupOf(items, i) {
   const g = [i];
@@ -122,9 +145,13 @@ export function applyEdits(model, edits, tol) {
         model.layers.push(T);
       }
       T.items = buildItems(T.items.map((it) => it.ring).concat(rs), tol);
+      model.layers[model.layers.indexOf(T)] = fixOverlap(T, tol);
       continue;
+    } else if (e.t === 'mv') {
+      if (!e.dx && !e.dy) continue;
+      rings = rings.concat(picked.map((it) => transformRing(it.ring, 1, -e.dx, -e.dy)));
     } else continue;
-    model.layers[li] = { ...L, items: buildItems(rings, tol) };
+    model.layers[li] = fixOverlap({ ...L, items: buildItems(rings, tol) }, tol);
   }
   model.layers = model.layers.filter((l) => l.items.length);
   let rc = 0, nc = 0;

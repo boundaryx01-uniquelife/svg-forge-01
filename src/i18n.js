@@ -116,6 +116,7 @@ const EN = {
   '색상별 높이차를 모두 0으로': 'Reset all color heights to 0',
   '0으로': '0',
   '윗모서리 다듬기': 'Finish the top edges',
+  '윗모서리 다듬기 (키캡은 윗면 둘레)': 'Finish the top edges (keycap: around the top face)',
   '모서리': 'Edges',
   '그대로': 'Sharp',
   '모따기': 'Chamfer',

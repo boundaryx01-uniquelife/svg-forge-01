@@ -827,6 +827,7 @@ function drawImgSel(sv) {
   sv.appendChild(g);
 }
 function pickAt(e) {
+  S.chain = null;
   const sv = el.view2d.querySelector('svg');
   const ctm = sv && sv.getScreenCTM();
   if (!ctm) return;
@@ -837,6 +838,7 @@ function pickAt(e) {
 }
 function pickSel(q) {
   S.sel = q;
+  if (!q) S.chain = null;
   const sv = el.view2d.querySelector('svg');
   if (sv) drawSelUi(sv);
   updateEditBar();
@@ -863,9 +865,18 @@ function editOp(t, x = {}) {
   const q = S.sel;
   if (!q || S.mode !== 'image') return;
   const whole = el.edScope.value === 'color';
-  S.edits.push({ t, c: q.c, i: whole ? null : q.i, ...x });
+  const last = S.edits[S.edits.length - 1];
+  // 두께 +/−를 이어서 누르면 같은 편집에 더함 → 늘렸다 줄이면 원래대로 (겹쳐 합쳐진 뒤에도 깨지지 않음)
+  if ((t === 'off' || t === 'mv') && S.chain === t && last && last.t === t && last.c === q.c && (last.i == null) === whole) {
+    if (t === 'off') last.d = Math.round((last.d + x.d) * 1e4) / 1e4;
+    else (last.dx += x.dx), (last.dy += x.dy);
+    if ((t === 'off' && Math.abs(last.d) < 1e-6) || (t === 'mv' && Math.hypot(last.dx, last.dy) < 1e-6)) S.edits.pop(), (S.chain = null);
+  } else {
+    S.edits.push({ t, c: q.c, i: whole ? null : q.i, ...x });
+    S.chain = t === 'off' || t === 'mv' ? t : null;
+  }
   S.editsKey = S.traceKey;
-  const keep = t === 'off' || t === 'col';
+  const keep = t === 'off' || t === 'col' || t === 'mv';
   S.sel = null;
   if (!keep) S.selPt = null;
   S.reselect = keep;
@@ -1183,6 +1194,7 @@ el.view2d.addEventListener(
   let drag = null;
   let hd = null;
   let cutDrag = null;
+  let mvDrag = null;
   let raf = 0;
   el.view2d.addEventListener('pointerdown', (e) => {
     const sv = el.view2d.querySelector('svg');
@@ -1202,6 +1214,20 @@ el.view2d.addEventListener(
       el.view2d.setPointerCapture(e.pointerId);
       e.preventDefault();
       return;
+    }
+    // 이미지 모드: 도형을 누르면 선택, 끌면 이동
+    if (S.mode === 'image' && ctm && S.model && !S.cutMode) {
+      const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+      const hit = hitItem(S.model, P.x, P.y);
+      if (hit) {
+        const same = S.sel && S.sel.c === hit.c && S.sel.i === hit.i;
+        if (!same) (S.chain = null), (S.selPt = [P.x, P.y]), (S.selShift = (S.model.editShift || [0, 0]).slice()), pickSel(hit);
+        else (S.selPt = [P.x, P.y]), (S.selShift = (S.model.editShift || [0, 0]).slice());
+        mvDrag = { a: [P.x, P.y], x: e.clientX, y: e.clientY, ctm, moved: false, d: [0, 0] };
+        el.view2d.setPointerCapture(e.pointerId);
+        e.preventDefault();
+        return;
+      }
     }
     // 글자 모드: 선택 상자의 크기 점 · 회전 점
     const hEl = S.mode === 'text' && S.selChar != null && e.target.closest ? e.target.closest('[data-h]') : null;
@@ -1251,6 +1277,16 @@ el.view2d.addEventListener(
   });
   el.view2d.addEventListener('mousedown', (e) => e.button === 1 && e.preventDefault());
   el.view2d.addEventListener('pointermove', (e) => {
+    if (mvDrag) {
+      const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(mvDrag.ctm.inverse());
+      if (Math.hypot(e.clientX - mvDrag.x, e.clientY - mvDrag.y) >= 4) mvDrag.moved = true;
+      if (mvDrag.moved) {
+        mvDrag.d = [P.x - mvDrag.a[0], P.y - mvDrag.a[1]];
+        const g = el.view2d.querySelector('svg g.chui');
+        if (g) g.setAttribute('transform', `translate(${mvDrag.d[0]} ${mvDrag.d[1]})`);
+      }
+      return;
+    }
     if (cutDrag) {
       const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(cutDrag.ctm.inverse());
       cutDrag.b = [P.x, P.y];
@@ -1323,6 +1359,18 @@ el.view2d.addEventListener(
     applyVb2();
   });
   const end = (e) => {
+    if (mvDrag) {
+      const m = mvDrag;
+      mvDrag = null;
+      if (e && e.type === 'pointerup' && m.moved && S.sel) {
+        S.selPt = [S.selPt[0] + m.d[0], S.selPt[1] + m.d[1]];
+        editOp('mv', { dx: m.d[0], dy: m.d[1] });
+      } else {
+        const g = el.view2d.querySelector('svg g.chui');
+        if (g) g.removeAttribute('transform');
+      }
+      return;
+    }
     if (cutDrag) {
       const c = cutDrag;
       cutDrag = null;
@@ -1707,7 +1755,7 @@ function setAllOffsets(fn) {
 /** 오른쪽 '3D 출력' 설정 */
 function kcOpts() {
   const f = (e, d) => (isFinite(parseFloat(e.value)) ? parseFloat(e.value) : d);
-  return { on: el.kcOn.checked, u: el.kcU.value, color: el.kcColor.value, h: f(el.kcH, 9), inset: f(el.kcInset, 2.8), wall: f(el.kcWall, 1.4), tol: f(el.kcTol, 0.1), mode: el.kcMode.value, depth: f(el.kcDepth, 0.5), legendH: f(el.kcDepth, 0.5) };
+  return { on: el.kcOn.checked, u: el.kcU.value, color: el.kcColor.value, h: f(el.kcH, 9), inset: f(el.kcInset, 2.8), wall: f(el.kcWall, 1.4), tol: f(el.kcTol, 0.1), mode: el.kcMode.value, depth: f(el.kcDepth, 0.5), legendH: f(el.kcDepth, 0.5), edgeType: el.edgeType.value, edgeSize: f(el.edgeSize, 0.6) };
 }
 /** 키캡 윗면 크기 안내 · 글자가 윗면보다 크면 경고 */
 function updateKcInfo() {
@@ -1715,8 +1763,9 @@ function updateKcInfo() {
   el.kcOpts.classList.toggle('hide', !k.on);
   if (!k.on) return;
   const D = keycapDims(k);
-  const over = S.model && S.model.width > D.topW - 0.8 || S.model && S.model.height > D.topD - 0.8;
-  el.kcInfo.innerHTML = `${T('몸체 {w} × {d} mm · 윗면 {tw} × {td} mm', { w: D.bw.toFixed(1), d: D.bd.toFixed(1), tw: D.topW.toFixed(1), td: D.topD.toFixed(1) })}` + (over ? `<br><b style="color:#c2410c">${T('글자가 윗면보다 커서 잘립니다. 너비(mm)를 줄이세요.')}</b>` : '');
+  const fw = D.topW - 2 * D.bs, fd = D.topD - 2 * D.bs;
+  const over = (S.model && S.model.width > fw - 0.8) || (S.model && S.model.height > fd - 0.8);
+  el.kcInfo.innerHTML = `${T('몸체 {w} × {d} mm · 윗면 {tw} × {td} mm', { w: D.bw.toFixed(1), d: D.bd.toFixed(1), tw: fw.toFixed(1), td: fd.toFixed(1) })}` + (over ? `<br><b style="color:#c2410c">${T('글자가 윗면보다 커서 잘립니다. 너비(mm)를 줄이세요.')}</b>` : '');
 }
 function solidOpts() {
   const nv = (e, d, lo = 0) => Math.max(lo, parseFloat(e.value) || d);
@@ -2415,6 +2464,7 @@ async function applyProject(p) {
   ringToInputs();
   S.charStyles = p.charStyles || {};
   S.edits = Array.isArray(p.edits) ? p.edits : [];
+  S.chain = null;
   S.editsKey = '*';
   S.sel = null;
   S.laserOps = p.laserOps || {};
@@ -2622,6 +2672,7 @@ function restoreHist(i) {
   ringToInputs();
   S.charStyles = p.charStyles || {};
   S.edits = Array.isArray(p.edits) ? p.edits : [];
+  S.chain = null;
   S.editsKey = p.editsKey || '*';
   S.sel = null;
   S.prevText = el.text.value;
