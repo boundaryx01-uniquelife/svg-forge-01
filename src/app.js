@@ -4,11 +4,11 @@ import { traceImage, otsuThreshold, estimateHardEdges, estimateColorCount, parse
 import { makeModel } from './geom.js';
 import { applyEdits, hitItem, innerPoint } from './edit.js';
 import { createSim } from './sim.js';
+import { enhanceColorInputs } from './tiles.js';
 import { keycapDims } from './keycap.js';
 import { potracePathsToRings } from './pathparse.js';
 import { toFillSvg, toLaserSvg, toDxf, laserModel } from './export.js';
 import { printabilityReport } from './solid.js';
-import { attachPalette } from './palette.js';
 import { buildPartGeometries, buildStlBlob, build3mfBlob } from './mesh.js';
 import builtinFontData from '../assets/NotoSansKR-Bold-subset.otf';
 import hanjaFontData from '../assets/NotoSansCJKkr-Bold-hanja.otf';
@@ -2955,9 +2955,6 @@ window.addEventListener('keydown', (e) => {
   if (k === 'y' || e.shiftKey) redo();
   else undo();
 });
-// 색 고르기: 16/32/64/128색 색판 (구분이 쉬운 고정 색)
-const modelColors = () => (S.model ? [...new Set(S.model.layers.map((l) => l.color))] : []);
-[el.baseColor, el.chColor, el.pDimColor].forEach((i) => attachPalette(i, modelColors));
 el.helpBtn.onclick = () => (el.help.showModal ? el.help.showModal() : el.help.setAttribute('open', ''));
 
 el.homeBtn.onclick = () => {
@@ -3070,6 +3067,7 @@ window.__svgforge = S;
 Object.defineProperty(S, 'cam', { get: () => (G3 && !G3.failed ? G3.camera.position.toArray() : null) }); // 테스트용
 Object.defineProperty(S, 'fov', { get: () => (G3 && !G3.failed ? G3.camera.fov : null) }); // 테스트용
 Object.defineProperty(S, 'tgt', { get: () => (G3 && !G3.failed ? G3.controls.target.toArray() : null) }); // 테스트용
+enhanceColorInputs(document, () => (S.model ? [...new Set(S.model.layers.map((l) => l.color))] : []));
 initLang();
 applyLang();
 ctlDefaults = {};
