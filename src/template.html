@@ -372,6 +372,8 @@ dialog#prefs .row label{flex-basis:70px}
         <select id="align" class="grow"><option value="center">가운데</option><option value="left">왼쪽</option><option value="right">오른쪽</option></select></div>
       <div class="row"><label for="lineH">줄 간격</label>
         <input id="lineH" class="grow" type="range" min="0.8" max="2" step="0.05" value="1.2"><span class="val" id="lineHVal">1.20</span></div>
+      <div class="row"><label for="txtSw" title="3D 프린트·키캡용: 획이 이 폭(mm)보다 가늘면 그만큼 굵게 합니다. 노즐 0.4mm면 0.8mm 권장. 비우면 폰트 그대로">최소 획 폭</label>
+        <input id="txtSw" class="mini" type="number" min="0.2" max="5" step="0.1" placeholder="그대로"><span class="val" style="flex:0 0 auto">mm</span><span class="val" id="txtSwEst" style="flex:1 1 auto;text-align:right"></span></div>
       <h2>글자별 조절</h2>
       <div id="charChips" class="charchips"></div>
       <p class="hint" id="charHint">글자를 고르거나 미리보기에서 글자를 눌러 끌면 옮겨집니다 (방향키로 미세 이동). 상자의 모서리 점은 크기, 위의 ● 점은 회전입니다.</p>
@@ -410,6 +412,7 @@ dialog#prefs .row label{flex-basis:70px}
         <span class="edgrp"><button class="btn small" id="edMinus" title="선을 가늘게 (바깥 윤곽을 안쪽으로)">−</button><input id="edStep" class="mini" type="number" min="0.05" max="5" step="0.05" value="0.2" title="한 번에 바뀌는 두께 (mm)"><span class="val" style="flex:0 0 auto">mm</span><button class="btn small" id="edPlus" title="선을 굵게 (바깥 윤곽을 바깥쪽으로)">+</button></span>
         <label class="edgrp" title="선택한 도형의 색을 바꿉니다. 이미 있는 색을 고르면 그 색으로 합쳐집니다"><span>색</span><input id="edColor" type="color" value="#000000"></label>
         <button class="btn small" id="edDrop" title="스포이드: 선택한 도형을 눌러 둔 채 이어서 다른 면을 누르면, 그 면의 색을 그대로 가져와 같은 색(같은 높이·필라멘트 설정)으로 묶습니다. 그 면의 색은 바뀌지 않습니다. Esc로 취소">💧 같은 색으로</button>
+        <button class="btn small hide" id="edTextEdit" title="선택한 글자(글자 넣기로 넣은 것)의 내용·크기·획 폭·색·자리를 고칩니다">✎ 글자 고치기</button>
         <button class="btn small" id="edClear" title="선택 해제 (Esc)" aria-label="선택 해제">✕</button>
       </div>
       <div class="spacer"></div>
@@ -429,6 +432,7 @@ dialog#prefs .row label{flex-basis:70px}
       <div class="viewtools">
         <button class="btn small" id="undoBtn" disabled title="실행 취소 (Ctrl+Z)" aria-label="실행 취소">↶</button>
         <button class="btn small" id="redoBtn" disabled title="다시 실행 (Ctrl+Y)" aria-label="다시 실행">↷</button>
+        <button class="btn small hide" id="thinBtn" title="3D 출력에 너무 가는 부분(0.8mm 미만)·아주 작은 조각을 빨간색으로 표시합니다">⚠ 가는 부분</button>
         <button class="btn small" id="dimsBtn" title="치수 보이기·숨기기 (단축키 D). 치수 숫자를 누르면 바로 고칠 수 있음">📏 치수</button>
         <button class="btn small" id="homeBtn" title="처음 보기로 (확대·회전 되돌리기, 단축키 H)">⌂ 처음으로</button>
         <button class="btn small" id="helpBtn" title="사용법 · 단축키" aria-label="도움말">?</button>
@@ -459,8 +463,6 @@ dialog#prefs .row label{flex-basis:70px}
     <h2>3D 출력 (STL·3MF)</h2>
     <div class="row"><label for="thick" title="텍스트·색 기본 두께 (mm)">두께 (mm)</label>
       <input id="thick" class="mini" type="number" min="0.2" max="200" step="0.2" value="3" title="기본 두께 (mm)"></div>
-    <div class="row"><label class="chk" style="margin:0;flex:0 0 auto" title="노즐 0.4mm 기준으로 선 두 줄(0.8mm)보다 가는 선·획을 자동으로 두껍게 만듭니다. 3D 출력(STL·3MF·키캡)에만 적용되고 레이저 파일에는 영향이 없습니다"><input type="checkbox" id="minWOn"> 가는 선 보정</label>
-      <input id="minW" class="mini" type="number" min="0.2" max="3" step="0.1" value="0.8" title="최소 선 폭 (mm)"><span class="val" style="flex:0 0 auto">mm 이상</span></div>
     <div class="hlabel" title="색마다 기본 두께에 더할 높이 (mm). 음수면 낮아짐 (최소 0.2mm)">색상별 높이 ±mm
       <button class="btn small" id="stepAuto" style="margin-left:6px;padding:1px 7px" title="밝기 순서대로 계단식 높이차를 채움 (0, +0.4, +0.8 …)">계단</button>
       <button class="btn small" id="stepZero" style="padding:1px 7px" title="색상별 높이차를 모두 0으로">0으로</button></div>
@@ -546,11 +548,14 @@ dialog#prefs .row label{flex-basis:70px}
 </main>
 <dialog id="textDlg">
   <form method="dialog">
-    <h3>글자 넣기</h3>
+    <h3 id="tdTitle">글자 넣기</h3>
     <div class="row"><input id="tdText" type="text" style="flex:1;min-width:0" placeholder="글자 입력" maxlength="60"></div>
-    <div class="row"><label style="flex:1 1 auto">글자 높이</label><input id="tdSize" class="mini" type="number" min="0.1" max="500" step="0.1" value="5"><span class="val" style="flex:0 0 auto">mm</span><input id="tdColor" type="color" value="#000000" title="글자 색"></div>
-    <p class="hint">확인을 누른 뒤 미리보기에서 글자를 놓을 곳을 누르세요. 놓은 뒤에는 글자를 눌러 끌어 옮기거나 두께·색을 바꿀 수 있습니다.</p>
-    <div class="row" style="justify-content:flex-end"><button class="btn" value="cancel">취소</button><button class="btn pri" value="ok">확인</button></div>
+    <div class="row"><label style="flex:1 1 auto">글자 크기</label><input id="tdSize" class="mini" type="number" min="0.1" max="500" step="0.1" value="5"><span class="val" style="flex:0 0 auto">mm</span><input id="tdColor" type="color" value="#000000" title="글자 색"></div>
+    <div class="row"><label class="chk" style="margin:0;flex:1 1 auto" title="3D 프린트·키캡으로 출력할 글자면 켜세요. 노즐 0.4mm 기준 한 획이 0.8mm 이상이어야 제대로 나옵니다"><input type="checkbox" id="tdPrint"> 3D 출력용 · 최소 획 폭</label><input id="tdSw" class="mini" type="number" min="0.2" max="5" step="0.1" value="0.8" title="한 획의 폭 (mm)"><span class="val" style="flex:0 0 auto">mm</span></div>
+    <p class="hint" id="tdEst"></p>
+    <label class="chk hide" id="tdMoveRow"><input type="checkbox" id="tdMove"> 자리 다시 정하기</label>
+    <p class="hint" id="tdHint">확인을 누른 뒤 미리보기에서 글자를 놓을 곳을 누르세요. 놓은 뒤에는 글자를 눌러 ✎ 글자 고치기로 크기·획 폭·내용을 바꿀 수 있습니다.</p>
+    <div class="row" style="justify-content:flex-end"><button class="btn hide" id="tdDel" value="del" style="margin-right:auto">글자 지우기</button><button class="btn" value="cancel">취소</button><button class="btn pri" value="ok">확인</button></div>
   </form>
 </dialog>
 <dialog id="laserDlg">

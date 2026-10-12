@@ -21,38 +21,6 @@ function clip(type, subj, clp, fill = PF.pftNonZero) {
 const union = (paths, fill = PF.pftNonZero) => clip(CT.ctUnion, paths, [], fill);
 const diff = (a, b) => (b.length ? clip(CT.ctDifference, a, b) : a);
 
-/** 폭이 m(mm)보다 가는 부분만 m 이상으로 (노즐 0.4mm → 0.8mm 권장). 가는 조각마다 모자란 만큼만 키우고, 굵은 도형·모서리는 건드리지 않음 */
-function thicken(paths, m) {
-  if (!paths.length || !(m > 0)) return paths;
-  const r = m / 2;
-  const open = offset(offset(paths, -r), r);
-  const thin = diff(paths, open).filter((p) => Math.abs(ClipperLib.Clipper.Area(p)) / (SC * SC) > 0.8 * r * r);
-  if (!thin.length) return paths;
-  const grown = [];
-  for (const p of thin) {
-    const A = Math.abs(ClipperLib.Clipper.Area(p)) / (SC * SC);
-    let P = 0;
-    for (let i = 0, j = p.length - 1; i < p.length; j = i++) P += Math.hypot(p[i].X - p[j].X, p[i].Y - p[j].Y) / SC;
-    const w = P > 0 ? (2 * A) / P : m; // 띠 모양의 대략적인 폭
-    const d = Math.min(r, Math.max(0.02, (m - w) / 2));
-    for (const q of offset([p], d)) grown.push(q);
-  }
-  return union(paths.concat(grown));
-}
-/** 색 층마다 가는 부분을 보정하고, 늘어난 만큼은 다른 색에서 도려내 겹침이 생기지 않게 함 */
-function thickenLayers(layers, m) {
-  const out = layers.map((l) => l);
-  for (let i = 0; i < out.length; i++) {
-    const t = thicken(out[i], m);
-    if (t === out[i]) continue;
-    const added = diff(t, out[i]);
-    out[i] = t;
-    if (!added.length) continue;
-    for (let j = 0; j < out.length; j++) if (j !== i && out[j].length) out[j] = diff(out[j], added);
-  }
-  return out;
-}
-
 function offset(paths, deltaMm) {
   if (!paths.length || !deltaMm) return paths;
   const co = new ClipperLib.ClipperOffset(2, 0.01 * SC);
@@ -69,7 +37,8 @@ function offset(paths, deltaMm) {
 export function printabilityReport(model, o = {}) {
   const minW = o.minWidth ?? 0.8, minIsland = o.minIsland ?? 1.0, minHole = o.minHole ?? 0.8;
   const H = model.height;
-  const rep = { thin: 0, island: 0, hole: 0, minW, minIsland, minHole };
+  const rep = { thin: 0, island: 0, hole: 0, minW, minIsland, minHole, polys: [] };
+  const back = (p) => p.map((q) => [q.X / SC, H - q.Y / SC]);
   const A = (p) => ClipperLib.Clipper.Area(p) / (SC * SC); // mm²
   for (const l of model.layers) {
     const paths = heal(union(l.items.map((it) => toPath(it.poly, H)), PF.pftEvenOdd));
@@ -78,7 +47,7 @@ export function printabilityReport(model, o = {}) {
     for (const p of paths) {
       const outer = ClipperLib.Clipper.Orientation(p);
       const a = Math.abs(A(p));
-      if (outer && a < minIsland) rep.island++;
+      if (outer && a < minIsland) (rep.island++, rep.polys.push(back(p)));
       else {
         if (!outer && a < minHole) rep.hole++;
         keep.push(p);
@@ -98,6 +67,7 @@ export function printabilityReport(model, o = {}) {
         if (!(len > 3 && Math.abs(A(p)) / len < 0.45)) continue;
       }
       rep.thin++;
+      rep.polys.push(back(p));
     }
   }
   return rep;
@@ -347,7 +317,6 @@ export function buildParts(model, o) {
   if (model.fromText && layerPaths.length > 1) {
     for (let i = 0; i < layerPaths.length - 1; i++) layerPaths[i] = diff(layerPaths[i], union(layerPaths.slice(i + 1).flat()));
   }
-  if (o.minW > 0) layerPaths = thickenLayers(layerPaths, o.minW);
   const all = union(layerPaths.flat());
   const info = {};
   if (!all.length) return { parts: [], info };
@@ -731,4 +700,4 @@ function repairTJunctions(T, verts) {
 }
 
 /** 키캡 생성기(keycap.js)용 도형 연산 */
-export const geo2d = { thickenLayers, clip, union, diff, offset, toShapes, toPath, heal, circle, bbox, SC, CT, PF };
+export const geo2d = { clip, union, diff, offset, toShapes, toPath, heal, circle, bbox, SC, CT, PF };

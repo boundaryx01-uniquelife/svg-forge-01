@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import ClipperLib from 'clipper-lib';
 import { geo2d } from './solid.js';
 
-const { thickenLayers, union, diff, offset, toShapes, toPath, heal, clip, CT, PF, SC } = geo2d;
+const { union, diff, offset, toShapes, toPath, heal, clip, CT, PF, SC } = geo2d;
 const pathOf = (pts) => pts.map(([x, y]) => ({ X: Math.round(x * SC), Y: Math.round(y * SC) }));
 
 /** 둥근 사각형 윤곽 (반시계, Y 위쪽) */
@@ -184,7 +184,6 @@ export function buildKeycap(model, o) {
   const topFace = [pathOf(flat)];
   let layerPaths = model.layers.map((l) => heal(union(l.items.map((it) => toPath(it.poly, Hm)), PF.pftEvenOdd)).map((p) => p.map((q) => ({ X: q.X + sx, Y: q.Y + sy }))));
   if (model.fromText && layerPaths.length > 1) for (let i = 0; i < layerPaths.length - 1; i++) layerPaths[i] = diff(layerPaths[i], union(layerPaths.slice(i + 1).flat()));
-  if (o.minW > 0) layerPaths = thickenLayers(layerPaths, o.minW);
   const area = (ps) => ps.reduce((s, p) => s + Math.abs(ClipperAreaAbs(p)), 0);
   const before = area(union(layerPaths.flat()));
   layerPaths = layerPaths.map((lp) => clip(CT.ctIntersection, lp, topFace));

@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { traceImage, otsuThreshold, estimateHardEdges, estimateColorCount, parseFont, missingGlyphs, textToLayers } from './trace.js';
 import { makeModel } from './geom.js';
-import { applyEdits, hitItem, innerPoint } from './edit.js';
+import { applyEdits, hitItem, innerPoint, strokeOf, growRings } from './edit.js';
+import { buildItems } from './geom.js';
 import { createSim } from './sim.js';
 import { enhanceColorInputs } from './tiles.js';
 import { keycapDims } from './keycap.js';
@@ -24,7 +25,7 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'preset', 'advImage', 'bgRow', 'removeBg', 'keepRow', 'keepInner', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'minWOn', 'minW', 'tabSim', 'viewSim', 'simCv', 'simHead', 'simPlay', 'simRst', 'simPos', 'simTime', 'simSpd', 'simCut', 'simEng', 'simTrv', 'simInfo',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'tdTitle', 'tdPrint', 'tdSw', 'tdEst', 'tdMoveRow', 'tdMove', 'tdHint', 'tdDel', 'edTextEdit', 'txtSw', 'txtSwEst', 'thinBtn', 'tabSim', 'viewSim', 'simCv', 'simHead', 'simPlay', 'simRst', 'simPos', 'simTime', 'simSpd', 'simCut', 'simEng', 'simTrv', 'simInfo',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear', 'edCut', 'edCutW', 'edText', 'edDrop', 'textDlg', 'tdText', 'tdSize', 'tdColor',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -596,6 +597,18 @@ async function compute() {
     S.txtWidthIn = Math.min(1000, Math.max(1, parseFloat(el.width.value) || 50));
   } else S.model = makeModel(mlayers, width, tol, refW);
   const m = S.model;
+  if (S.mode === 'text' && m.layers.length) {
+    // 획 폭 맞추기 (3D 출력용): 폰트의 지금 획 폭을 재서 정한 폭이 되도록 굵게·가늘게
+    const allR = m.layers.flatMap((l) => l.items.map((it) => it.ring));
+    const est = strokeOf(allR, tol);
+    const sw = parseFloat(el.txtSw.value);
+    el.txtSwEst.textContent = T('폰트 획 약 {w}mm', { w: est.toFixed(2) });
+    if (sw > 0 && est > 0) {
+      const d = (sw + 0.05 - est) / 2; // 최소 획 폭: 가늘 때만 굵게
+      if (d > 0.005)
+        m.layers = m.layers.map((l) => ({ ...l, items: buildItems(growRings(l.items.map((it) => it.ring), d, tol), tol) })).filter((l) => l.items.length);
+    }
+  }
   if (S.mode === 'image' && S.edits.length) applyEdits(m, S.edits, tol);
   if (S.reselect && S.selPts && S.selPts.length && S.mode === 'image') {
     const sh = m.editShift || [0, 0];
@@ -640,15 +653,20 @@ async function compute() {
     warnings.push(T(parseInt(el.colors.value, 10) > 1 ? 'Potrace 엔진은 흑백 전용이라 다색에는 기본 엔진을 썼습니다.' : 'Potrace 엔진: 디자인 보정(직선·원호·평행 등)은 적용되지 않습니다. GPL-2.0 라이선스.'));
   if (S.mode === 'image' && S.img && parseInt(el.upscale.value, 10) > 1 && Math.max(S.img.natW, S.img.natH) >= 1200)
     warnings.push(T('이미지가 이미 충분히 커서 AI 업스케일 효과가 작습니다. 작거나 흐린 이미지에 쓰세요.'));
+  S.thinPolys = null;
   if (m.ringCount <= 3000 && el.preset.value !== 'laser') {
     // 3D 프린트로 잘 안 나올 수 있는 부분 (얇은 선·아주 작은 조각·아주 작은 구멍)
     try {
       const r = printabilityReport(m);
       const parts = [];
-      if (r.thin && el.minWOn.checked) warnings.push(T('가는 선 {n}곳을 {w}mm 이상으로 보정해 3D에 반영했습니다 (모양이 조금 굵어짐).', { n: r.thin, w: nv(el.minW, 0.8, 0.2) }));
-      else if (r.thin) parts.push(T('가는 선 {n}곳 (폭 {w}mm 미만)', { n: r.thin, w: r.minW }));
+      S.thinPolys = r.polys;
+      if (r.thin) parts.push(T('가는 선 {n}곳 (폭 {w}mm 미만)', { n: r.thin, w: r.minW }));
       if (r.island) parts.push(T('아주 작은 조각 {n}개', { n: r.island }));
       if (r.hole) parts.push(T('아주 작은 구멍 {n}개', { n: r.hole }));
+      if (parts.length) {
+        const fix = S.mode === 'image' && r.thin ? ` <button class="btn small" data-act="fixthin">${T('가는 부분 보정 (0.8mm)')}</button>` : S.mode === 'text' && r.thin && !(parseFloat(el.txtSw.value) > 0) ? ` <button class="btn small" data-act="txtsw">${T('획 폭 0.8mm로')}</button>` : '';
+        warnings.push(T('빨간 표시가 3D 출력에서 안 나오거나 끊길 수 있는 부분입니다.') + fix);
+      }
       if (parts.length) warnings.push(T(S.mode === 'text' ? '⚠ 출력이 잘 안 될 수 있는 부분: {list}. 너비를 키우거나 두꺼운 폰트를 써 보세요.' : '⚠ 출력이 잘 안 될 수 있는 부분: {list}. 너비를 키우거나 고급 설정의 노이즈 제거를 올려 보세요.', { list: parts.join(', ') }));
     } catch (e) {}
   }
@@ -752,6 +770,18 @@ function render2d() {
     pl.setAttribute('d', m.plate.map((it) => 'M' + it.poly.map(([x, y]) => x.toFixed(3) + ' ' + y.toFixed(3)).join('L') + 'Z').join(''));
     Object.entries({ fill: '#e9ecf2', stroke: '#9aa3b5', 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke', 'stroke-dasharray': '4 3', 'fill-rule': 'evenodd' }).forEach(([k, v]) => pl.setAttribute(k, v));
     sv.insertBefore(pl, sv.firstChild);
+  }
+  // 3D 출력에 너무 가는 부분 표시 (빨강)
+  const thinOn = S.thinPolys && S.thinPolys.length && el.preset.value !== 'laser';
+  el.thinBtn.classList.toggle('hide', !thinOn);
+  el.thinBtn.classList.toggle('on', thinOn && S.showThin !== false);
+  if (thinOn && S.showThin !== false) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const tp = document.createElementNS(NS, 'path');
+    tp.setAttribute('class', 'thinmark');
+    tp.setAttribute('d', S.thinPolys.map((p) => 'M' + p.map(([x, y]) => x.toFixed(3) + ' ' + y.toFixed(3)).join('L') + 'Z').join(''));
+    Object.entries({ fill: 'rgba(255,0,40,.55)', stroke: '#ff0028', 'stroke-width': 2.5, 'vector-effect': 'non-scaling-stroke', 'pointer-events': 'none' }).forEach(([k, v]) => tp.setAttribute(k, v));
+    sv.appendChild(tp);
   }
   drawSelUi(sv);
   if (S.showDims) {
@@ -895,6 +925,7 @@ function updateEditBar() {
   const on = S.mode === 'image' && S.view === '2d' && !!S.model;
   el.editbar.style.display = on ? '' : 'none';
   el.editbar.classList.toggle('nosel', !it);
+  el.edTextEdit.classList.toggle('hide', !(it && addAtSel()));
   if (it && S.sels.length > 1) {
     el.edInfo.innerHTML = `<i class="sw" style="background:${q.c}"></i>${T('도형 {n}개 선택', { n: S.sels.length })}`;
     if (document.activeElement !== el.edColor) el.edColor.value = /^#[0-9a-f]{6}$/i.test(q.c) ? q.c : '#000000';
@@ -1267,6 +1298,24 @@ function setCut(on) {
   el.view2d.style.cursor = S.cutMode ? 'crosshair' : '';
 }
 el.edScope.onchange = updateEditBar;
+el.thinBtn.onclick = () => {
+  S.showThin = S.showThin === false;
+  render2d();
+};
+el.msg.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('[data-act]');
+  if (!b) return;
+  if (b.dataset.act === 'fixthin' && S.mode === 'image') {
+    S.edits.push({ t: 'minw', m: 0.8, c: S.sels.length && el.edScope.value === 'color' ? S.sel.c : null });
+    S.editsKey = S.traceKey;
+    clearSel();
+    schedule(0);
+  } else if (b.dataset.act === 'txtsw') {
+    el.txtSw.value = 0.8;
+    schedule(0);
+  }
+});
+el.txtSw.addEventListener('input', () => schedule(150));
 function setDrop(on) {
   S.eyedrop = !!on && S.sels.length > 0;
   el.edDrop.classList.toggle('on', S.eyedrop);
@@ -1282,20 +1331,9 @@ function setPlace(on) {
     el.edInfo.textContent = T('글자를 놓을 곳을 누르세요 (Esc 취소)');
   } else updateEditBar();
 }
-el.edText.onclick = () => {
-  if (S.placeText) return setPlace(false);
-  setCut(false);
-  if (S.model && !el.tdSize.dataset.set) el.tdSize.value = Math.max(0.1, Math.round(S.model.height * 0.18 * 10) / 10);
-  if (!el.tdColor.dataset.set) el.tdColor.value = S.sel && /^#[0-9a-f]{6}$/i.test(S.sel.c) ? S.sel.c : '#000000';
-  el.textDlg.showModal ? el.textDlg.showModal() : el.textDlg.setAttribute('open', '');
-  el.tdText.focus();
-};
-el.tdColor.oninput = () => (el.tdColor.dataset.set = '1');
-el.tdSize.oninput = () => (el.tdSize.dataset.set = '1');
-el.textDlg.addEventListener('close', async () => {
-  if (el.textDlg.returnValue !== 'ok') return;
-  const text = el.tdText.value.replace(/\s+$/, '');
-  if (!text.trim() || S.mode !== 'image') return;
+S.tdEdit = null; // 고치는 중인 글자 편집 번호
+const curW = () => (S.model ? S.model.baseW || S.model.width : 1);
+async function tdRings(text) {
   let font;
   try {
     font = await getFont(el.fontSel.value);
@@ -1303,9 +1341,114 @@ el.textDlg.addEventListener('close', async () => {
     font = S.fonts[0].font;
   }
   const L = textToLayers(font, text, { align: el.align.value, lineHeight: parseFloat(el.lineH.value) || 1.2 }, fallbackFonts(font, text), null);
-  const rings = L.flatMap((l) => l.rings);
+  return L.flatMap((l) => l.rings);
+}
+let tdEstSeq = 0;
+async function updTdEst() {
+  const my = ++tdEstSeq;
+  const text = el.tdText.value.trim();
+  if (!text) return (el.tdEst.textContent = '');
+  const rings = await tdRings(text);
+  if (my !== tdEstSeq || !rings.length) return;
+  const s = Math.max(0.1, parseFloat(el.tdSize.value) || 5) / 100;
+  const w = strokeOf(rings.map((r) => r.map((c) => c.map((v, i) => (i ? v * s : v)))));
+  el.tdEst.textContent = T('이 크기에서 지금 획 폭은 약 {w}mm', { w: w.toFixed(2) }) + (w < 0.8 ? ' — ' + T('3D 출력엔 가늘어요') : '');
+}
+function openTd(editIdx) {
+  S.tdEdit = editIdx;
+  const e = editIdx != null ? S.edits[editIdx] : null;
+  el.tdTitle.textContent = T(e ? '글자 고치기' : '글자 넣기');
+  el.tdDel.classList.toggle('hide', !e);
+  el.tdMoveRow.classList.toggle('hide', !e);
+  el.tdHint.classList.toggle('hide', !!e);
+  el.tdMove.checked = false;
+  if (e) {
+    const k = e.w0 ? curW() / e.w0 : 1;
+    el.tdText.value = e.text || '';
+    el.tdText.disabled = !e.text;
+    el.tdSize.value = Math.round(e.s * k * 100) / 100;
+    el.tdColor.value = e.c;
+    el.tdPrint.checked = e.sw > 0;
+    if (e.sw > 0) el.tdSw.value = e.sw;
+  } else {
+    el.tdText.disabled = false;
+    if (S.model && !el.tdSize.dataset.set) el.tdSize.value = Math.max(0.1, Math.round(S.model.height * 0.18 * 10) / 10);
+    if (!el.tdColor.dataset.set) el.tdColor.value = S.sel && /^#[0-9a-f]{6}$/i.test(S.sel.c) ? S.sel.c : '#000000';
+    if (!el.tdPrint.dataset.set) el.tdPrint.checked = el.preset.value !== 'laser';
+  }
+  el.tdSw.disabled = !el.tdPrint.checked;
+  el.textDlg.showModal ? el.textDlg.showModal() : el.textDlg.setAttribute('open', '');
+  el.tdText.focus();
+  updTdEst();
+}
+el.edText.onclick = () => {
+  if (S.placeText) return setPlace(false);
+  setCut(false);
+  openTd(null);
+};
+el.edTextEdit.onclick = () => {
+  const a = addAtSel();
+  if (a) openTd(a.idx);
+};
+/** 선택한 점이 들어 있는 '글자 넣기' 편집 */
+function addAtSel() {
+  const m = S.model, p = S.selPt;
+  if (!m || !p || !m.addBoxes) return null;
+  for (let i = m.addBoxes.length - 1; i >= 0; i--) {
+    const a = m.addBoxes[i], b = a.box;
+    if (a.idx >= 0 && S.edits[a.idx] && S.edits[a.idx].t === 'add' && p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1] <= b[3]) return a;
+  }
+  return null;
+}
+el.tdColor.oninput = () => (el.tdColor.dataset.set = '1');
+el.tdSize.oninput = () => ((el.tdSize.dataset.set = '1'), updTdEst());
+el.tdText.oninput = () => updTdEst();
+el.tdPrint.onchange = () => ((el.tdPrint.dataset.set = '1'), (el.tdSw.disabled = !el.tdPrint.checked));
+el.textDlg.addEventListener('close', async () => {
+  const rv = el.textDlg.returnValue;
+  const ei = S.tdEdit;
+  S.tdEdit = null;
+  if (S.mode !== 'image') return;
+  const sw = el.tdPrint.checked ? Math.min(5, Math.max(0.2, parseFloat(el.tdSw.value) || 0.8)) : 0;
+  const size = Math.min(500, Math.max(0.1, parseFloat(el.tdSize.value) || 5));
+  const col = el.tdColor.value.toLowerCase();
+  if (ei != null) {
+    const e = S.edits[ei];
+    if (!e || e.t !== 'add') return;
+    if (rv === 'del') {
+      S.edits.splice(ei, 1);
+    } else if (rv === 'ok') {
+      const k = e.w0 ? curW() / e.w0 : 1;
+      // 지금 너비 기준으로 다시 맞춤 (크기는 입력한 mm 그대로)
+      e.x *= k;
+      e.y *= k;
+      e.w0 = curW();
+      e.s = size;
+      e.sw = sw;
+      e.c = col;
+      const text = el.tdText.value.replace(/\s+$/, '');
+      if (e.text && text.trim() && text !== e.text) {
+        const rings = await tdRings(text);
+        if (rings.length) (e.rings = rings), (e.text = text), (e.font = el.fontSel.value);
+      }
+      if (el.tdMove.checked) {
+        S.placeText = { move: ei };
+        S.editsKey = S.traceKey;
+        schedule(0);
+        return setPlace(true);
+      }
+    } else return;
+    S.editsKey = S.traceKey;
+    clearSel();
+    schedule(0);
+    return;
+  }
+  if (rv !== 'ok') return;
+  const text = el.tdText.value.replace(/\s+$/, '');
+  if (!text.trim()) return;
+  const rings = await tdRings(text);
   if (!rings.length) return;
-  S.placeText = { rings, s: Math.min(500, Math.max(0.1, parseFloat(el.tdSize.value) || 5)), c: el.tdColor.value.toLowerCase() };
+  S.placeText = { rings, s: size, c: col, sw, text, font: el.fontSel.value };
   setPlace(true);
 });
 
@@ -1404,7 +1547,11 @@ el.view2d.addEventListener(
     if (S.placeText && S.mode === 'image' && ctm && S.model) {
       const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
       const sh = S.model.editShift || [0, 0], pt = S.placeText;
-      S.edits.push({ t: 'add', c: pt.c, rings: pt.rings, s: pt.s, x: P.x + sh[0], y: P.y + sh[1], w0: S.model.baseW || S.model.width });
+      if (pt.move != null && S.edits[pt.move]) {
+        const e0 = S.edits[pt.move], k0 = e0.w0 ? curW() / e0.w0 : 1;
+        e0.x = (P.x + sh[0]) / k0;
+        e0.y = (P.y + sh[1]) / k0;
+      } else S.edits.push({ t: 'add', c: pt.c, rings: pt.rings, s: pt.s, sw: pt.sw || 0, text: pt.text, font: pt.font, x: P.x + sh[0], y: P.y + sh[1], w0: S.model.baseW || S.model.width });
       S.editsKey = S.traceKey;
       clearSel();
       S.selPt = null;
@@ -2036,7 +2183,6 @@ function solidOpts() {
     ring: { on: el.ringOn.checked, list: (ringFromInputs(), S.rings.map((r) => ({ ...r }))) },
     edge: { type: el.edgeType.value, size: nv(el.edgeSize, 0.6, 0.1), onColor: el.edgeColor.checked, onBase: el.edgeBase.checked },
     keycap: kcOpts(),
-    minW: el.minWOn.checked ? nv(el.minW, 0.8, 0.2) : 0,
   };
 }
 
@@ -2223,10 +2369,10 @@ const bindRange = (input, label, fmt = (v) => v) => {
 };
 // ---------- 목적별 시작 프리셋 ----------
 const PRESETS = {
-  keyring: { minW: true, base: true, border: true, ring: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판·테두리·고리를 켰습니다. 위쪽 저장에서 노란 테두리 버튼(3MF는 색 나눔, STL은 한 덩어리)을 누르세요.' },
-  print3d: { minW: true, base: false, border: false, ring: false, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판 없이 도형만 만듭니다. 노란 테두리 버튼(3MF 또는 STL)으로 저장하세요.' },
-  laser: { minW: false, base: false, border: false, ring: false, view3d: false, rec: ['btnLaser', 'btnDxf'], hint: '레이저 가공 모드: 윤곽선만 저장합니다. 색마다 절단·새김을 정하고 ▶ 작업 미리보기로 순서와 시간을 확인하세요. (RDWorks는 DXF · 레이저, LightBurn은 둘 다)' },
-  keycap: { minW: true, base: false, border: false, ring: false, kc: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '키캡(MX) 모드입니다. 글자·그림이 윗면에 올라갑니다. 3D 출력의 키캡 항목에서 크기·글자 방식을 바꾸세요. 스템 공차는 시험 출력으로 맞추세요.' },
+  keyring: { base: true, border: true, ring: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판·테두리·고리를 켰습니다. 위쪽 저장에서 노란 테두리 버튼(3MF는 색 나눔, STL은 한 덩어리)을 누르세요.' },
+  print3d: { base: false, border: false, ring: false, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판 없이 도형만 만듭니다. 노란 테두리 버튼(3MF 또는 STL)으로 저장하세요.' },
+  laser: { base: false, border: false, ring: false, view3d: false, rec: ['btnLaser', 'btnDxf'], hint: '레이저 가공 모드: 윤곽선만 저장합니다. 색마다 절단·새김을 정하고 ▶ 작업 미리보기로 순서와 시간을 확인하세요. (RDWorks는 DXF · 레이저, LightBurn은 둘 다)' },
+  keycap: { base: false, border: false, ring: false, kc: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '키캡(MX) 모드입니다. 글자·그림이 윗면에 올라갑니다. 3D 출력의 키캡 항목에서 크기·글자 방식을 바꾸세요. 스템 공차는 시험 출력으로 맞추세요.' },
 };
 function applyModeUi() {
   const m = el.preset.value || 'free';
@@ -2244,7 +2390,6 @@ el.preset.addEventListener('change', () => {
   showPresetRec();
   if (!pr) return;
   S.flash = T(pr.hint);
-  el.minWOn.checked = !!pr.minW;
   el.kcOn.checked = !!pr.kc;
   if (pr.kc) {
     el.kcOn.dispatchEvent(new Event('change'));
@@ -2332,8 +2477,8 @@ function on3dChange(showView) {
   autosave();
   pushHist();
 }
-[el.thick, el.baseMargin, el.baseH, el.baseFill, el.edgeSize, el.ringDx, el.ringDy, el.borderW, el.borderH, el.minW, el.wallW, el.wallH, el.wallGap, el.wallColor, el.ringOuter, el.ringHole].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
-[el.baseOn, el.baseShape, el.baseColor, el.baseStretch, el.textMode, el.ringType, el.edgeType, el.edgeColor, el.edgeBase, el.borderOn, el.borderFull, el.minWOn, el.wallOn, el.ringOn, el.ringPos, el.kcOn, el.kcU, el.kcMode, el.kcEdge, el.kcStem].forEach((e) => e.addEventListener('change', () => on3dChange(true)));
+[el.thick, el.baseMargin, el.baseH, el.baseFill, el.edgeSize, el.ringDx, el.ringDy, el.borderW, el.borderH, el.wallW, el.wallH, el.wallGap, el.wallColor, el.ringOuter, el.ringHole].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
+[el.baseOn, el.baseShape, el.baseColor, el.baseStretch, el.textMode, el.ringType, el.edgeType, el.edgeColor, el.edgeBase, el.borderOn, el.borderFull, el.wallOn, el.ringOn, el.ringPos, el.kcOn, el.kcU, el.kcMode, el.kcEdge, el.kcStem].forEach((e) => e.addEventListener('change', () => on3dChange(true)));
 [el.kcColor, el.kcH, el.kcInset, el.kcWall, el.kcTol, el.kcDepth, el.kcEdgeSize].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
 el.kcOn.addEventListener('change', () => {
   if (!el.kcOn.checked) return;

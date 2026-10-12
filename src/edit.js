@@ -119,11 +119,72 @@ function knock(model, color, rings, tol) {
     model.layers[li] = { ...L, items: buildItems(rs, tol) };
   }
 }
+/** 고리(ring 명령)들의 평균 획 폭 추정 (mm): 2 × 면적 ÷ 둘레 (가는 띠일수록 정확) */
+export function strokeOf(rings, tol = 0.05) {
+  const items = buildItems(rings, tol);
+  if (!items.length) return 0;
+  const c = new ClipperLib.Clipper();
+  c.AddPaths(toPaths(items), ClipperLib.PolyType.ptSubject, true);
+  const u = new ClipperLib.Paths();
+  c.Execute(ClipperLib.ClipType.ctUnion, u, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  let A = 0, P = 0;
+  for (const q of u) {
+    A += ClipperLib.Clipper.Area(q) / (SC * SC);
+    for (let i = 0, j = q.length - 1; i < q.length; j = i++) P += Math.hypot(q[i].X - q[j].X, q[i].Y - q[j].Y) / SC;
+  }
+  return P > 0 ? (2 * Math.abs(A)) / P : 0;
+}
+/** 고리들을 d(mm)만큼 굵게(+)·가늘게(−) — 글자 획 폭 맞추기 */
+export function growRings(rings, d, tol = 0.05) {
+  if (!d) return rings;
+  return offsetRings(buildItems(rings, tol), d);
+}
+/** 한 색 층에서 폭이 m보다 가는 부분만 모자란 만큼 키운 고리들 (굵은 도형·모서리는 그대로) */
+function minWidthRings(items, m) {
+  const r = m / 2;
+  const src = toPaths(items);
+  const U = new ClipperLib.Clipper();
+  U.AddPaths(src, ClipperLib.PolyType.ptSubject, true);
+  const base = new ClipperLib.Paths();
+  U.Execute(ClipperLib.ClipType.ctUnion, base, ClipperLib.PolyFillType.pftEvenOdd, ClipperLib.PolyFillType.pftEvenOdd);
+  const off = (ps, d) => {
+    const co = new ClipperLib.ClipperOffset(2, 0.01 * SC);
+    co.AddPaths(ps, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+    const o = new ClipperLib.Paths();
+    co.Execute(o, d * SC);
+    return o;
+  };
+  const open = off(off(base, -r), r + 0.03);
+  const D = new ClipperLib.Clipper();
+  D.AddPaths(base, ClipperLib.PolyType.ptSubject, true);
+  D.AddPaths(open, ClipperLib.PolyType.ptClip, true);
+  const thin = new ClipperLib.Paths();
+  D.Execute(ClipperLib.ClipType.ctDifference, thin, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  const grown = [];
+  for (const p of thin) {
+    const A = Math.abs(ClipperLib.Clipper.Area(p)) / (SC * SC);
+    if (A < 0.5 * r * r) continue;
+    let P = 0;
+    for (let i = 0, j = p.length - 1; i < p.length; j = i++) P += Math.hypot(p[i].X - p[j].X, p[i].Y - p[j].Y) / SC;
+    const w = P > 0 ? (2 * A) / P : m;
+    const d = Math.min(r, Math.max(0.02, (m - w) / 2 + 0.02));
+    for (const q of off([p], d)) grown.push(q);
+  }
+  if (!grown.length) return null;
+  const F = new ClipperLib.Clipper();
+  F.AddPaths(base, ClipperLib.PolyType.ptSubject, true);
+  F.AddPaths(grown, ClipperLib.PolyType.ptClip, true);
+  const out = new ClipperLib.Paths();
+  F.Execute(ClipperLib.ClipType.ctUnion, out, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  return { rings: out.filter((p) => p.length >= 3).map((p) => closeRing(p.map((q, i) => [i ? 'L' : 'M', q.X / SC, q.Y / SC]))), grown };
+}
 /** model(mm)에 편집 목록을 순서대로 적용 (model을 직접 고침) */
 export function applyEdits(model, edits, tol) {
   const bw = model.width;
   model.baseW = bw;
+  model.addBoxes = [];
   for (let e of edits || []) {
+    const eOrig = e;
     const k = e.w0 ? bw / e.w0 : 1; // 만든 때의 너비 대비 지금 너비 (너비를 바꿔도 편집이 그림과 같이 따라가게)
     if (e.t === 'cut' && k !== 1) e = { ...e, a: [e.a[0] * k, e.a[1] * k], b: [e.b[0] * k, e.b[1] * k], w: e.w * k };
     else if (e.t === 'mv' && k !== 1) e = { ...e, dx: e.dx * k, dy: e.dy * k };
@@ -135,7 +196,18 @@ export function applyEdits(model, edits, tol) {
       for (const r of e.rings) for (const c of r) for (let i = 1; i + 1 < c.length; i += 2) (x0 = Math.min(x0, c[i]), x1 = Math.max(x1, c[i]), y0 = Math.min(y0, c[i + 1]), y1 = Math.max(y1, c[i + 1]));
       if (!isFinite(x0)) continue;
       const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
-      const nr = e.rings.map((r) => transformRing(transformRing(r, sc, mx, my), 1, -e.x * k, -e.y * k));
+      let nr = e.rings.map((r) => transformRing(transformRing(r, sc, mx, my), 1, -e.x * k, -e.y * k));
+      // 획 폭 맞추기: 정한 폭(mm, 너비와 상관없는 출력 기준)이 되도록 굵게/가늘게
+      if (e.sw > 0) {
+        const cur = strokeOf(nr, tol);
+        const d = (e.sw + 0.05 - cur) / 2; // 최소 획 폭: 가는 글자만 굵게 (굵은 글자는 그대로)
+        if (d > 0.005) nr = growRings(nr, d, tol);
+      }
+      {
+        let a0 = Infinity, b0 = Infinity, a1 = -Infinity, b1 = -Infinity;
+        for (const it of buildItems(nr, tol)) for (const [x, y] of it.poly) (x < a0 && (a0 = x), x > a1 && (a1 = x), y < b0 && (b0 = y), y > b1 && (b1 = y));
+        (model.addBoxes || (model.addBoxes = [])).push({ idx: edits.indexOf(eOrig), box: [a0, b0, a1, b1] });
+      }
       let L = model.layers.find((l) => l.color === e.c);
       if (!L) model.layers.push((L = { color: e.c, items: [] }));
       const li = model.layers.indexOf(L);
@@ -145,6 +217,18 @@ export function applyEdits(model, edits, tol) {
     }
     if (e.t === 'cut') {
       cutLine(model, e, tol);
+      continue;
+    }
+    if (e.t === 'minw') {
+      // 가는 부분 보정 (출력용 최소 폭 m mm — 노즐 기준이라 너비와 상관없이 그대로). 늘어난 부분은 다른 색에서 도려냄
+      const targets = e.c ? model.layers.filter((l) => l.color === e.c) : model.layers.slice();
+      for (const T0 of targets) {
+        const li = model.layers.indexOf(T0);
+        const res = minWidthRings(T0.items, e.m || 0.8);
+        if (!res) continue;
+        model.layers[li] = { ...T0, items: buildItems(res.rings, tol) };
+        knock(model, T0.color, res.grown.map((p) => closeRing(p.map((q, i) => [i ? 'L' : 'M', q.X / SC, q.Y / SC]))), tol);
+      }
       continue;
     }
     const li = model.layers.findIndex((l) => l.color === e.c);
@@ -224,6 +308,7 @@ export function applyEdits(model, edits, tol) {
       model.width = x1 - x0;
       model.height = y1 - y0;
       model.editShift = [x0, y0];
+      for (const a of model.addBoxes) a.box = [a.box[0] - x0, a.box[1] - y0, a.box[2] - x0, a.box[3] - y0];
     }
   }
   return model;
