@@ -15,7 +15,7 @@ with sync_playwright() as p:
     for i in range(5): pg.click('#edPlus'); time.sleep(.5)
     time.sleep(1); r['star+1mm']=size(); r['still_selected']=pg.is_visible('#edDel')
     # 색 바꾸기 → 새 색 레이어
-    pg.fill('#edColor','#ff0000'); pg.dispatch_event('#edColor','change'); time.sleep(1.2)
+    pg.evaluate("()=>{const c=document.querySelector('#edColor');c.value='#ff0000';c.dispatchEvent(new Event('change'))}"); time.sleep(1.2)
     r['colors']=pg.evaluate("()=>[...document.querySelectorAll('#status .sw')].length")
     r['status']=pg.inner_text('#status')
     # 프로젝트 저장 → 다시 열기

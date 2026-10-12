@@ -433,14 +433,17 @@ export function innerPoint(model, c, i) {
   return best;
 }
 export function hitItem(model, x, y) {
-  let best = null, ba = Infinity;
+  let best = null, ba = Infinity, bestHole = false;
   for (const l of model.layers)
     l.items.forEach((it, i) => {
       if (!inPoly(x, y, it.poly)) return;
       const a = area(it.poly);
-      if (a < ba) {
+      // 가장 작은 면. 넓이가 거의 같으면(다른 색 섬이 구멍을 꼭 채운 경우) 빈 구멍보다 칠해진 면을 고름
+      const tie = Math.abs(a - ba) <= ba * 0.01;
+      if ((a < ba && !tie) || (tie && bestHole && !it.hole) || (tie && bestHole === it.hole && a < ba)) {
         ba = a;
         best = { c: l.color, i };
+        bestHole = !!it.hole;
       }
     });
   return best;

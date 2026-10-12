@@ -1306,11 +1306,57 @@ function setCut(on) {
 }
 el.edScope.onchange = updateEditBar;
 const BUCKET_CUR = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><text x="0" y="20" font-size="18">🪣</text></svg>')}") 3 20, crosshair`;
+/** 페인트 통이 칠할 면 (미리 보여 주기용): null = 칠할 것 없음 */
+function bucketTarget(P) {
+  const m = S.model;
+  if (!m) return null;
+  const to = el.bucketCol.value.toLowerCase();
+  if (S.mode === 'image') {
+    const h = hitItem(m, P.x, P.y);
+    if (!h) return null;
+    const l = m.layers.find((x) => x.color === h.c), it = l.items[h.i];
+    if (!it.hole && h.c.toLowerCase() === to) return { same: true };
+    const polys = it.hole ? [it.poly] : [it.poly].concat(l.items.filter((x) => x.hole && x.parent === h.i).map((x) => x.poly));
+    return { polys };
+  }
+  if (S.mode === 'text' && m.chars) {
+    for (const c of m.chars) {
+      const b = charBoxMm(c.i);
+      if (b && P.x >= b[0] && P.x <= b[2] && P.y >= b[1] && P.y <= b[3]) {
+        if (((S.charStyles[c.i] || {}).color || '#000000') === to) return { same: true };
+        return { polys: [[[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]]] };
+      }
+    }
+  }
+  return null;
+}
+let bkRaf = 0, bkEv = null;
+function bucketHover(e) {
+  bkEv = e;
+  if (bkRaf) return;
+  bkRaf = requestAnimationFrame(() => {
+    bkRaf = 0;
+    const sv = el.view2d.querySelector('svg');
+    if (!sv || !S.bucket) return;
+    sv.querySelectorAll('path.bkhover').forEach((n) => n.remove());
+    const P = new DOMPoint(bkEv.clientX, bkEv.clientY).matrixTransform(sv.getScreenCTM().inverse());
+    const t = bucketTarget(P);
+    // 칠할 수 있는 곳: 통 아이콘 + 칠해질 면을 미리 표시 / 없거나 이미 같은 색: 금지 표시
+    el.view2d.style.cursor = t && t.polys ? BUCKET_CUR : 'not-allowed';
+    if (!t || !t.polys) return;
+    const pth = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    pth.setAttribute('class', 'bkhover');
+    pth.setAttribute('d', t.polys.map((p) => 'M' + p.map(([x, y]) => x.toFixed(3) + ' ' + y.toFixed(3)).join('L') + 'Z').join(''));
+    Object.entries({ fill: el.bucketCol.value, 'fill-opacity': 0.55, 'fill-rule': 'evenodd', stroke: '#111', 'stroke-width': 1.5, 'stroke-dasharray': '4 3', 'vector-effect': 'non-scaling-stroke', 'pointer-events': 'none' }).forEach(([k, v]) => pth.setAttribute(k, v));
+    sv.appendChild(pth);
+  });
+}
 function setBucket(on) {
   S.bucket = !!on;
   if (on) (setCut(false), setDrop(false), S.placeText && setPlace(false));
   el.bucketBtn.classList.toggle('on', S.bucket);
   el.view2d.style.cursor = S.bucket ? BUCKET_CUR : '';
+  if (!S.bucket) el.view2d.querySelectorAll('path.bkhover').forEach((n) => n.remove());
 }
 el.bucketBtn.onclick = () => setBucket(!S.bucket);
 el.bucketCol.addEventListener('change', () => setBucket(true));
@@ -1680,7 +1726,9 @@ el.view2d.addEventListener(
     el.view2d.classList.add('panning');
   });
   el.view2d.addEventListener('mousedown', (e) => e.button === 1 && e.preventDefault());
+  el.view2d.addEventListener('pointerleave', () => el.view2d.querySelectorAll('path.bkhover').forEach((n) => n.remove()));
   el.view2d.addEventListener('pointermove', (e) => {
+    if (S.bucket && !pan && !box) bucketHover(e);
     if (box) {
       const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(box.ctm.inverse());
       box.b = [P.x, P.y];
