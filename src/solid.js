@@ -439,6 +439,13 @@ export function buildParts(model, o) {
       add('테두리', base.color || '#ffffff', rim, z0, z0 + rimH, 'border', bev(edge.onBase));
     }
   }
+  if (o.wall && o.wall.on && textMode !== 'through' && allText.length) {
+    // 윤곽 벽: 그림·글자 둘레(간격 gap 바깥)에 폭 w의 담. 받침판이 있으면 판 밖으로 나가지 않게 자름
+    const g = Math.max(0, o.wall.gap || 0), w = Math.max(0.4, o.wall.width || 1.2);
+    let wp = diff(offset(allText, g + w), offset(allText, g));
+    if (basePaths) wp = clip(CT.ctIntersection, wp, basePaths);
+    add('윤곽 벽', o.wall.color || '#ffffff', wp, z0, z0 + Math.max(0.2, o.wall.height || 2), 'outwall', null);
+  }
   model.layers.forEach((l, i) => {
     // 색상별 높이차: offsets[i]가 있으면 그 값(음수 가능), 없으면 계단식 step. 최소 두께 0.2mm
     const off = (o.offsets && o.offsets[i] != null ? o.offsets[i] : i * step) + (l.dz || 0);

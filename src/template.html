@@ -451,6 +451,8 @@ dialog#prefs .row label{flex-basis:70px}
         <input id="borderW" class="mini" type="number" min="0.4" max="20" step="0.2" value="1.2" title="폭 (mm)">
         <input id="borderH" class="mini" type="number" min="0.2" max="20" step="0.2" value="1" title="높이 (mm)"></div>
     </div>
+    <label class="chk" title="그림·글자의 바깥 윤곽을 따라 벽(담)을 세웁니다. 받침판이 있으면 그 위에, 없으면 바닥에서 시작합니다."><input type="checkbox" id="wallOn"> 윤곽 벽 (그림 둘레)</label>
+    <div class="row hide" id="wallOpts" style="flex-wrap:wrap;gap:4px"><input id="wallW" class="mini" type="number" min="0.4" max="20" step="0.2" value="1.2" title="벽 폭 (mm)"><input id="wallH" class="mini" type="number" min="0.2" max="20" step="0.2" value="2" title="벽 높이 (mm, 받침판 윗면 기준)"><input id="wallGap" class="mini" type="number" min="0" max="10" step="0.1" value="0.4" title="그림과 벽 사이 간격 (mm)"><input id="wallColor" type="color" value="#ffffff" title="벽 색"></div>
     <div class="row" style="margin:1px 0"><label class="chk" style="flex:0 0 auto;margin:0"><input type="checkbox" id="ringOn"> 키링 고리</label>
       <select id="ringSel" class="grow" style="padding:4px 2px" title="편집할 고리·구멍 선택" aria-label="편집할 고리"></select>
       <button class="btn small" id="ringAdd" title="고리·구멍 하나 더 만들기" style="padding:3px 7px">＋</button>
