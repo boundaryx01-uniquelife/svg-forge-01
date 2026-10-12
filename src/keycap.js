@@ -171,7 +171,7 @@ function bodyMesh(cx, cy, D, legendTree) {
  * k: { u, h, inset, wall, color, mode: 'emboss'|'engrave'|'inlay', depth, legendH, stemLen, tol, edgeType, edgeSize }
  */
 export function buildKeycap(model, o) {
-  const k = { ...o.keycap, edgeType: (o.edge && o.edge.type) || 'none', edgeSize: (o.edge && o.edge.size) || 0.6 };
+  const k = { ...o.keycap };
   const D = keycapDims(k);
   const W = model.width, Hm = model.height;
   const cx = W / 2, cy = Hm / 2;

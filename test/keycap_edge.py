@@ -18,10 +18,10 @@ with sync_playwright() as p:
     r={}
     for mode in ['emboss','engrave','inlay']:
         for et in ['none','chamfer','fillet']:
-            pg.select_option('#kcMode',mode); pg.select_option('#edgeType',et); time.sleep(1.2)
+            pg.select_option('#kcMode',mode); pg.select_option('#kcEdge',et); time.sleep(1.2)
             with pg.expect_download() as d: pg.click('#btnStl')
             path=f'/tmp/claude-0/ke_{mode}_{et}.stl'; d.value.save_as(path); r[f'{mode}/{et}']=check(path)
-    pg.select_option('#kcMode','emboss'); pg.select_option('#edgeType','fillet'); time.sleep(1.5); pg.click('#homeBtn'); time.sleep(1)
+    pg.select_option('#kcMode','emboss'); pg.select_option('#kcEdge','fillet'); time.sleep(1.5); pg.click('#homeBtn'); time.sleep(1)
     pg.screenshot(path='/tmp/claude-0/ke1.png',clip={'x':310,'y':95,'width':780,'height':600})
     pg.select_option('#kcMode','engrave'); time.sleep(1.5)
     pg.screenshot(path='/tmp/claude-0/ke2.png',clip={'x':310,'y':95,'width':780,'height':600})

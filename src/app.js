@@ -23,7 +23,7 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'preset', 'advImage', 'bgRow', 'removeBg', 'keepRow', 'keepInner', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcInfo',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcInfo',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear', 'edCut', 'edCutW',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -1755,7 +1755,7 @@ function setAllOffsets(fn) {
 /** 오른쪽 '3D 출력' 설정 */
 function kcOpts() {
   const f = (e, d) => (isFinite(parseFloat(e.value)) ? parseFloat(e.value) : d);
-  return { on: el.kcOn.checked, u: el.kcU.value, color: el.kcColor.value, h: f(el.kcH, 9), inset: f(el.kcInset, 2.8), wall: f(el.kcWall, 1.4), tol: f(el.kcTol, 0.1), mode: el.kcMode.value, depth: f(el.kcDepth, 0.5), legendH: f(el.kcDepth, 0.5), edgeType: el.edgeType.value, edgeSize: f(el.edgeSize, 0.6) };
+  return { on: el.kcOn.checked, u: el.kcU.value, color: el.kcColor.value, h: f(el.kcH, 9), inset: f(el.kcInset, 2.8), wall: f(el.kcWall, 1.4), tol: f(el.kcTol, 0.1), mode: el.kcMode.value, depth: f(el.kcDepth, 0.5), legendH: f(el.kcDepth, 0.5), edgeType: el.kcEdge.value, edgeSize: f(el.kcEdgeSize, 0.8) };
 }
 /** 키캡 윗면 크기 안내 · 글자가 윗면보다 크면 경고 */
 function updateKcInfo() {
@@ -2032,6 +2032,8 @@ function on3dChange(showView) {
   const kcOn = el.kcOn.checked;
   if (kcOn) (el.baseOn.checked = false), (el.ringOn.checked = false);
   el.baseOn.disabled = kcOn;
+  el.edgeType.disabled = el.edgeSize.disabled = kcOn; // 키캡은 아래 키캡 항목의 '윗면 모서리'를 씀
+  el.kcEdgeSize.classList.toggle('hide', el.kcEdge.value === 'none');
   const kk = kcOpts();
   const kcKey = kk.on + '|' + kk.u + '|' + kk.h;
   if (S.kcKey !== kcKey) (S.kcKey = kcKey), (S.dirty3d = true); // 키캡 크기가 바뀌면 화면을 다시 맞춤
@@ -2062,8 +2064,8 @@ function on3dChange(showView) {
   pushHist();
 }
 [el.thick, el.baseMargin, el.baseH, el.baseFill, el.edgeSize, el.ringDx, el.ringDy, el.borderW, el.borderH, el.ringOuter, el.ringHole].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
-[el.baseOn, el.baseShape, el.baseColor, el.baseStretch, el.textMode, el.ringType, el.edgeType, el.edgeColor, el.edgeBase, el.borderOn, el.borderFull, el.ringOn, el.ringPos, el.kcOn, el.kcU, el.kcMode].forEach((e) => e.addEventListener('change', () => on3dChange(true)));
-[el.kcColor, el.kcH, el.kcInset, el.kcWall, el.kcTol, el.kcDepth].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
+[el.baseOn, el.baseShape, el.baseColor, el.baseStretch, el.textMode, el.ringType, el.edgeType, el.edgeColor, el.edgeBase, el.borderOn, el.borderFull, el.ringOn, el.ringPos, el.kcOn, el.kcU, el.kcMode, el.kcEdge].forEach((e) => e.addEventListener('change', () => on3dChange(true)));
+[el.kcColor, el.kcH, el.kcInset, el.kcWall, el.kcTol, el.kcDepth, el.kcEdgeSize].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
 el.kcOn.addEventListener('change', () => {
   if (!el.kcOn.checked) return;
   const D = keycapDims(kcOpts());
