@@ -33,7 +33,7 @@
 - **설정(⚙)**: 치수 색·글씨 크기, 2D·3D 배경, 영어 용어 표시, 자동 저장, 작업 설정 처음값으로
 - 무거운 계산은 백그라운드(Web Worker)에서 실행
 
-작업 내역: [docs/WORKLOG.md](docs/WORKLOG.md)
+작업 내역: [docs/WORKLOG.md](docs/WORKLOG.md) · 교육자료(키캡 만들기 PPT): [docs/education](docs/education/README.md)
 
 ## 빌드
 ```bash
