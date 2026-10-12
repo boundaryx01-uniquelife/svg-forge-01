@@ -1174,15 +1174,21 @@ function setPlace(on) {
   if (!on) S.placeText = null;
   el.view2d.style.cursor = S.placeText ? 'copy' : S.cutMode ? 'crosshair' : '';
   el.edText.classList.toggle('on', !!S.placeText);
+  if (S.placeText) {
+    pickSel(null);
+    el.edInfo.textContent = T('글자를 놓을 곳을 누르세요 (Esc 취소)');
+  } else updateEditBar();
 }
 el.edText.onclick = () => {
   if (S.placeText) return setPlace(false);
   setCut(false);
+  if (S.model && !el.tdSize.dataset.set) el.tdSize.value = Math.max(0.1, Math.round(S.model.height * 0.18 * 10) / 10);
   if (!el.tdColor.dataset.set) el.tdColor.value = S.sel && /^#[0-9a-f]{6}$/i.test(S.sel.c) ? S.sel.c : '#000000';
   el.textDlg.showModal ? el.textDlg.showModal() : el.textDlg.setAttribute('open', '');
   el.tdText.focus();
 };
 el.tdColor.oninput = () => (el.tdColor.dataset.set = '1');
+el.tdSize.oninput = () => (el.tdSize.dataset.set = '1');
 el.textDlg.addEventListener('close', async () => {
   if (el.textDlg.returnValue !== 'ok') return;
   const text = el.tdText.value.replace(/\s+$/, '');
@@ -1196,7 +1202,7 @@ el.textDlg.addEventListener('close', async () => {
   const L = textToLayers(font, text, { align: el.align.value, lineHeight: parseFloat(el.lineH.value) || 1.2 }, fallbackFonts(font, text), null);
   const rings = L.flatMap((l) => l.rings);
   if (!rings.length) return;
-  S.placeText = { rings, s: Math.min(500, Math.max(1, parseFloat(el.tdSize.value) || 8)), c: el.tdColor.value.toLowerCase() };
+  S.placeText = { rings, s: Math.min(500, Math.max(0.1, parseFloat(el.tdSize.value) || 5)), c: el.tdColor.value.toLowerCase() };
   setPlace(true);
 });
 
