@@ -101,7 +101,8 @@ body.dragging .view::after{content:attr(data-drop);position:absolute;inset:8px;b
 .statusbar{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin-top:6px;color:var(--sub);font-size:12px;min-height:20px}
 .sw{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.25);vertical-align:-2px;margin-right:3px}
 #editbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:3px 8px;background:#fff;border:1px solid #cfd6e4;border-radius:8px;font-size:12px}
-#editbar.nosel>:not(.edinfo){display:none}
+#editbar.nosel>:not(.edinfo):not(.edcut){display:none}
+#editbar .btn.on{background:#1d5fd6;color:#fff;border-color:#1d5fd6}
 #editbar{min-height:32px;box-sizing:border-box}
 #editbar.nosel .edinfo{font-weight:400;color:#7b8498}
 #editbar .edinfo{display:inline-flex;align-items:center;gap:5px;font-weight:600;white-space:nowrap}
@@ -370,6 +371,7 @@ dialog#prefs .row label{flex-basis:70px}
       </div>
       <div id="editbar" style="display:none">
         <span id="edInfo" class="edinfo"></span>
+        <span class="edgrp edcut"><button class="btn small" id="edCut" title="연결된 부분을 끊기: 켜고 미리보기에서 끊을 곳을 가로질러 끌면 그 선을 따라 도려냅니다 (선택한 도형이 있으면 그 도형만, 없으면 닿는 모든 도형). Esc로 끄기">✂ 끊기</button><input id="edCutW" class="mini" type="number" min="0.05" max="5" step="0.05" value="0.3" title="끊은 틈의 폭 (mm)"><span class="val" style="flex:0 0 auto">mm</span></span>
         <select id="edScope" title="편집이 적용되는 범위"><option value="shape">이 도형만</option><option value="color">이 색 전체</option></select>
         <button class="btn small" id="edDel" title="선택한 도형 지우기 (Delete 키)">🗑 삭제</button>
         <button class="btn small" id="edHoles" title="선택한 도형 안의 구멍을 메웁니다. 구멍을 직접 눌러 선택해도 됩니다">구멍 채우기</button>

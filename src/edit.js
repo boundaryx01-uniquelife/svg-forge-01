@@ -32,9 +32,61 @@ export function groupOf(items, i) {
   return g;
 }
 
+/** 선분 a→b 를 따라 폭 w(mm)만큼 도려내 연결된 부분을 끊음 (e.c 없으면 모든 색, e.i 없으면 그 색 전체) */
+function cutLine(model, e, tol) {
+  const [ax, ay] = e.a, [bx, by] = e.b;
+  const len = Math.hypot(bx - ax, by - ay);
+  if (len < 1e-6 || !(e.w > 0)) return;
+  const nx = (-(by - ay) / len) * (e.w / 2), ny = ((bx - ax) / len) * (e.w / 2);
+  const strip = [[ax + nx, ay + ny], [bx + nx, by + ny], [bx - nx, by - ny], [ax - nx, ay - ny]].map(([x, y]) => ({ X: Math.round(x * SC), Y: Math.round(y * SC) }));
+  model.layers.forEach((L, li) => {
+    if (e.c && L.color !== e.c) return;
+    const all = L.items;
+    let sel;
+    if (e.i == null || !e.c) sel = all.map((_, j) => j);
+    else if (e.i >= 0 && e.i < all.length) sel = groupOf(all, e.i);
+    else return;
+    const selSet = new Set(sel);
+    // 도형(바깥 + 안의 구멍) 묶음마다: 선분에 닿는 것만 도려내고 나머지는 그대로 (곡선·원호 유지)
+    const used = new Set();
+    let rings = [];
+    let changed = false;
+    for (const j of sel) {
+      if (used.has(j)) continue;
+      const grp = all[j].hole && selSet.has(all[j].parent) ? null : groupOf(all, j);
+      if (!grp) continue;
+      grp.forEach((g) => used.add(g));
+      const run = (type, subj, clip) => {
+        const c = new ClipperLib.Clipper();
+        c.AddPaths(subj, ClipperLib.PolyType.ptSubject, true);
+        c.AddPaths(clip, ClipperLib.PolyType.ptClip, true);
+        const o = new ClipperLib.Paths();
+        c.Execute(type, o, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+        return o;
+      };
+      const subj = toPaths(grp.map((g) => all[g]));
+      const u = run(ClipperLib.ClipType.ctUnion, subj, []);
+      if (!run(ClipperLib.ClipType.ctIntersection, u, [strip]).length) {
+        rings = rings.concat(grp.map((g) => all[g].ring));
+        continue;
+      }
+      changed = true;
+      const out = run(ClipperLib.ClipType.ctDifference, u, [strip]);
+      rings = rings.concat(out.filter((q) => q.length >= 3).map((q) => closeRing(q.map((pt, k) => [k ? 'L' : 'M', pt.X / SC, pt.Y / SC]))));
+    }
+    if (!changed) return;
+    // 선택 범위 밖(다른 도형)은 그대로 합침
+    const rest = all.filter((_, j) => !used.has(j)).map((it) => it.ring);
+    model.layers[li] = { ...L, items: buildItems(rest.concat(rings), tol) };
+  });
+}
 /** model(mm)에 편집 목록을 순서대로 적용 (model을 직접 고침) */
 export function applyEdits(model, edits, tol) {
   for (const e of edits || []) {
+    if (e.t === 'cut') {
+      cutLine(model, e, tol);
+      continue;
+    }
     const li = model.layers.findIndex((l) => l.color === e.c);
     if (li < 0) continue;
     const L = model.layers[li];

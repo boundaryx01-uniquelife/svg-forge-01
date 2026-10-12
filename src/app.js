@@ -24,7 +24,7 @@ const el = {};
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
   'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
-  'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear',
+  'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear', 'edCut', 'edCutW',
 ].forEach((id) => (el[id] = document.getElementById(id)));
 
 const S = {
@@ -1124,6 +1124,7 @@ window.addEventListener('keydown', (e) => {
     }
     if (e.key === 'Escape') return pickSel(null);
   }
+  if (S.cutMode && e.key === 'Escape') return setCut(false);
   if (S.mode !== 'text' || S.selChar == null) return;
   if (e.key === 'Escape') return selectChar(null);
   const dirs = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
@@ -1143,6 +1144,12 @@ el.edPlus.onclick = () => editOp('off', { d: edStepVal() });
 el.edMinus.onclick = () => editOp('off', { d: -edStepVal() });
 el.edColor.onchange = () => S.sel && el.edColor.value.toLowerCase() !== S.sel.c.toLowerCase() && editOp('col', { to: el.edColor.value.toLowerCase() });
 el.edClear.onclick = () => pickSel(null);
+el.edCut.onclick = () => setCut(!S.cutMode);
+function setCut(on) {
+  S.cutMode = !!on && S.mode === 'image';
+  el.edCut.classList.toggle('on', S.cutMode);
+  el.view2d.style.cursor = S.cutMode ? 'crosshair' : '';
+}
 el.edScope.onchange = updateEditBar;
 
 // 2D 확대(휠)·이동(끌기)·처음으로(더블클릭)
@@ -1168,11 +1175,19 @@ el.view2d.addEventListener(
   let pan = null;
   let drag = null;
   let hd = null;
+  let cutDrag = null;
   let raf = 0;
   el.view2d.addEventListener('pointerdown', (e) => {
     const sv = el.view2d.querySelector('svg');
     if (!sv || e.button !== 0 || !S.fit2) return;
     const ctm = sv.getScreenCTM();
+    if (S.cutMode && S.mode === 'image' && ctm && S.model) {
+      const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+      cutDrag = { a: [P.x, P.y], b: [P.x, P.y], ctm, id: e.pointerId };
+      el.view2d.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      return;
+    }
     // 글자 모드: 선택 상자의 크기 점 · 회전 점
     const hEl = S.mode === 'text' && S.selChar != null && e.target.closest ? e.target.closest('[data-h]') : null;
     if (hEl && ctm) {
@@ -1220,6 +1235,19 @@ el.view2d.addEventListener(
     el.view2d.classList.add('panning');
   });
   el.view2d.addEventListener('pointermove', (e) => {
+    if (cutDrag) {
+      const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(cutDrag.ctm.inverse());
+      cutDrag.b = [P.x, P.y];
+      let ln = el.view2d.querySelector('svg line.cutline');
+      const sv = el.view2d.querySelector('svg');
+      if (!ln && sv) {
+        ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        Object.entries({ class: 'cutline', stroke: '#e11d48', 'stroke-width': 2, 'stroke-dasharray': '5 3', 'vector-effect': 'non-scaling-stroke', 'pointer-events': 'none' }).forEach(([k, v]) => ln.setAttribute(k, v));
+        sv.appendChild(ln);
+      }
+      if (ln) Object.entries({ x1: cutDrag.a[0], y1: cutDrag.a[1], x2: cutDrag.b[0], y2: cutDrag.b[1] }).forEach(([k, v]) => ln.setAttribute(k, v));
+      return;
+    }
     if (hd) {
       const P = { x: hd.P.x + (e.clientX - hd.x) / hd.a, y: hd.P.y + (e.clientY - hd.y) / hd.a };
       if (hd.kind === 'rot') {
@@ -1266,6 +1294,24 @@ el.view2d.addEventListener(
     applyVb2();
   });
   const end = (e) => {
+    if (cutDrag) {
+      const c = cutDrag;
+      cutDrag = null;
+      const ln = el.view2d.querySelector('svg line.cutline');
+      if (ln) ln.remove();
+      const sh = (S.model && S.model.editShift) || [0, 0];
+      if (e && e.type === 'pointerup' && Math.hypot(c.b[0] - c.a[0], c.b[1] - c.a[1]) > 0.3) {
+        const whole = el.edScope.value === 'color';
+        const q = S.sel;
+        S.edits.push({ t: 'cut', c: q ? q.c : null, i: q && !whole ? q.i : null, a: [c.a[0] + sh[0], c.a[1] + sh[1]], b: [c.b[0] + sh[0], c.b[1] + sh[1]], w: Math.min(5, Math.max(0.05, parseFloat(el.edCutW.value) || 0.3)) });
+        S.editsKey = S.traceKey;
+        S.sel = null;
+        S.selPt = null;
+        S.reselect = false;
+        schedule(0);
+      }
+      return;
+    }
     const was = pan;
     pan = null;
     if (was && !was.moved && e && e.type === 'pointerup' && S.mode === 'image' && S.model) pickAt(e);
@@ -1740,7 +1786,7 @@ function setView(v) {
 function setMode(m, silent) {
   if (S.mode !== m) (S.vb2 = null), (S.dirty3d = true);
   S.mode = m;
-  if (m !== 'image') S.sel = null;
+  if (m !== 'image') (S.sel = null), setCut(false);
   updateEditBar();
   el.modeImage.classList.toggle('on', m === 'image');
   el.modeText.classList.toggle('on', m === 'text');
