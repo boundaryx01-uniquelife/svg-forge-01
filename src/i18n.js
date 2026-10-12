@@ -373,7 +373,7 @@ const EN = {
   '안쪽 같은 색 면은 남김': 'Keep same-colour inner areas',
   '바깥 배경만 지우고, 그림 안쪽에 갇힌 같은 색 면(예: 흰 면)은 남깁니다. 끄면 도넛처럼 안쪽 면도 구멍으로 뚫립니다.': 'Removes only the outer background and keeps same-colour areas enclosed inside the picture (e.g. white fill). Turn off to punch inner areas out as holes, like a donut.',
   '✂ 끊기': '✂ Cut',
-  '연결된 부분을 끊기: 켜고 미리보기에서 끊을 곳을 가로질러 끌면 그 선을 따라 도려냅니다 (선택한 도형이 있으면 그 도형만, 없으면 닿는 모든 도형). Esc로 끄기': 'Cut connected parts: turn on, then drag across the spot in the preview to cut along that line (only the selected shape if one is selected, otherwise every shape it touches). Esc to turn off',
+  '연결된 부분을 끊기: 켜고 미리보기에서 끊을 곳을 가로질러 끌면 (화면 이동은 휠 버튼 끌기) 그 선을 따라 도려냅니다 (선택한 도형이 있으면 그 도형만, 없으면 닿는 모든 도형). Esc로 끄기': 'Cut connected parts (middle-button drag pans): turn on, then drag across the spot in the preview to cut along that line (only the selected shape if one is selected, otherwise every shape it touches). Esc to turn off',
   '끊은 틈의 폭 (mm)': 'Gap width (mm)',
   '⌨ 키캡 (MX 호환)': '⌨ Keycap (MX compatible)',
   '키캡(MX) 모드입니다. 글자·그림이 윗면에 올라갑니다. 3D 출력의 키캡 항목에서 크기·글자 방식을 바꾸세요. 스템 공차는 시험 출력으로 맞추세요.': 'Keycap (MX) mode. Your text or image goes on the top face. Change size and legend style in the Keycap section of 3D output. Tune the stem tolerance with a test print.',

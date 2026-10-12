@@ -1186,8 +1186,16 @@ el.view2d.addEventListener(
   let raf = 0;
   el.view2d.addEventListener('pointerdown', (e) => {
     const sv = el.view2d.querySelector('svg');
-    if (!sv || e.button !== 0 || !S.fit2) return;
+    if (!sv || (e.button !== 0 && e.button !== 1) || !S.fit2) return;
     const ctm = sv.getScreenCTM();
+    if (e.button === 1) {
+      // 휠(가운데) 버튼: 어떤 모드에서도 화면 이동
+      pan = { x: e.clientX, y: e.clientY, b: (S.vb2 || S.fit2).slice(), a: ctm ? ctm.a : 1, id: e.pointerId, mid: true };
+      el.view2d.setPointerCapture(e.pointerId);
+      el.view2d.classList.add('panning');
+      e.preventDefault();
+      return;
+    }
     if (S.cutMode && S.mode === 'image' && ctm && S.model) {
       const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
       cutDrag = { a: [P.x, P.y], b: [P.x, P.y], ctm, id: e.pointerId };
@@ -1241,6 +1249,7 @@ el.view2d.addEventListener(
     el.view2d.setPointerCapture(e.pointerId);
     el.view2d.classList.add('panning');
   });
+  el.view2d.addEventListener('mousedown', (e) => e.button === 1 && e.preventDefault());
   el.view2d.addEventListener('pointermove', (e) => {
     if (cutDrag) {
       const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(cutDrag.ctm.inverse());
@@ -1334,7 +1343,7 @@ el.view2d.addEventListener(
     }
     const was = pan;
     pan = null;
-    if (was && !was.moved && e && e.type === 'pointerup' && S.mode === 'image' && S.model) pickAt(e);
+    if (was && !was.mid && !was.moved && e && e.type === 'pointerup' && S.mode === 'image' && S.model) pickAt(e);
     if (drag) setCharStyle(drag.i, {}); // 0에 가까운 값 정리 + 저장
     if (hd) setCharStyle(hd.i, {});
     drag = null;
