@@ -445,6 +445,7 @@ const EN = {
   '🪣 채우기': '🪣 Fill',
   '채울 색': 'Fill colour',
   '페인트 통: 색을 고르고 켠 뒤, 미리보기에서 칠할 면(도형·글자·빈 구멍)을 누르면 그 색으로 채웁니다. 여러 번 눌러 계속 칠할 수 있고 Alt+클릭은 그 면의 색을 집어옵니다. Esc로 끄기': "Paint bucket: pick a colour, turn it on, then click a face (shape, letter or empty hole) in the preview to fill it. Keep clicking to paint more; Alt+click picks that face's colour. Esc turns it off",
+  '폰트를 선택하세요… (한글 확인 중 {a}/{b})': 'Choose a font… (checking Korean {a}/{b})',
   '그림에 쓰인 색': 'Colours in the artwork',
   '✂ 끊기': '✂ Cut',
   '연결된 부분을 끊기: 켜고 미리보기에서 끊을 곳을 가로질러 끌면 (화면 이동은 휠 버튼 끌기) 그 선을 따라 도려냅니다 (선택한 도형이 있으면 그 도형만, 없으면 닿는 모든 도형). Esc로 끄기': 'Cut connected parts (middle-button drag pans): turn on, then drag across the spot in the preview to cut along that line (only the selected shape if one is selected, otherwise every shape it touches). Esc to turn off',

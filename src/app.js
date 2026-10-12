@@ -2835,19 +2835,108 @@ el.fontLocalBtn.onclick = async () => {
   S.localList.sort((a, b) => a.fullName.localeCompare(b.fullName, getLang()));
   renderLocalFonts();
   el.localFontRow.classList.remove('hide');
+  scanLocalKo();
 };
+/** 폰트 파일의 글자표(cmap)만 읽어 한글(가·한) 글자가 실제로 있는지 확인 — 파일 전체를 읽지 않아 빠름 */
+async function fontHasHangul(blob) {
+  const rd = async (o, n) => new DataView(await blob.slice(o, o + n).arrayBuffer());
+  let h = await rd(0, 16);
+  let base = 0;
+  if (h.getUint32(0) === 0x74746366) base = h.getUint32(12); // 'ttcf': 첫 글꼴
+  h = await rd(base, 12);
+  const nt = h.getUint16(4);
+  const dir = await rd(base + 12, nt * 16);
+  let co = -1, cl = 0;
+  for (let i = 0; i < nt; i++) if (dir.getUint32(i * 16) === 0x636d6170) (co = dir.getUint32(i * 16 + 8)), (cl = dir.getUint32(i * 16 + 12));
+  if (co < 0) return false;
+  const cm = await rd(co, Math.min(cl, 4 << 20));
+  const n = cm.getUint16(2);
+  const subs = [];
+  for (let i = 0; i < n; i++) subs.push({ p: cm.getUint16(4 + i * 8), e: cm.getUint16(6 + i * 8), o: cm.getUint32(8 + i * 8) });
+  const glyph = (o, c) => {
+    const fmt = cm.getUint16(o);
+    if (fmt === 4) {
+      const seg = cm.getUint16(o + 6) / 2, ends = o + 14, starts = ends + seg * 2 + 2, deltas = starts + seg * 2, ranges = deltas + seg * 2;
+      for (let i = 0; i < seg; i++) {
+        if (cm.getUint16(ends + i * 2) < c) continue;
+        const st = cm.getUint16(starts + i * 2);
+        if (st > c) return 0;
+        const ro = cm.getUint16(ranges + i * 2), dl = cm.getInt16(deltas + i * 2);
+        if (!ro) return (c + dl) & 0xffff;
+        const g = cm.getUint16(ranges + i * 2 + ro + (c - st) * 2);
+        return g ? (g + dl) & 0xffff : 0;
+      }
+      return 0;
+    }
+    if (fmt === 12) {
+      const ng = cm.getUint32(o + 12);
+      for (let i = 0; i < ng; i++) {
+        const a = cm.getUint32(o + 16 + i * 12), b = cm.getUint32(o + 20 + i * 12);
+        if (c >= a && c <= b) return cm.getUint32(o + 24 + i * 12) + (c - a);
+      }
+      return 0;
+    }
+    return 0;
+  };
+  for (const sb of subs.sort((a, b) => (b.p === 3 && b.e === 10) - (a.p === 3 && a.e === 10) || (b.p === 3) - (a.p === 3))) {
+    try {
+      const f = cm.getUint16(sb.o);
+      if (f !== 4 && f !== 12) continue;
+      return !!(glyph(sb.o, 0xac00) && glyph(sb.o, 0xd55c));
+    } catch (e) {}
+  }
+  return false;
+}
+// 확인 결과는 이 브라우저에 기억 (다음엔 바로 표시)
+S.koCache = (() => {
+  try {
+    return JSON.parse(lsGet('svgforge.koFonts') || '{}');
+  } catch (e) {
+    return {};
+  }
+})();
+let koScanSeq = 0;
+async function scanLocalKo() {
+  const my = ++koScanSeq;
+  const list = S.localList || [];
+  let done = 0, last = 0;
+  for (const fd of list) {
+    if (my !== koScanSeq) return;
+    const key = fd.postscriptName || fd.fullName;
+    if (!(key in S.koCache)) {
+      try {
+        S.koCache[key] = (await fontHasHangul(await fd.blob())) ? 1 : 0;
+      } catch (e) {
+        S.koCache[key] = KO_FONT_RE.test(fd.fullName + ' ' + fd.family) ? 1 : 0;
+      }
+    }
+    done++;
+    if (performance.now() - last > 400) {
+      last = performance.now();
+      el.localFontSel.options[0].textContent = T('폰트를 선택하세요… (한글 확인 중 {a}/{b})', { a: done, b: list.length });
+    }
+  }
+  lsSet('svgforge.koFonts', JSON.stringify(S.koCache));
+  renderLocalFonts();
+}
 // 설치 폰트 목록은 파일을 열어 보기 전엔 글자 범위를 알 수 없어 이름으로 한글 폰트를 추정
 const KO_FONT_RE = /[가-힣]|malgun|gulim|batang|dotum|gungsuh|nanum|noto\s*(sans|serif)\s*(kr|cjk|korean)|source\s*han|pretendard|spoqa|apple\s*sd|applegothic|applemyungjo|kopub|ibm\s*plex\s*sans\s*kr|gowun|jua|do\s*hyeon|black\s*han|gmarket|cafe24|jalnan|maplestory|nexon|binggrae|s-core|suit\b|wanted|paperlogy|hancom|함초롬|hamchorom|hy[a-z가-힣]|hcr\s|yoon|sandoll|kbiz|seoul\s*(namsan|hangang)|d2coding|bm\s|baemin|school\s*safe|ownglyph|kcc|elice|kakao|lineseed.*kr|one\s*mobile|tmoney|dx|jeju|chosun/i;
 function renderLocalFonts() {
   el.localFontSel.innerHTML = '';
   el.localFontSel.add(new Option(T('폰트를 선택하세요…'), ''));
   const gK = document.createElement('optgroup');
-  gK.label = T('한글 폰트 (이름으로 추정)');
+  gK.label = T('한글 지원 폰트');
   const gO = document.createElement('optgroup');
-  gO.label = T('기타 폰트');
-  S.localList.forEach((fd, i) => (KO_FONT_RE.test(fd.fullName + ' ' + fd.family) ? gK : gO).appendChild(new Option(fd.fullName, String(i))));
+  gO.label = T('한글 없는 폰트 (영문 등)');
+  const cur = el.localFontSel.value;
+  S.localList.forEach((fd, i) => {
+    const key = fd.postscriptName || fd.fullName;
+    const ko = key in S.koCache ? !!S.koCache[key] : KO_FONT_RE.test(fd.fullName + ' ' + fd.family);
+    (ko ? gK : gO).appendChild(new Option((ko ? '가 · ' : '') + fd.fullName, String(i)));
+  });
   if (gK.children.length) el.localFontSel.appendChild(gK);
   if (gO.children.length) el.localFontSel.appendChild(gO);
+  if (cur) el.localFontSel.value = cur;
 }
 el.localFontSel.onchange = async () => {
   const fd = S.localList[parseInt(el.localFontSel.value, 10)];
