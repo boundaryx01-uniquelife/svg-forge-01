@@ -54,7 +54,8 @@ export function buildPlan(lm, speeds) {
     for (const r of remain) strokes.push({ pts: r.pts.concat([r.pts[0]]), kind: 1, color: r.color });
   } else {
     while (remain.length) {
-      const free = remain.filter((r) => !remain.some((o) => holds(r, o)));
+      let free = remain.filter((r) => !remain.some((o) => holds(r, o)));
+      if (!free.length) free = remain; // 서로 품는 경우(똑같은 윤곽 두 개 등)
       let best = null, bd = 1e18, bi = 0;
       for (const r of free) {
         for (let i = 0; i < r.pts.length; i += Math.max(1, Math.floor(r.pts.length / 40))) {
