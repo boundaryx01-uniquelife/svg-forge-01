@@ -1,0 +1,138 @@
+// 미리보기 도형 편집: 삭제 · 구멍 채우기 · 두께(오프셋) · 색 바꾸기/합치기
+// 편집은 '작업 목록(edits)'으로 기록해 두고, 모델(mm)을 만들 때마다 같은 순서로 다시 적용 → 너비 변경·저장·실행취소와 호환
+import ClipperLib from 'clipper-lib';
+import { buildItems, closeRing, transformRing } from './geom.js';
+
+const SC = 1000; // mm → µm
+
+const toPaths = (items) => items.map((it) => it.poly.map(([x, y]) => ({ X: Math.round(x * SC), Y: Math.round(y * SC) })));
+
+function offsetRings(items, d) {
+  const src = toPaths(items);
+  const c = new ClipperLib.Clipper();
+  c.AddPaths(src, ClipperLib.PolyType.ptSubject, true);
+  const u = new ClipperLib.Paths();
+  c.Execute(ClipperLib.ClipType.ctUnion, u, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  const co = new ClipperLib.ClipperOffset(2, 0.01 * SC);
+  co.AddPaths(u, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+  const out = new ClipperLib.Paths();
+  co.Execute(out, d * SC);
+  return out
+    .filter((p) => p.length >= 3)
+    .map((p) => {
+      const r = p.map((q, i) => [i ? 'L' : 'M', q.X / SC, q.Y / SC]);
+      return closeRing(r);
+    });
+}
+
+/** i번 도형 + 그 안의 직접 구멍들의 번호 */
+export function groupOf(items, i) {
+  const g = [i];
+  if (!items[i].hole) items.forEach((it, j) => it.hole && it.parent === i && g.push(j));
+  return g;
+}
+
+/** model(mm)에 편집 목록을 순서대로 적용 (model을 직접 고침) */
+export function applyEdits(model, edits, tol) {
+  for (const e of edits || []) {
+    const li = model.layers.findIndex((l) => l.color === e.c);
+    if (li < 0) continue;
+    const L = model.layers[li];
+    const all = L.items;
+    let sel; // 대상 번호들
+    if (e.i == null) sel = all.map((_, j) => j);
+    else if (e.i >= 0 && e.i < all.length) sel = groupOf(all, e.i);
+    else continue;
+    const selSet = new Set(sel);
+    const keep = all.filter((_, j) => !selSet.has(j));
+    const picked = sel.map((j) => all[j]);
+    let rings = keep.map((it) => it.ring);
+    if (e.t === 'del') {
+      // 구멍을 지우면 메워짐, 바깥 도형을 지우면 그 안의 구멍도 같이
+      if (e.i != null && all[e.i].hole) rings = all.filter((_, j) => j !== e.i).map((it) => it.ring);
+    } else if (e.t === 'holes') {
+      const holes = new Set(e.i == null ? all.map((it, j) => (it.hole ? j : -1)).filter((j) => j >= 0) : sel.filter((j) => all[j].hole));
+      rings = all.filter((_, j) => !holes.has(j)).map((it) => it.ring);
+    } else if (e.t === 'off') {
+      if (!e.d) continue;
+      if (e.i != null && all[e.i].hole) {
+        // 구멍의 두께 +는 구멍이 줄어드는 쪽(도형이 두꺼워짐) → 구멍을 반대로 오프셋
+        const nr = offsetRings([all[e.i]], -e.d);
+        rings = all.filter((_, j) => j !== e.i).map((it) => it.ring).concat(nr);
+      } else rings = rings.concat(offsetRings(picked, e.d));
+    } else if (e.t === 'col') {
+      if (e.to === e.c) continue;
+      const rs = picked.map((it) => it.ring);
+      model.layers[li] = { ...L, items: buildItems(rings, tol) };
+      let T = model.layers.find((l) => l.color === e.to);
+      if (!T) {
+        T = { color: e.to, items: [] };
+        model.layers.push(T);
+      }
+      T.items = buildItems(T.items.map((it) => it.ring).concat(rs), tol);
+      continue;
+    } else continue;
+    model.layers[li] = { ...L, items: buildItems(rings, tol) };
+  }
+  model.layers = model.layers.filter((l) => l.items.length);
+  let rc = 0, nc = 0;
+  for (const l of model.layers) {
+    rc += l.items.length;
+    for (const it of l.items) nc += it.ring.length;
+  }
+  model.ringCount = rc;
+  model.nodeCount = nc;
+  model.editShift = [0, 0];
+  // 도형을 지우거나 굵게 하면 전체 범위가 달라짐 → 내용에 딱 맞게 원점으로 다시 맞춤 (3MF·SVG 크기가 맞게)
+  if ((edits || []).length && model.layers.length) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const all = model.layers.flatMap((l) => l.items).concat(model.plate || []);
+    for (const it of all)
+      for (const [x, y] of it.poly) {
+        if (x < x0) x0 = x;
+        if (y < y0) y0 = y;
+        if (x > x1) x1 = x;
+        if (y > y1) y1 = y;
+      }
+    if (isFinite(x0)) {
+      if (Math.abs(x0) > 1e-9 || Math.abs(y0) > 1e-9)
+        for (const it of all) {
+          it.ring = transformRing(it.ring, 1, x0, y0);
+          it.poly = it.poly.map(([x, y]) => [x - x0, y - y0]);
+        }
+      model.width = x1 - x0;
+      model.height = y1 - y0;
+      model.editShift = [x0, y0];
+    }
+  }
+  return model;
+}
+
+function inPoly(x, y, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+const area = (p) => {
+  let a = 0;
+  for (let i = 0, j = p.length - 1; i < p.length; j = i++) a += (p[j][0] - p[i][0]) * (p[j][1] + p[i][1]);
+  return Math.abs(a) / 2;
+};
+
+/** (x,y)mm 에 있는 가장 작은 도형(또는 구멍) → {c, i} */
+export function hitItem(model, x, y) {
+  let best = null, ba = Infinity;
+  for (const l of model.layers)
+    l.items.forEach((it, i) => {
+      if (!inPoly(x, y, it.poly)) return;
+      const a = area(it.poly);
+      if (a < ba) {
+        ba = a;
+        best = { c: l.color, i };
+      }
+    });
+  return best;
+}

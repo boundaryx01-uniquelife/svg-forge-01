@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { traceImage, otsuThreshold, estimateHardEdges, estimateColorCount, parseFont, missingGlyphs, textToLayers } from './trace.js';
 import { makeModel } from './geom.js';
+import { applyEdits, hitItem } from './edit.js';
 import { potracePathsToRings } from './pathparse.js';
 import { toFillSvg, toLaserSvg, toDxf, laserModel } from './export.js';
 import { printabilityReport } from './solid.js';
@@ -23,10 +24,13 @@ const el = {};
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
   'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
-  'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d',
+  'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear',
 ].forEach((id) => (el[id] = document.getElementById(id)));
 
 const S = {
+  edits: [],
+  editsKey: '',
+  sel: null,
   mode: 'image',
   img: null,
   imgId: 0,
@@ -563,6 +567,12 @@ async function compute() {
   }
   if (my !== seq) return;
 
+  if (S.editsKey === '*') S.editsKey = S.traceKey;
+  if (S.editsKey !== S.traceKey) {
+    if (S.edits.length) S.flash = T('이미지·글자 설정이 바뀌어 도형 편집을 처음으로 되돌렸습니다.');
+    S.edits = [];
+    S.editsKey = S.traceKey;
+  }
   let mlayers = layers;
   let refW;
   if (S.mode === 'image' && needPlate()) {
@@ -584,6 +594,15 @@ async function compute() {
     S.txtWidthIn = Math.min(1000, Math.max(1, parseFloat(el.width.value) || 50));
   } else S.model = makeModel(mlayers, width, tol, refW);
   const m = S.model;
+  if (S.mode === 'image' && S.edits.length) applyEdits(m, S.edits, tol);
+  if (S.reselect && S.selPt && S.mode === 'image') {
+    const sh = m.editShift || [0, 0];
+    S.selPt = [S.selPt[0] + S.selShift[0] - sh[0], S.selPt[1] + S.selShift[1] - sh[1]];
+    S.selShift = sh.slice();
+    S.sel = hitItem(m, S.selPt[0], S.selPt[1]);
+  }
+  S.reselect = false;
+  checkSel();
   if (S.mode === 'text') {
     m.fromText = true;
     m.chars = layers.chars || [];
@@ -601,6 +620,8 @@ async function compute() {
     el.heightOut.textContent = '-';
     setStatus('');
     setMsg([T('추출된 도형이 없습니다.') + (S.mode === 'image' ? T(' 임계값·색 수를 바꿔 보세요.') : '')].concat(warnings));
+    updateEditBar();
+    pushHist();
     return;
   }
   if (S.mode === 'image' && S.autoNote) warnings.push(T(S.autoNote));
@@ -632,6 +653,7 @@ async function compute() {
   render3dIfVisible();
   S.keepView = false;
   updateButtons();
+  updateEditBar();
   const sw = m.layers.map((l) => `<span><i class="sw" style="background:${l.color}"></i>${l.color}</span>`).join(' ');
   setStatus(
     `<span>${T('도형 {n}개', { n: m.ringCount })}</span><span>${T('노드 {n}', { n: m.nodeCount })}</span><span>${m.width.toFixed(1)} × ${m.height.toFixed(1)} mm</span>${sw}${fixSummary(layers, m)}`
@@ -674,10 +696,12 @@ function showEmpty(text, clickable = false) {
     };
     el.view2d.firstChild.append(document.createElement('br'), b);
   }
+  S.sel = null;
   el.heightOut.textContent = '-';
   setStatus('');
   setMsg([]);
   updateButtons();
+  updateEditBar();
   S.dirty3d = true;
   render3dIfVisible();
 }
@@ -733,6 +757,7 @@ function render2d() {
 /** 선택 글자 상자 · 크기 점 · 회전 점 · 크기 표시 (확대·축소해도 같은 크기로 보이게 매번 다시 그림) */
 function drawSelUi(sv) {
   sv.querySelectorAll('g.chui').forEach((n) => n.remove());
+  if (S.mode === 'image') return drawImgSel(sv);
   if (S.mode !== 'text' || S.selChar == null || !S.model) return;
   const cb = charBoxMm(S.selChar);
   if (!cb) return;
@@ -770,6 +795,74 @@ function drawSelUi(sv) {
   if (document.activeElement !== el.chW) el.chW.value = (cb[2] - cb[0]).toFixed(1);
   if (document.activeElement !== el.chH) el.chH.value = (cb[3] - cb[1]).toFixed(1);;
   sv.appendChild(g);
+}
+function checkSel() {
+  const m = S.model, q = S.sel;
+  if (!q || !m || S.mode !== 'image') return (S.sel = null);
+  const l = m.layers.find((x) => x.color === q.c);
+  if (!l || q.i >= l.items.length) S.sel = null;
+}
+/** 미리보기에서 선택한 도형 표시 (확대·축소해도 같은 굵기) */
+function drawImgSel(sv) {
+  const m = S.model, q = S.sel;
+  if (!m || !q) return;
+  const l = m.layers.find((x) => x.color === q.c);
+  const it = l && l.items[q.i];
+  if (!it) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  const g = document.createElementNS(NS, 'g');
+  g.setAttribute('class', 'chui');
+  const grp = [q.i].concat(it.hole ? [] : l.items.map((x, j) => (x.hole && x.parent === q.i ? j : -1)).filter((j) => j >= 0));
+  const pth = document.createElementNS(NS, 'path');
+  const d = grp.map((j) => 'M' + l.items[j].poly.map(([x, y]) => x.toFixed(3) + ' ' + y.toFixed(3)).join('L') + 'Z').join('');
+  Object.entries({ d, fill: 'rgba(29,95,214,.22)', 'fill-rule': 'evenodd', stroke: '#1d5fd6', 'stroke-width': 2, 'stroke-dasharray': '6 3', 'vector-effect': 'non-scaling-stroke', 'pointer-events': 'none' }).forEach(([k, v]) => pth.setAttribute(k, v));
+  g.appendChild(pth);
+  sv.appendChild(g);
+}
+function pickAt(e) {
+  const sv = el.view2d.querySelector('svg');
+  const ctm = sv && sv.getScreenCTM();
+  if (!ctm) return;
+  const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+  S.selPt = [pt.x, pt.y];
+  S.selShift = (S.model.editShift || [0, 0]).slice();
+  pickSel(hitItem(S.model, pt.x, pt.y));
+}
+function pickSel(q) {
+  S.sel = q;
+  const sv = el.view2d.querySelector('svg');
+  if (sv) drawSelUi(sv);
+  updateEditBar();
+}
+function updateEditBar() {
+  const m = S.model, q = S.sel;
+  const l = m && q && m.layers.find((x) => x.color === q.c);
+  const it = l && l.items[q.i];
+  const on = S.mode === 'image' && S.view === '2d' && !!S.model;
+  el.editbar.style.display = on ? '' : 'none';
+  el.editbar.classList.toggle('nosel', !it);
+  if (!it) {
+    el.edInfo.textContent = T('도형을 누르면 선택 · 삭제 · 두께 · 색 편집');
+    return;
+  }
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of it.poly) (x < x0 && (x0 = x), x > x1 && (x1 = x), y < y0 && (y0 = y), y > y1 && (y1 = y));
+  el.edInfo.innerHTML = `<i class="sw" style="background:${q.c}"></i>${T(it.hole ? '구멍' : '도형')} ${(x1 - x0).toFixed(1)} × ${(y1 - y0).toFixed(1)} mm`;
+  if (document.activeElement !== el.edColor) el.edColor.value = /^#[0-9a-f]{6}$/i.test(q.c) ? q.c : '#000000';
+  el.edHoles.disabled = el.edScope.value === 'shape' && !it.hole && !l.items.some((x) => x.hole && x.parent === q.i);
+}
+/** 도형 편집 한 가지를 기록하고 다시 계산 (범위: 선택한 도형 / 그 색 전체) */
+function editOp(t, x = {}) {
+  const q = S.sel;
+  if (!q || S.mode !== 'image') return;
+  const whole = el.edScope.value === 'color';
+  S.edits.push({ t, c: q.c, i: whole ? null : q.i, ...x });
+  S.editsKey = S.traceKey;
+  const keep = t === 'off' || t === 'col';
+  S.sel = null;
+  if (!keep) S.selPt = null;
+  S.reselect = keep;
+  schedule(0);
 }
 function applyVb2() {
   const sv = el.view2d.querySelector('svg');
@@ -1024,6 +1117,13 @@ window.addEventListener('keydown', (e) => {
   if (/INPUT|TEXTAREA|SELECT/.test(tag)) return;
   if (e.key === 'd' || e.key === 'D') return el.dimsBtn.click();
   if (e.key === 'h' || e.key === 'H') return el.homeBtn.click();
+  if (S.mode === 'image' && S.sel && S.view === '2d') {
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      return editOp('del');
+    }
+    if (e.key === 'Escape') return pickSel(null);
+  }
   if (S.mode !== 'text' || S.selChar == null) return;
   if (e.key === 'Escape') return selectChar(null);
   const dirs = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
@@ -1035,6 +1135,15 @@ window.addEventListener('keydown', (e) => {
   if (!S.vb2 && S.fit2) S.vb2 = S.fit2.slice();
   setCharStyle(S.selChar, { dx: (st.dx || 0) + d[0] * step, dy: (st.dy || 0) + d[1] * step });
 });
+
+el.edDel.onclick = () => editOp('del');
+el.edHoles.onclick = () => editOp('holes');
+const edStepVal = () => Math.min(5, Math.max(0.05, parseFloat(el.edStep.value) || 0.2));
+el.edPlus.onclick = () => editOp('off', { d: edStepVal() });
+el.edMinus.onclick = () => editOp('off', { d: -edStepVal() });
+el.edColor.onchange = () => S.sel && el.edColor.value.toLowerCase() !== S.sel.c.toLowerCase() && editOp('col', { to: el.edColor.value.toLowerCase() });
+el.edClear.onclick = () => pickSel(null);
+el.edScope.onchange = updateEditBar;
 
 // 2D 확대(휠)·이동(끌기)·처음으로(더블클릭)
 el.view2d.addEventListener(
@@ -1151,12 +1260,15 @@ el.view2d.addEventListener(
     }
     if (!pan) return;
     const dx = (e.clientX - pan.x) / pan.a, dy = (e.clientY - pan.y) / pan.a;
+    if (Math.hypot(dx, dy) * pan.a >= 3) pan.moved = true;
     if (!S.vb2 && Math.hypot(dx, dy) * pan.a < 3) return;
     S.vb2 = [pan.b[0] - dx, pan.b[1] - dy, pan.b[2], pan.b[3]];
     applyVb2();
   });
-  const end = () => {
+  const end = (e) => {
+    const was = pan;
     pan = null;
+    if (was && !was.moved && e && e.type === 'pointerup' && S.mode === 'image' && S.model) pickAt(e);
     if (drag) setCharStyle(drag.i, {}); // 0에 가까운 값 정리 + 저장
     if (hd) setCharStyle(hd.i, {});
     drag = null;
@@ -1621,12 +1733,15 @@ function setView(v) {
   el.view3d.classList.toggle('hide', v !== '3d');
   el.modeView2d.classList.toggle('hide', v !== '2d');
   if (v === '3d') requestAnimationFrame(rebuild3d);
+  updateEditBar();
 }
 
 // ---------- UI 연결 ----------
 function setMode(m, silent) {
   if (S.mode !== m) (S.vb2 = null), (S.dirty3d = true);
   S.mode = m;
+  if (m !== 'image') S.sel = null;
+  updateEditBar();
   el.modeImage.classList.toggle('on', m === 'image');
   el.modeText.classList.toggle('on', m === 'text');
   el.paneImage.classList.toggle('hide', m !== 'image');
@@ -2148,6 +2263,7 @@ async function serializeProject(forFile) {
     rings: (ringFromInputs(), S.rings),
     ringSel: S.ringSel,
     charStyles: S.charStyles,
+    edits: S.edits,
     laserOps: S.laserOps,
   };
 }
@@ -2185,6 +2301,9 @@ async function applyProject(p) {
   S.ringSel = p.ringSel || 0;
   ringToInputs();
   S.charStyles = p.charStyles || {};
+  S.edits = Array.isArray(p.edits) ? p.edits : [];
+  S.editsKey = '*';
+  S.sel = null;
   S.laserOps = p.laserOps || {};
   S.prevText = el.text.value;
   S.selChar = null;
@@ -2348,7 +2467,7 @@ function histSnap() {
   const controls = {};
   for (const e of controlEls()) controls[e.id] = e.type === 'checkbox' ? e.checked : e.value;
   if (S.baseCustom) S.baseCache[S.baseCustom.key] = S.baseCustom;
-  return JSON.stringify({ controls, font: el.fontSel.value, mode: S.mode, hbc: [...S.heightByColor.entries()], baseKey: S.baseCustom ? S.baseCustom.key : null, rings: S.rings, ringSel: S.ringSel, charStyles: S.charStyles, v2mode: S.v2mode });
+  return JSON.stringify({ controls, font: el.fontSel.value, mode: S.mode, hbc: [...S.heightByColor.entries()], baseKey: S.baseCustom ? S.baseCustom.key : null, rings: S.rings, ringSel: S.ringSel, charStyles: S.charStyles, v2mode: S.v2mode, edits: S.edits, editsKey: S.editsKey });
 }
 function updateUndoBtns() {
   el.undoBtn.disabled = S.histI <= 0;
@@ -2389,6 +2508,9 @@ function restoreHist(i) {
   S.ringSel = p.ringSel || 0;
   ringToInputs();
   S.charStyles = p.charStyles || {};
+  S.edits = Array.isArray(p.edits) ? p.edits : [];
+  S.editsKey = p.editsKey || '*';
+  S.sel = null;
   S.prevText = el.text.value;
   S.selChar = null;
   el.charChips.dataset.sig = '';
