@@ -89,7 +89,13 @@ function renderFontOptions() {
   for (const [label, test] of groups) {
     const g = document.createElement('optgroup');
     g.label = label;
-    for (const f of S.fonts) if (test(f)) g.appendChild(new Option(f.id === 'builtin' ? T(f.name) : f.name + (f.flags && f.flags.hj ? ' · 漢' : ''), f.id));
+    for (const f of S.fonts)
+      if (test(f)) {
+        const ko = f.flags && f.flags.ko;
+        const o = new Option((ko ? '[한] ' : '') + (f.id === 'builtin' ? T(f.name) : f.name) + (f.flags && f.flags.hj ? ' · 漢' : ''), f.id);
+        if (ko) o.style.color = '#1d5fd6';
+        g.appendChild(o);
+      }
     if (g.children.length) el.fontSel.appendChild(g);
   }
   if (cur && fontEntry(cur)) el.fontSel.value = cur;
@@ -2932,7 +2938,9 @@ function renderLocalFonts() {
   S.localList.forEach((fd, i) => {
     const key = fd.postscriptName || fd.fullName;
     const ko = key in S.koCache ? !!S.koCache[key] : KO_FONT_RE.test(fd.fullName + ' ' + fd.family);
-    (ko ? gK : gO).appendChild(new Option((ko ? '가 · ' : '') + fd.fullName, String(i)));
+    const o = new Option((ko ? '[한] ' : '') + fd.fullName, String(i));
+    if (ko) (o.style.color = '#1d5fd6'), (o.style.fontWeight = '600');
+    (ko ? gK : gO).appendChild(o);
   });
   if (gK.children.length) el.localFontSel.appendChild(gK);
   if (gO.children.length) el.localFontSel.appendChild(gO);
