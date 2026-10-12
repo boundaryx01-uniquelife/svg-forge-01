@@ -105,7 +105,23 @@ function cutLine(model, e, tol) {
 }
 /** model(mm)에 편집 목록을 순서대로 적용 (model을 직접 고침) */
 export function applyEdits(model, edits, tol) {
+  const bw = model.width;
+  model.baseW = bw;
   for (const e of edits || []) {
+    if (e.t === 'add') {
+      // 글자: 100단위 글자 좌표(y 아래쪽) → mm, 중심을 (x,y)에 맞춤. 너비를 바꾸면 같은 비율로 따라감
+      const k = e.w0 ? bw / e.w0 : 1, sc = (e.s / 100) * k;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const r of e.rings) for (const c of r) for (let i = 1; i + 1 < c.length; i += 2) (x0 = Math.min(x0, c[i]), x1 = Math.max(x1, c[i]), y0 = Math.min(y0, c[i + 1]), y1 = Math.max(y1, c[i + 1]));
+      if (!isFinite(x0)) continue;
+      const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+      const nr = e.rings.map((r) => transformRing(transformRing(r, sc, mx, my), 1, -e.x * k, -e.y * k));
+      let L = model.layers.find((l) => l.color === e.c);
+      if (!L) model.layers.push((L = { color: e.c, items: [] }));
+      const li = model.layers.indexOf(L);
+      model.layers[li] = fixOverlap({ ...L, items: buildItems(L.items.map((it) => it.ring).concat(nr), tol) }, tol);
+      continue;
+    }
     if (e.t === 'cut') {
       cutLine(model, e, tol);
       continue;

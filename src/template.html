@@ -373,7 +373,7 @@ dialog#prefs .row label{flex-basis:70px}
       </div>
       <div id="editbar" style="display:none">
         <span id="edInfo" class="edinfo"></span>
-        <span class="edgrp edcut"><button class="btn small" id="edCut" title="연결된 부분을 끊기: 켜고 미리보기에서 끊을 곳을 가로질러 끌면 (화면 이동은 휠 버튼 끌기) 그 선을 따라 도려냅니다 (선택한 도형이 있으면 그 도형만, 없으면 닿는 모든 도형). Esc로 끄기">✂ 끊기</button><input id="edCutW" class="mini" type="number" min="0.05" max="5" step="0.05" value="0.3" title="끊은 틈의 폭 (mm)"><span class="val" style="flex:0 0 auto">mm</span></span>
+        <span class="edgrp edcut"><button class="btn small" id="edText" title="글자 넣기: 글자·크기·색을 정하고 미리보기에서 놓을 곳을 누르면 그 자리에 들어갑니다 (현재 글꼴 사용). Esc로 취소">T 글자</button><button class="btn small" id="edCut" title="연결된 부분을 끊기: 켜고 미리보기에서 끊을 곳을 가로질러 끌면 (화면 이동은 휠 버튼 끌기) 그 선을 따라 도려냅니다 (선택한 도형이 있으면 그 도형만, 없으면 닿는 모든 도형). Esc로 끄기">✂ 끊기</button><input id="edCutW" class="mini" type="number" min="0.05" max="5" step="0.05" value="0.3" title="끊은 틈의 폭 (mm)"><span class="val" style="flex:0 0 auto">mm</span></span>
         <select id="edScope" title="편집이 적용되는 범위"><option value="shape">이 도형만</option><option value="color">이 색 전체</option></select>
         <button class="btn small" id="edDel" title="선택한 도형 지우기 (Delete 키)">🗑 삭제</button>
         <button class="btn small" id="edHoles" title="선택한 도형 안의 구멍을 메웁니다. 구멍을 직접 눌러 선택해도 됩니다">구멍 채우기</button>
@@ -490,6 +490,15 @@ dialog#prefs .row label{flex-basis:70px}
     </div>
   </aside>
 </main>
+<dialog id="textDlg">
+  <form method="dialog">
+    <h3>글자 넣기</h3>
+    <div class="row"><input id="tdText" type="text" style="flex:1;min-width:0" placeholder="글자 입력" maxlength="60"></div>
+    <div class="row"><label style="flex:1 1 auto">글자 높이</label><input id="tdSize" class="mini" type="number" min="1" max="500" step="0.5" value="8"><span class="val" style="flex:0 0 auto">mm</span><input id="tdColor" type="color" value="#000000" title="글자 색"></div>
+    <p class="hint">확인을 누른 뒤 미리보기에서 글자를 놓을 곳을 누르세요. 놓은 뒤에는 글자를 눌러 끌어 옮기거나 두께·색을 바꿀 수 있습니다.</p>
+    <div class="row" style="justify-content:flex-end"><button class="btn" value="cancel">취소</button><button class="btn pri" value="ok">확인</button></div>
+  </form>
+</dialog>
 <dialog id="laserDlg">
   <form method="dialog">
     <h3>색상별 레이저 작업</h3>

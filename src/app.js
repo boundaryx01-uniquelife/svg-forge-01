@@ -25,7 +25,7 @@ const el = {};
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
   'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcStem', 'kcInfo',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
-  'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear', 'edCut', 'edCutW',
+  'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear', 'edCut', 'edCutW', 'edText', 'textDlg', 'tdText', 'tdSize', 'tdColor',
 ].forEach((id) => (el[id] = document.getElementById(id)));
 
 const S = {
@@ -1142,6 +1142,7 @@ window.addEventListener('keydown', (e) => {
     }
     if (e.key === 'Escape') return pickSel(null);
   }
+  if (S.placeText && e.key === 'Escape') return setPlace(false);
   if (S.cutMode && e.key === 'Escape') return setCut(false);
   if (S.mode !== 'text' || S.selChar == null) return;
   if (e.key === 'Escape') return selectChar(null);
@@ -1169,6 +1170,35 @@ function setCut(on) {
   el.view2d.style.cursor = S.cutMode ? 'crosshair' : '';
 }
 el.edScope.onchange = updateEditBar;
+function setPlace(on) {
+  if (!on) S.placeText = null;
+  el.view2d.style.cursor = S.placeText ? 'copy' : S.cutMode ? 'crosshair' : '';
+  el.edText.classList.toggle('on', !!S.placeText);
+}
+el.edText.onclick = () => {
+  if (S.placeText) return setPlace(false);
+  setCut(false);
+  if (!el.tdColor.dataset.set) el.tdColor.value = S.sel && /^#[0-9a-f]{6}$/i.test(S.sel.c) ? S.sel.c : '#000000';
+  el.textDlg.showModal ? el.textDlg.showModal() : el.textDlg.setAttribute('open', '');
+  el.tdText.focus();
+};
+el.tdColor.oninput = () => (el.tdColor.dataset.set = '1');
+el.textDlg.addEventListener('close', async () => {
+  if (el.textDlg.returnValue !== 'ok') return;
+  const text = el.tdText.value.replace(/\s+$/, '');
+  if (!text.trim() || S.mode !== 'image') return;
+  let font;
+  try {
+    font = await getFont(el.fontSel.value);
+  } catch (e) {
+    font = S.fonts[0].font;
+  }
+  const L = textToLayers(font, text, { align: el.align.value, lineHeight: parseFloat(el.lineH.value) || 1.2 }, fallbackFonts(font, text), null);
+  const rings = L.flatMap((l) => l.rings);
+  if (!rings.length) return;
+  S.placeText = { rings, s: Math.min(500, Math.max(1, parseFloat(el.tdSize.value) || 8)), c: el.tdColor.value.toLowerCase() };
+  setPlace(true);
+});
 
 // 2D 확대(휠)·이동(끌기)·처음으로(더블클릭)
 el.view2d.addEventListener(
@@ -1212,6 +1242,20 @@ el.view2d.addEventListener(
       const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
       cutDrag = { a: [P.x, P.y], b: [P.x, P.y], ctm, id: e.pointerId };
       el.view2d.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      return;
+    }
+    if (S.placeText && S.mode === 'image' && ctm && S.model) {
+      const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+      const sh = S.model.editShift || [0, 0], pt = S.placeText;
+      S.edits.push({ t: 'add', c: pt.c, rings: pt.rings, s: pt.s, x: P.x + sh[0], y: P.y + sh[1], w0: S.model.baseW || S.model.width });
+      S.editsKey = S.traceKey;
+      S.sel = null;
+      S.selPt = null;
+      S.chain = null;
+      S.reselect = false;
+      setPlace(false);
+      schedule(0);
       e.preventDefault();
       return;
     }
