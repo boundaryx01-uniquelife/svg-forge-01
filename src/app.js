@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { traceImage, otsuThreshold, estimateHardEdges, estimateColorCount, parseFont, missingGlyphs, textToLayers } from './trace.js';
 import { makeModel } from './geom.js';
-import { applyEdits, hitItem } from './edit.js';
+import { applyEdits, hitItem, innerPoint } from './edit.js';
 import { createSim } from './sim.js';
 import { keycapDims } from './keycap.js';
 import { potracePathsToRings } from './pathparse.js';
@@ -597,11 +597,19 @@ async function compute() {
   } else S.model = makeModel(mlayers, width, tol, refW);
   const m = S.model;
   if (S.mode === 'image' && S.edits.length) applyEdits(m, S.edits, tol);
-  if (S.reselect && S.selPt && S.mode === 'image') {
+  if (S.reselect && S.selPts && S.selPts.length && S.mode === 'image') {
     const sh = m.editShift || [0, 0];
-    S.selPt = [S.selPt[0] + S.selShift[0] - sh[0], S.selPt[1] + S.selShift[1] - sh[1]];
+    const pts = S.selPts.map((p) => [p[0] + S.selShift[0] - sh[0], p[1] + S.selShift[1] - sh[1]]);
     S.selShift = sh.slice();
-    S.sel = hitItem(m, S.selPt[0], S.selPt[1]);
+    const sels = [], keepPts = [];
+    for (const p of pts) {
+      const h = hitItem(m, p[0], p[1]);
+      if (h && !sels.some((o) => o.c === h.c && o.i === h.i)) (sels.push(h), keepPts.push(p));
+    }
+    S.sels = sels;
+    S.selPts = keepPts;
+    S.selPt = keepPts[keepPts.length - 1] || null;
+    S.sel = sels[sels.length - 1] || null;
   }
   S.reselect = false;
   checkSel();
@@ -703,7 +711,7 @@ function showEmpty(text, clickable = false) {
     };
     el.view2d.firstChild.append(document.createElement('br'), b);
   }
-  S.sel = null;
+  clearSel();
   el.heightOut.textContent = '-';
   setStatus('');
   setMsg([]);
@@ -766,6 +774,19 @@ function drawSelUi(sv) {
   sv.querySelectorAll('g.chui').forEach((n) => n.remove());
   if (S.mode === 'image') return drawImgSel(sv);
   if (S.mode !== 'text' || S.selChar == null || !S.model) return;
+  if (selIdx().length > 1) {
+    const NS2 = 'http://www.w3.org/2000/svg', g2 = document.createElementNS(NS2, 'g');
+    g2.setAttribute('class', 'chui');
+    for (const i of selIdx()) {
+      const b = charBoxMm(i);
+      if (!b) continue;
+      const r = document.createElementNS(NS2, 'rect');
+      Object.entries({ x: b[0] - 0.4, y: b[1] - 0.4, width: b[2] - b[0] + 0.8, height: b[3] - b[1] + 0.8, fill: 'rgba(29,95,214,.12)', stroke: '#1d5fd6', 'stroke-width': 1.5, 'stroke-dasharray': '5 3', 'vector-effect': 'non-scaling-stroke', 'pointer-events': 'none' }).forEach(([k, v]) => r.setAttribute(k, v));
+      g2.appendChild(r);
+    }
+    sv.appendChild(g2);
+    return;
+  }
   const cb = charBoxMm(S.selChar);
   if (!cb) return;
   const NS = 'http://www.w3.org/2000/svg';
@@ -803,25 +824,53 @@ function drawSelUi(sv) {
   if (document.activeElement !== el.chH) el.chH.value = (cb[3] - cb[1]).toFixed(1);;
   sv.appendChild(g);
 }
+S.sels = [];
+S.selPts = [];
+function clearSel() {
+  S.sels = [];
+  S.sel = null;
+  S.selPts = [];
+  S.selPt = null;
+}
 function checkSel() {
-  const m = S.model, q = S.sel;
-  if (!q || !m || S.mode !== 'image') return (S.sel = null);
-  const l = m.layers.find((x) => x.color === q.c);
-  if (!l || q.i >= l.items.length) S.sel = null;
+  const m = S.model;
+  if (!m || S.mode !== 'image') return clearSel();
+  S.sels = (S.sels || []).filter((q) => {
+    const l = m.layers.find((x) => x.color === q.c);
+    return l && q.i < l.items.length;
+  });
+  S.sel = S.sels[S.sels.length - 1] || null;
+  if (!S.sels.length) (S.selPts = []), (S.selPt = null);
+}
+/** 선택을 바꿈 (pts: 각 도형 안쪽의 점 — 편집 뒤 같은 도형을 다시 찾는 데 씀) */
+function setSels(arr, pts) {
+  S.sels = arr;
+  S.sel = arr[arr.length - 1] || null;
+  S.chain = null;
+  S.selPts = pts || arr.map((q) => innerPoint(S.model, q.c, q.i)).filter(Boolean);
+  S.selPt = S.selPts[S.selPts.length - 1] || null;
+  S.selShift = ((S.model && S.model.editShift) || [0, 0]).slice();
+  const sv = el.view2d.querySelector('svg');
+  if (sv) drawSelUi(sv);
+  updateEditBar();
 }
 /** 미리보기에서 선택한 도형 표시 (확대·축소해도 같은 굵기) */
 function drawImgSel(sv) {
-  const m = S.model, q = S.sel;
-  if (!m || !q) return;
-  const l = m.layers.find((x) => x.color === q.c);
-  const it = l && l.items[q.i];
-  if (!it) return;
+  const m = S.model;
+  if (!m || !S.sels.length) return;
   const NS = 'http://www.w3.org/2000/svg';
   const g = document.createElementNS(NS, 'g');
   g.setAttribute('class', 'chui');
-  const grp = [q.i].concat(it.hole ? [] : l.items.map((x, j) => (x.hole && x.parent === q.i ? j : -1)).filter((j) => j >= 0));
+  let d = '';
+  for (const q of S.sels) {
+    const l = m.layers.find((x) => x.color === q.c);
+    const it = l && l.items[q.i];
+    if (!it) continue;
+    const grp = [q.i].concat(it.hole ? [] : l.items.map((x, j) => (x.hole && x.parent === q.i ? j : -1)).filter((j) => j >= 0));
+    d += grp.map((j) => 'M' + l.items[j].poly.map(([x, y]) => x.toFixed(3) + ' ' + y.toFixed(3)).join('L') + 'Z').join('');
+  }
+  if (!d) return;
   const pth = document.createElementNS(NS, 'path');
-  const d = grp.map((j) => 'M' + l.items[j].poly.map(([x, y]) => x.toFixed(3) + ' ' + y.toFixed(3)).join('L') + 'Z').join('');
   Object.entries({ d, fill: 'rgba(29,95,214,.22)', 'fill-rule': 'evenodd', stroke: '#1d5fd6', 'stroke-width': 2, 'stroke-dasharray': '6 3', 'vector-effect': 'non-scaling-stroke', 'pointer-events': 'none' }).forEach(([k, v]) => pth.setAttribute(k, v));
   g.appendChild(pth);
   sv.appendChild(g);
@@ -832,16 +881,11 @@ function pickAt(e) {
   const ctm = sv && sv.getScreenCTM();
   if (!ctm) return;
   const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
-  S.selPt = [pt.x, pt.y];
-  S.selShift = (S.model.editShift || [0, 0]).slice();
-  pickSel(hitItem(S.model, pt.x, pt.y));
+  const h = hitItem(S.model, pt.x, pt.y);
+  setSels(h ? [h] : [], h ? [[pt.x, pt.y]] : []);
 }
 function pickSel(q) {
-  S.sel = q;
-  if (!q) S.chain = null;
-  const sv = el.view2d.querySelector('svg');
-  if (sv) drawSelUi(sv);
-  updateEditBar();
+  setSels(q ? [q] : []);
 }
 function updateEditBar() {
   const m = S.model, q = S.sel;
@@ -850,6 +894,12 @@ function updateEditBar() {
   const on = S.mode === 'image' && S.view === '2d' && !!S.model;
   el.editbar.style.display = on ? '' : 'none';
   el.editbar.classList.toggle('nosel', !it);
+  if (it && S.sels.length > 1) {
+    el.edInfo.innerHTML = `<i class="sw" style="background:${q.c}"></i>${T('도형 {n}개 선택', { n: S.sels.length })}`;
+    if (document.activeElement !== el.edColor) el.edColor.value = /^#[0-9a-f]{6}$/i.test(q.c) ? q.c : '#000000';
+    el.edHoles.disabled = false;
+    return;
+  }
   if (!it) {
     el.edInfo.textContent = T('도형을 누르면 선택 · 삭제 · 두께 · 색 편집');
     return;
@@ -862,23 +912,33 @@ function updateEditBar() {
 }
 /** 도형 편집 한 가지를 기록하고 다시 계산 (범위: 선택한 도형 / 그 색 전체) */
 function editOp(t, x = {}) {
-  const q = S.sel;
-  if (!q || S.mode !== 'image') return;
+  const qs = S.sels;
+  if (!qs.length || S.mode !== 'image') return;
   const whole = el.edScope.value === 'color';
-  const last = S.edits[S.edits.length - 1];
+  const by = new Map();
+  for (const q of qs) (by.get(q.c) || by.set(q.c, []).get(q.c)).push(q.i);
+  const W0 = S.model.baseW || S.model.width;
+  let list = [...by].map(([c, is]) => ({ t, c, w0: W0, ...(whole ? { i: null } : { is: is.sort((a, b) => a - b) }), ...x }));
+  if (t === 'col') list = list.filter((e) => e.c !== x.to);
+  if (!list.length) return;
+  const tail = S.edits.slice(-list.length);
   // 두께 +/−를 이어서 누르면 같은 편집에 더함 → 늘렸다 줄이면 원래대로 (겹쳐 합쳐진 뒤에도 깨지지 않음)
-  if ((t === 'off' || t === 'mv') && S.chain === t && last && last.t === t && last.c === q.c && (last.i == null) === whole) {
-    if (t === 'off') last.d = Math.round((last.d + x.d) * 1e4) / 1e4;
-    else (last.dx += x.dx), (last.dy += x.dy);
-    if ((t === 'off' && Math.abs(last.d) < 1e-6) || (t === 'mv' && Math.hypot(last.dx, last.dy) < 1e-6)) S.edits.pop(), (S.chain = null);
+  if ((t === 'off' || t === 'mv') && S.chain === t && tail.length === list.length && tail.every((l, k) => l.t === t && l.c === list[k].c && !!l.is === !!list[k].is && (!l.is || l.is.length === list[k].is.length))) {
+    for (const l of tail) {
+      const f = (l.w0 || W0) / W0;
+      if (t === 'off') l.d = Math.round((l.d + x.d * f) * 1e4) / 1e4;
+      else (l.dx += x.dx * f), (l.dy += x.dy * f);
+    }
+    if (tail.every((l) => (t === 'off' ? Math.abs(l.d) < 1e-6 : Math.hypot(l.dx, l.dy) < 1e-6))) (S.edits.length -= tail.length), (S.chain = null);
   } else {
-    S.edits.push({ t, c: q.c, i: whole ? null : q.i, ...x });
+    S.edits.push(...list);
     S.chain = t === 'off' || t === 'mv' ? t : null;
   }
   S.editsKey = S.traceKey;
   const keep = t === 'off' || t === 'col' || t === 'mv';
+  S.sels = [];
   S.sel = null;
-  if (!keep) S.selPt = null;
+  if (!keep) (S.selPts = []), (S.selPt = null);
   S.reselect = keep;
   schedule(0);
 }
@@ -965,6 +1025,9 @@ function openNumEditor(x, y, value, onSet) {
 // ---------- 글자별 조절 ----------
 S.charStyles = {}; // 글자 번호 → {s, dx, dy(em), dz(mm), color}
 S.selChar = null;
+S.selSet = [];
+/** 선택된 글자들 (대표 글자 S.selChar가 없으면 비어 있음) */
+const selIdx = () => (S.selChar == null ? [] : S.selSet.includes(S.selChar) ? S.selSet : [S.selChar]);
 S.prevText = null;
 /** 글자를 고치면 앞·뒤 공통 부분의 글자 모양은 그대로 따라가게 */
 function syncCharStyles(text) {
@@ -986,23 +1049,24 @@ function syncCharStyles(text) {
   if (S.selChar != null) {
     if (S.selChar >= a.length - q) S.selChar += b.length - a.length;
     else if (S.selChar >= p) S.selChar = null;
+    S.selSet = S.selChar == null ? [] : [S.selChar];
   }
 }
 const isStyled = (st) => st && ((st.s && st.s !== 1) || (st.sx && st.sx !== 1) || (st.sy && st.sy !== 1) || st.r || st.dx || st.dy || st.dz || (st.color && st.color !== '#000000'));
 function renderCharChips(text) {
   const chars = [...text];
-  const sig = text + '|' + S.selChar + '|' + JSON.stringify(S.charStyles);
+  const sig = text + '|' + selIdx().join(',') + '|' + JSON.stringify(S.charStyles);
   if (el.charChips.dataset.sig === sig) return;
   el.charChips.dataset.sig = sig;
   el.charChips.innerHTML = '';
   chars.forEach((ch, i) => {
     if (/\s/.test(ch)) return;
     const b = document.createElement('button');
-    b.className = 'chchip' + (S.selChar === i ? ' sel' : '') + (isStyled(S.charStyles[i]) ? ' mod' : '');
+    b.className = 'chchip' + (selIdx().includes(i) ? ' sel' : '') + (isStyled(S.charStyles[i]) ? ' mod' : '');
     b.textContent = ch;
     const st = S.charStyles[i];
     if (st && st.color) b.style.color = st.color;
-    b.onclick = () => selectChar(S.selChar === i ? null : i);
+    b.onclick = (ev) => selectChar(!(ev.ctrlKey || ev.metaKey || ev.shiftKey) && selIdx().length === 1 && S.selChar === i ? null : i, ev.ctrlKey || ev.metaKey || ev.shiftKey);
     el.charChips.appendChild(b);
   });
   el.chResetAll.classList.toggle('hide', !Object.keys(S.charStyles).length);
@@ -1021,20 +1085,37 @@ function renderCharChips(text) {
     if (document.activeElement !== el.chDy) el.chDy.value = (Math.round((st.dy || 0) * k * 10) / 10).toString();
   }
 }
-function selectChar(i) {
-  S.selChar = i;
+function selectChar(i, add) {
+  if (i == null) (S.selSet = []), (S.selChar = null);
+  else if (add) {
+    const cur = selIdx().slice(), k = cur.indexOf(i);
+    k >= 0 ? cur.splice(k, 1) : cur.push(i);
+    S.selSet = cur;
+    S.selChar = cur.length ? cur[cur.length - 1] : null;
+  } else (S.selSet = [i]), (S.selChar = i);
   el.charChips.dataset.sig = '';
   renderCharChips(el.text.value);
   render2d();
 }
 function setCharStyle(i, patch) {
-  const st = { ...(S.charStyles[i] || {}), ...patch };
+  applyCharStyle(i, patch);
+  commitCharStyle();
+}
+function applyCharStyle(i, patch) {
+  const st = { ...(S.charStyles[i] || {}), ...(typeof patch === 'function' ? patch(S.charStyles[i] || {}) : patch) };
   for (const k of Object.keys(st)) if (!st[k] || ((k === 's' || k === 'sx' || k === 'sy') && st[k] === 1) || (k === 'color' && st[k] === '#000000')) delete st[k];
   if (Object.keys(st).length) S.charStyles[i] = st;
   else delete S.charStyles[i];
+}
+function commitCharStyle() {
   el.charChips.dataset.sig = '';
   holdView();
   schedule(0);
+}
+/** 선택한 글자 모두에 적용 (patch가 함수면 글자마다 현재 값으로 계산) */
+function setSelStyle(patch) {
+  for (const i of selIdx()) applyCharStyle(i, patch);
+  commitCharStyle();
 }
 /** 글자별 조절 중에는 지금 보고 있는 화면(확대·각도)을 그대로 둔다 */
 function holdView() {
@@ -1104,20 +1185,25 @@ el.chW.addEventListener('change', () => S.selChar != null && applyCharSize(S.sel
 el.chH.addEventListener('change', () => S.selChar != null && applyCharSize(S.selChar, 0, parseFloat(el.chH.value) || 0));
 el.chScale.addEventListener('input', () => {
   el.chScaleVal.textContent = el.chScale.value + '%';
-  if (S.selChar != null) setCharStyle(S.selChar, { s: parseInt(el.chScale.value, 10) / 100 });
+  if (S.selChar != null) setSelStyle({ s: parseInt(el.chScale.value, 10) / 100 });
 });
 el.chRot.addEventListener('input', () => {
   el.chRotVal.textContent = el.chRot.value + '°';
-  if (S.selChar != null) setCharStyle(S.selChar, { r: parseFloat(el.chRot.value) || 0 });
+  if (S.selChar != null) setSelStyle({ r: parseFloat(el.chRot.value) || 0 });
 });
-el.chDz.addEventListener('input', () => S.selChar != null && setCharStyle(S.selChar, { dz: parseFloat(el.chDz.value) || 0 }));
-el.chColor.addEventListener('input', () => S.selChar != null && setCharStyle(S.selChar, { color: el.chColor.value.toLowerCase() }));
+el.chDz.addEventListener('input', () => S.selChar != null && setSelStyle({ dz: parseFloat(el.chDz.value) || 0 }));
+el.chColor.addEventListener('input', () => S.selChar != null && setSelStyle({ color: el.chColor.value.toLowerCase() }));
 const mmToEm = (v) => (S.model && S.model.xf ? v / (S.model.xf.s * 100) : 0);
-el.chDx.addEventListener('input', () => S.selChar != null && setCharStyle(S.selChar, { dx: mmToEm(parseFloat(el.chDx.value) || 0) }));
-el.chDy.addEventListener('input', () => S.selChar != null && setCharStyle(S.selChar, { dy: mmToEm(parseFloat(el.chDy.value) || 0) }));
+const movePrim = (key, v) => {
+  if (S.selChar == null) return;
+  const d = mmToEm(v) - ((S.charStyles[S.selChar] || {})[key] || 0);
+  setSelStyle((st) => ({ [key]: (st[key] || 0) + d }));
+};
+el.chDx.addEventListener('input', () => movePrim('dx', parseFloat(el.chDx.value) || 0));
+el.chDy.addEventListener('input', () => movePrim('dy', parseFloat(el.chDy.value) || 0));
 el.chReset.onclick = () => {
   if (S.selChar == null) return;
-  delete S.charStyles[S.selChar];
+  for (const i of selIdx()) delete S.charStyles[i];
   el.charChips.dataset.sig = '';
   holdView();
   schedule(0);
@@ -1125,6 +1211,7 @@ el.chReset.onclick = () => {
 el.chResetAll.onclick = () => {
   S.charStyles = {};
   S.selChar = null;
+  S.selSet = [];
   el.charChips.dataset.sig = '';
   holdView();
   schedule(0);
@@ -1135,33 +1222,41 @@ window.addEventListener('keydown', (e) => {
   if (/INPUT|TEXTAREA|SELECT/.test(tag)) return;
   if (e.key === 'd' || e.key === 'D') return el.dimsBtn.click();
   if (e.key === 'h' || e.key === 'H') return el.homeBtn.click();
-  if (S.mode === 'image' && S.sel && S.view === '2d') {
+  if (S.mode === 'image' && S.sels.length && S.view === '2d') {
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
       return editOp('del');
     }
-    if (e.key === 'Escape') return pickSel(null);
+    if (e.key === 'Escape') return setSels([], []);
   }
   if (S.placeText && e.key === 'Escape') return setPlace(false);
   if (S.cutMode && e.key === 'Escape') return setCut(false);
   if (S.mode !== 'text' || S.selChar == null) return;
   if (e.key === 'Escape') return selectChar(null);
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) return;
   const dirs = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
   const d = dirs[e.key];
   if (!d) return;
   e.preventDefault();
   const step = mmToEm(e.shiftKey ? 1 : 0.2);
-  const st = S.charStyles[S.selChar] || {};
   if (!S.vb2 && S.fit2) S.vb2 = S.fit2.slice();
-  setCharStyle(S.selChar, { dx: (st.dx || 0) + d[0] * step, dy: (st.dy || 0) + d[1] * step });
+  setSelStyle((st) => ({ dx: (st.dx || 0) + d[0] * step, dy: (st.dy || 0) + d[1] * step }));
 });
 
+window.addEventListener('keydown', (e) => {
+  if (e.code !== 'Space' || /INPUT|TEXTAREA|SELECT|BUTTON/.test((document.activeElement && document.activeElement.tagName) || '')) return;
+  if (!S.space) (S.space = true), (el.view2d.style.cursor = 'grab');
+  e.preventDefault();
+});
+window.addEventListener('keyup', (e) => {
+  if (e.code === 'Space' && S.space) (S.space = false), (el.view2d.style.cursor = S.cutMode ? 'crosshair' : '');
+});
 el.edDel.onclick = () => editOp('del');
 el.edHoles.onclick = () => editOp('holes');
 const edStepVal = () => Math.min(5, Math.max(0.05, parseFloat(el.edStep.value) || 0.2));
 el.edPlus.onclick = () => editOp('off', { d: edStepVal() });
 el.edMinus.onclick = () => editOp('off', { d: -edStepVal() });
-el.edColor.onchange = () => S.sel && el.edColor.value.toLowerCase() !== S.sel.c.toLowerCase() && editOp('col', { to: el.edColor.value.toLowerCase() });
+el.edColor.onchange = () => S.sels.length && el.edColor.value.toLowerCase() !== S.sel.c.toLowerCase() && editOp('col', { to: el.edColor.value.toLowerCase() });
 el.edClear.onclick = () => pickSel(null);
 el.edCut.onclick = () => setCut(!S.cutMode);
 function setCut(on) {
@@ -1231,6 +1326,42 @@ el.view2d.addEventListener(
   let hd = null;
   let cutDrag = null;
   let mvDrag = null;
+  let box = null;
+  const startBox = (e, ctm, add) => {
+    const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+    box = { x: e.clientX, y: e.clientY, a: [P.x, P.y], b: [P.x, P.y], add, moved: false, ctm };
+    el.view2d.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  };
+  const boxSelect = (b) => {
+    const x0 = Math.min(b.a[0], b.b[0]), x1 = Math.max(b.a[0], b.b[0]), y0 = Math.min(b.a[1], b.b[1]), y1 = Math.max(b.a[1], b.b[1]);
+    if (S.mode === 'image') {
+      const found = [];
+      for (const l of S.model.layers)
+        l.items.forEach((it, i) => {
+          if (it.hole) return;
+          let a0 = Infinity, b0 = Infinity, a1 = -Infinity, b1 = -Infinity;
+          for (const [x, y] of it.poly) (x < a0 && (a0 = x), x > a1 && (a1 = x), y < b0 && (b0 = y), y > b1 && (b1 = y));
+          if (a0 >= x0 && a1 <= x1 && b0 >= y0 && b1 <= y1) found.push({ c: l.color, i });
+        });
+      const arr = b.add ? S.sels.slice() : [], pts = b.add ? S.selPts.slice() : [];
+      for (const q of found) if (!arr.some((o) => o.c === q.c && o.i === q.i)) (arr.push(q), pts.push(innerPoint(S.model, q.c, q.i)));
+      setSels(arr, pts.every(Boolean) ? pts : undefined);
+    } else if (S.mode === 'text' && S.model && S.model.chars) {
+      const arr = b.add ? selIdx().slice() : [];
+      for (const c of S.model.chars) {
+        const bb = charBoxMm(c.i);
+        if (!bb) continue;
+        const cx = (bb[0] + bb[2]) / 2, cy = (bb[1] + bb[3]) / 2;
+        if (cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1 && !arr.includes(c.i)) arr.push(c.i);
+      }
+      S.selSet = arr;
+      S.selChar = arr.length ? arr[arr.length - 1] : null;
+      el.charChips.dataset.sig = '';
+      renderCharChips(el.text.value);
+      render2d();
+    }
+  };
   let raf = 0;
   el.view2d.addEventListener('pointerdown', (e) => {
     const sv = el.view2d.querySelector('svg');
@@ -1256,7 +1387,7 @@ el.view2d.addEventListener(
       const sh = S.model.editShift || [0, 0], pt = S.placeText;
       S.edits.push({ t: 'add', c: pt.c, rings: pt.rings, s: pt.s, x: P.x + sh[0], y: P.y + sh[1], w0: S.model.baseW || S.model.width });
       S.editsKey = S.traceKey;
-      S.sel = null;
+      clearSel();
       S.selPt = null;
       S.chain = null;
       S.reselect = false;
@@ -1265,19 +1396,29 @@ el.view2d.addEventListener(
       e.preventDefault();
       return;
     }
-    // 이미지 모드: 도형을 누르면 선택, 끌면 이동
-    if (S.mode === 'image' && ctm && S.model && !S.cutMode) {
+    // 이미지 모드: 도형을 누르면 선택(Ctrl/Shift: 여러 개), 끌면 이동, 빈 곳을 끌면 영역 선택
+    if (S.mode === 'image' && ctm && S.model && !S.cutMode && !S.space) {
       const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
       const hit = hitItem(S.model, P.x, P.y);
+      const add = e.ctrlKey || e.metaKey || e.shiftKey;
       if (hit) {
-        const same = S.sel && S.sel.c === hit.c && S.sel.i === hit.i;
-        if (!same) (S.chain = null), (S.selPt = [P.x, P.y]), (S.selShift = (S.model.editShift || [0, 0]).slice()), pickSel(hit);
-        else (S.selPt = [P.x, P.y]), (S.selShift = (S.model.editShift || [0, 0]).slice());
+        const k = S.sels.findIndex((q) => q.c === hit.c && q.i === hit.i);
+        if (add) {
+          const arr = S.sels.slice(), pts = S.selPts.slice();
+          if (k >= 0) (arr.splice(k, 1), pts.splice(k, 1));
+          else (arr.push(hit), pts.push([P.x, P.y]));
+          setSels(arr, pts.length === arr.length ? pts : undefined);
+          e.preventDefault();
+          return;
+        }
+        if (k < 0) setSels([hit], [[P.x, P.y]]);
         mvDrag = { a: [P.x, P.y], x: e.clientX, y: e.clientY, ctm, moved: false, d: [0, 0] };
         el.view2d.setPointerCapture(e.pointerId);
         e.preventDefault();
         return;
       }
+      startBox(e, ctm, add);
+      return;
     }
     // 글자 모드: 선택 상자의 크기 점 · 회전 점
     const hEl = S.mode === 'text' && S.selChar != null && e.target.closest ? e.target.closest('[data-h]') : null;
@@ -1312,14 +1453,18 @@ el.view2d.addEventListener(
         }
       }
       if (hit != null) {
-        if (S.selChar !== hit) selectChar(hit);
+        if (e.ctrlKey || e.metaKey || e.shiftKey) {
+          selectChar(hit, true);
+          e.preventDefault();
+          return;
+        }
+        if (!selIdx().includes(hit)) selectChar(hit);
         if (!S.vb2) S.vb2 = S.fit2.slice();
-        const st = S.charStyles[hit] || {};
-        drag = { x: e.clientX, y: e.clientY, a: ctm.a, dx: st.dx || 0, dy: st.dy || 0, i: hit };
+        drag = { x: e.clientX, y: e.clientY, a: ctm.a, items: selIdx().map((i) => ({ i, dx: (S.charStyles[i] || {}).dx || 0, dy: (S.charStyles[i] || {}).dy || 0 })) };
         el.view2d.setPointerCapture(e.pointerId);
         return;
       }
-      if (S.selChar != null) selectChar(null);
+      if (!S.space) return startBox(e, ctm, e.ctrlKey || e.metaKey || e.shiftKey);
     }
     pan = { x: e.clientX, y: e.clientY, b: (S.vb2 || S.fit2).slice(), a: ctm ? ctm.a : 1, id: e.pointerId };
     el.view2d.setPointerCapture(e.pointerId);
@@ -1327,6 +1472,26 @@ el.view2d.addEventListener(
   });
   el.view2d.addEventListener('mousedown', (e) => e.button === 1 && e.preventDefault());
   el.view2d.addEventListener('pointermove', (e) => {
+    if (box) {
+      const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(box.ctm.inverse());
+      box.b = [P.x, P.y];
+      if (Math.hypot(e.clientX - box.x, e.clientY - box.y) >= 4) box.moved = true;
+      const sv = el.view2d.querySelector('svg');
+      if (sv && box.moved) {
+        let r = sv.querySelector('rect.boxsel');
+        if (!r) {
+          r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          r.setAttribute('class', 'boxsel');
+          Object.entries({ fill: 'rgba(29,95,214,.12)', stroke: '#1d5fd6', 'stroke-width': 1.2, 'stroke-dasharray': '4 3', 'vector-effect': 'non-scaling-stroke', 'pointer-events': 'none' }).forEach(([k, v]) => r.setAttribute(k, v));
+          sv.appendChild(r);
+        }
+        r.setAttribute('x', Math.min(box.a[0], box.b[0]));
+        r.setAttribute('y', Math.min(box.a[1], box.b[1]));
+        r.setAttribute('width', Math.abs(box.b[0] - box.a[0]));
+        r.setAttribute('height', Math.abs(box.b[1] - box.a[1]));
+      }
+      return;
+    }
     if (mvDrag) {
       const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(mvDrag.ctm.inverse());
       if (Math.hypot(e.clientX - mvDrag.x, e.clientY - mvDrag.y) >= 4) mvDrag.moved = true;
@@ -1390,8 +1555,7 @@ el.view2d.addEventListener(
     }
     if (drag) {
       const mx = (e.clientX - drag.x) / drag.a, my = (e.clientY - drag.y) / drag.a;
-      const st = S.charStyles[drag.i] || {};
-      S.charStyles[drag.i] = { ...st, dx: drag.dx + mmToEm(mx), dy: drag.dy - mmToEm(my) };
+      for (const it of drag.items) S.charStyles[it.i] = { ...(S.charStyles[it.i] || {}), dx: it.dx + mmToEm(mx), dy: it.dy - mmToEm(my) };
       if (!raf)
         raf = requestAnimationFrame(() => {
           raf = 0;
@@ -1409,11 +1573,23 @@ el.view2d.addEventListener(
     applyVb2();
   });
   const end = (e) => {
+    if (box) {
+      const b = box;
+      box = null;
+      const r = el.view2d.querySelector('svg rect.boxsel');
+      if (r) r.remove();
+      if (e && e.type === 'pointerup') {
+        if (b.moved) boxSelect(b);
+        else if (!b.add) S.mode === 'image' ? setSels([], []) : selectChar(null);
+      }
+      return;
+    }
     if (mvDrag) {
       const m = mvDrag;
       mvDrag = null;
-      if (e && e.type === 'pointerup' && m.moved && S.sel) {
-        S.selPt = [S.selPt[0] + m.d[0], S.selPt[1] + m.d[1]];
+      if (e && e.type === 'pointerup' && m.moved && S.sels.length) {
+        S.selPts = S.selPts.map((p) => [p[0] + m.d[0], p[1] + m.d[1]]);
+        S.selPt = S.selPts[S.selPts.length - 1] || null;
         editOp('mv', { dx: m.d[0], dy: m.d[1] });
       } else {
         const g = el.view2d.querySelector('svg g.chui');
@@ -1429,10 +1605,10 @@ el.view2d.addEventListener(
       const sh = (S.model && S.model.editShift) || [0, 0];
       if (e && e.type === 'pointerup' && Math.hypot(c.b[0] - c.a[0], c.b[1] - c.a[1]) > 0.3) {
         const whole = el.edScope.value === 'color';
-        const q = S.sel;
-        S.edits.push({ t: 'cut', c: q ? q.c : null, i: q && !whole ? q.i : null, a: [c.a[0] + sh[0], c.a[1] + sh[1]], b: [c.b[0] + sh[0], c.b[1] + sh[1]], w: Math.min(5, Math.max(0.05, parseFloat(el.edCutW.value) || 0.3)) });
+        const q = S.sels.length === 1 ? S.sel : null;
+        S.edits.push({ t: 'cut', w0: S.model.baseW || S.model.width, c: q ? q.c : null, i: q && !whole ? q.i : null, a: [c.a[0] + sh[0], c.a[1] + sh[1]], b: [c.b[0] + sh[0], c.b[1] + sh[1]], w: Math.min(5, Math.max(0.05, parseFloat(el.edCutW.value) || 0.3)) });
         S.editsKey = S.traceKey;
-        S.sel = null;
+        clearSel();
         S.selPt = null;
         S.reselect = false;
         schedule(0);
@@ -1442,7 +1618,7 @@ el.view2d.addEventListener(
     const was = pan;
     pan = null;
     if (was && !was.mid && !was.moved && e && e.type === 'pointerup' && S.mode === 'image' && S.model) pickAt(e);
-    if (drag) setCharStyle(drag.i, {}); // 0에 가까운 값 정리 + 저장
+    if (drag) drag.items.forEach((it) => setCharStyle(it.i, {})); // 0에 가까운 값 정리 + 저장
     if (hd) setCharStyle(hd.i, {});
     drag = null;
     hd = null;
@@ -1942,7 +2118,7 @@ function setView(v) {
 function setMode(m, silent) {
   if (S.mode !== m) (S.vb2 = null), (S.dirty3d = true);
   S.mode = m;
-  if (m !== 'image') (S.sel = null), setCut(false);
+  if (m !== 'image') clearSel(), setCut(false);
   updateEditBar();
   el.modeImage.classList.toggle('on', m === 'image');
   el.modeText.classList.toggle('on', m === 'text');
@@ -2539,7 +2715,7 @@ async function applyProject(p) {
   S.edits = Array.isArray(p.edits) ? p.edits : [];
   S.chain = null;
   S.editsKey = '*';
-  S.sel = null;
+  clearSel();
   S.laserOps = p.laserOps || {};
   S.prevText = el.text.value;
   S.selChar = null;
@@ -2747,7 +2923,7 @@ function restoreHist(i) {
   S.edits = Array.isArray(p.edits) ? p.edits : [];
   S.chain = null;
   S.editsKey = p.editsKey || '*';
-  S.sel = null;
+  clearSel();
   S.prevText = el.text.value;
   S.selChar = null;
   el.charChips.dataset.sig = '';

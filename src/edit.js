@@ -103,14 +103,34 @@ function cutLine(model, e, tol) {
     model.layers[li] = { ...L, items: buildItems(rest.concat(rings), tol) };
   });
 }
+/** 다른 색 층에서 rings가 덮는 부분을 도려냄 */
+function knock(model, color, rings, tol) {
+  const sub = buildItems(rings, tol).map((it) => it.poly.map(([x, y]) => ({ X: Math.round(x * SC), Y: Math.round(y * SC) })));
+  if (!sub.length) return;
+  for (let li = 0; li < model.layers.length; li++) {
+    const L = model.layers[li];
+    if (L.color === color || !L.items.length) continue;
+    const c = new ClipperLib.Clipper();
+    c.AddPaths(toPaths(L.items), ClipperLib.PolyType.ptSubject, true);
+    c.AddPaths(sub, ClipperLib.PolyType.ptClip, true);
+    const out = new ClipperLib.Paths();
+    c.Execute(ClipperLib.ClipType.ctDifference, out, ClipperLib.PolyFillType.pftEvenOdd, ClipperLib.PolyFillType.pftNonZero);
+    const rs = out.filter((p) => p.length >= 3).map((p) => closeRing(p.map((q, i) => [i ? 'L' : 'M', q.X / SC, q.Y / SC])));
+    model.layers[li] = { ...L, items: buildItems(rs, tol) };
+  }
+}
 /** model(mm)에 편집 목록을 순서대로 적용 (model을 직접 고침) */
 export function applyEdits(model, edits, tol) {
   const bw = model.width;
   model.baseW = bw;
-  for (const e of edits || []) {
+  for (let e of edits || []) {
+    const k = e.w0 ? bw / e.w0 : 1; // 만든 때의 너비 대비 지금 너비 (너비를 바꿔도 편집이 그림과 같이 따라가게)
+    if (e.t === 'cut' && k !== 1) e = { ...e, a: [e.a[0] * k, e.a[1] * k], b: [e.b[0] * k, e.b[1] * k], w: e.w * k };
+    else if (e.t === 'mv' && k !== 1) e = { ...e, dx: e.dx * k, dy: e.dy * k };
+    else if (e.t === 'off' && k !== 1) e = { ...e, d: e.d * k };
     if (e.t === 'add') {
       // 글자: 100단위 글자 좌표(y 아래쪽) → mm, 중심을 (x,y)에 맞춤. 너비를 바꾸면 같은 비율로 따라감
-      const k = e.w0 ? bw / e.w0 : 1, sc = (e.s / 100) * k;
+      const sc = (e.s / 100) * k;
       let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
       for (const r of e.rings) for (const c of r) for (let i = 1; i + 1 < c.length; i += 2) (x0 = Math.min(x0, c[i]), x1 = Math.max(x1, c[i]), y0 = Math.min(y0, c[i + 1]), y1 = Math.max(y1, c[i + 1]));
       if (!isFinite(x0)) continue;
@@ -120,6 +140,7 @@ export function applyEdits(model, edits, tol) {
       if (!L) model.layers.push((L = { color: e.c, items: [] }));
       const li = model.layers.indexOf(L);
       model.layers[li] = fixOverlap({ ...L, items: buildItems(L.items.map((it) => it.ring).concat(nr), tol) }, tol);
+      knock(model, e.c, nr, tol);
       continue;
     }
     if (e.t === 'cut') {
@@ -130,27 +151,29 @@ export function applyEdits(model, edits, tol) {
     if (li < 0) continue;
     const L = model.layers[li];
     const all = L.items;
-    let sel; // 대상 번호들
-    if (e.i == null) sel = all.map((_, j) => j);
-    else if (e.i >= 0 && e.i < all.length) sel = groupOf(all, e.i);
-    else continue;
-    const selSet = new Set(sel);
+    const whole = e.i == null && !e.is;
+    const idx = whole ? all.map((_, j) => j) : (e.is || [e.i]).filter((j) => j >= 0 && j < all.length);
+    if (!idx.length) continue;
+    const selSet = new Set();
+    for (const j of idx) for (const g of groupOf(all, j)) selSet.add(g);
+    const sel = [...selSet];
     const keep = all.filter((_, j) => !selSet.has(j));
     const picked = sel.map((j) => all[j]);
     let rings = keep.map((it) => it.ring);
     if (e.t === 'del') {
       // 구멍을 지우면 메워짐, 바깥 도형을 지우면 그 안의 구멍도 같이
-      if (e.i != null && all[e.i].hole) rings = all.filter((_, j) => j !== e.i).map((it) => it.ring);
     } else if (e.t === 'holes') {
-      const holes = new Set(e.i == null ? all.map((it, j) => (it.hole ? j : -1)).filter((j) => j >= 0) : sel.filter((j) => all[j].hole));
+      const holes = new Set(whole ? all.map((it, j) => (it.hole ? j : -1)).filter((j) => j >= 0) : sel.filter((j) => all[j].hole));
       rings = all.filter((_, j) => !holes.has(j)).map((it) => it.ring);
     } else if (e.t === 'off') {
       if (!e.d) continue;
-      if (e.i != null && all[e.i].hole) {
-        // 구멍의 두께 +는 구멍이 줄어드는 쪽(도형이 두꺼워짐) → 구멍을 반대로 오프셋
-        const nr = offsetRings([all[e.i]], -e.d);
-        rings = all.filter((_, j) => j !== e.i).map((it) => it.ring).concat(nr);
-      } else rings = rings.concat(offsetRings(picked, e.d));
+      // 구멍의 두께 +는 구멍이 줄어드는 쪽(도형이 두꺼워짐) → 구멍을 반대로 오프셋
+      const hs = whole ? [] : idx.filter((j) => all[j].hole);
+      const outer = whole ? picked : sel.filter((j) => !hs.includes(j)).map((j) => all[j]);
+      const hset = new Set(hs);
+      rings = all.filter((_, j) => !selSet.has(j) && !hset.has(j)).map((it) => it.ring);
+      if (outer.length) rings = rings.concat(offsetRings(outer, e.d));
+      for (const j of hs) rings = rings.concat(offsetRings([all[j]], -e.d));
     } else if (e.t === 'col') {
       if (e.to === e.c) continue;
       const rs = picked.map((it) => it.ring);
@@ -168,6 +191,9 @@ export function applyEdits(model, edits, tol) {
       rings = rings.concat(picked.map((it) => transformRing(it.ring, 1, -e.dx, -e.dy)));
     } else continue;
     model.layers[li] = fixOverlap({ ...L, items: buildItems(rings, tol) }, tol);
+    // 옮기거나 키운 도형이 다른 색 위에 겹치면 그 부분은 위(나중 것)가 차지 — 3D에서 겹침이 생기지 않게
+    if (e.t === 'mv') knock(model, e.c, picked.map((it) => transformRing(it.ring, 1, -e.dx, -e.dy)), tol);
+    else if (e.t === 'off' && e.d > 0) knock(model, e.c, model.layers[li].items.map((it) => it.ring), tol);
   }
   model.layers = model.layers.filter((l) => l.items.length);
   let rc = 0, nc = 0;
@@ -218,6 +244,24 @@ const area = (p) => {
 };
 
 /** (x,y)mm 에 있는 가장 작은 도형(또는 구멍) → {c, i} */
+/** 도형 안쪽(구멍 제외)의 한 점 — 다중 선택 후 다시 찾을 때 씀 */
+export function innerPoint(model, c, i) {
+  const l = model.layers.find((x) => x.color === c);
+  const it = l && l.items[i];
+  if (!it) return null;
+  const polys = [it.poly].concat(it.hole ? [] : l.items.filter((o) => o.hole && o.parent === i).map((o) => o.poly));
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of it.poly) (x < x0 && (x0 = x), x > x1 && (x1 = x), y < y0 && (y0 = y), y > y1 && (y1 = y));
+  let best = null, bw = -1;
+  for (const f of [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.1, 0.9]) {
+    const y = y0 + (y1 - y0) * f, xs = [];
+    for (const p of polys) for (let a = 0, b = p.length - 1; a < p.length; b = a++) if (p[a][1] > y !== p[b][1] > y) xs.push(p[b][0] + ((y - p[b][1]) * (p[a][0] - p[b][0])) / (p[a][1] - p[b][1]));
+    xs.sort((u, v) => u - v);
+    for (let k = 0; k + 1 < xs.length; k += 2) if (xs[k + 1] - xs[k] > bw) (bw = xs[k + 1] - xs[k]), (best = [(xs[k] + xs[k + 1]) / 2, y]);
+    if (bw > (x1 - x0) * 0.2) break;
+  }
+  return best;
+}
 export function hitItem(model, x, y) {
   let best = null, ba = Infinity;
   for (const l of model.layers)

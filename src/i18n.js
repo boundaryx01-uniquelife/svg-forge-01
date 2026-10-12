@@ -412,6 +412,8 @@ const EN = {
   '레이저 가공 모드: 윤곽선만 저장합니다. 색마다 절단·새김을 정하고 ▶ 작업 미리보기로 순서와 시간을 확인하세요. (RDWorks는 DXF · 레이저, LightBurn은 둘 다)': 'Laser mode: only outlines are saved. Set cut/engrave per colour and check the order and time in ▶ Job preview. (RDWorks: DXF · Laser; LightBurn: either)',
   '3D 프로그램·디자인 도구 → SVG / 레이저 가공 → DXF · 레이저 (RDWorks) 또는 SVG · 레이저 (LightBurn)': '3D / design tools → SVG; laser → DXF · Laser (RDWorks) or SVG · Laser (LightBurn)',
   '글자를 놓을 곳을 누르세요 (Esc 취소)': 'Click where to place the text (Esc cancels)',
+  '도형 {n}개 선택': '{n} shapes selected',
+  '여러 개 선택(이미지·텍스트): Ctrl(Shift)+클릭으로 추가·해제, 빈 곳을 끌어 사각형으로 영역 선택. 화면 이동은 휠 버튼 끌기 또는 Space+끌기': 'Multi-select (image & text): Ctrl/Shift+click to add/remove, drag on empty space for a box. Pan with the middle button or Space+drag',
   '✂ 끊기': '✂ Cut',
   '연결된 부분을 끊기: 켜고 미리보기에서 끊을 곳을 가로질러 끌면 (화면 이동은 휠 버튼 끌기) 그 선을 따라 도려냅니다 (선택한 도형이 있으면 그 도형만, 없으면 닿는 모든 도형). Esc로 끄기': 'Cut connected parts (middle-button drag pans): turn on, then drag across the spot in the preview to cut along that line (only the selected shape if one is selected, otherwise every shape it touches). Esc to turn off',
   '끊은 틈의 폭 (mm)': 'Gap width (mm)',
