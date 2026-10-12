@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import ClipperLib from 'clipper-lib';
 import { geo2d } from './solid.js';
 
-const { thicken, union, diff, offset, toShapes, toPath, heal, clip, CT, PF, SC } = geo2d;
+const { thickenLayers, union, diff, offset, toShapes, toPath, heal, clip, CT, PF, SC } = geo2d;
 const pathOf = (pts) => pts.map(([x, y]) => ({ X: Math.round(x * SC), Y: Math.round(y * SC) }));
 
 /** 둥근 사각형 윤곽 (반시계, Y 위쪽) */
@@ -174,16 +174,17 @@ export function buildKeycap(model, o) {
   const k = { ...o.keycap };
   const D = keycapDims(k);
   const W = model.width, Hm = model.height;
-  const cx = W / 2, cy = Hm / 2;
+  const cx = D.bw / 2, cy = D.bd / 2; // 키캡은 항상 같은 자리 (그림 너비를 바꿔도 키캡이 움직이지 않음)
+  const sx = Math.round((cx - W / 2) * SC), sy = Math.round((cy - Hm / 2) * SC);
   const color = k.color || '#f2f2f2';
   const parts = [];
   const info = { rings: [], keycap: D };
   // 글자 도형 → 평평한 윗면 안으로 자르기 (윗모서리 다듬기만큼 좁아짐)
   const flat = ringAt(cx, cy, D, D.H, 0.4);
   const topFace = [pathOf(flat)];
-  let layerPaths = model.layers.map((l) => heal(union(l.items.map((it) => toPath(it.poly, Hm)), PF.pftEvenOdd)));
+  let layerPaths = model.layers.map((l) => heal(union(l.items.map((it) => toPath(it.poly, Hm)), PF.pftEvenOdd)).map((p) => p.map((q) => ({ X: q.X + sx, Y: q.Y + sy }))));
   if (model.fromText && layerPaths.length > 1) for (let i = 0; i < layerPaths.length - 1; i++) layerPaths[i] = diff(layerPaths[i], union(layerPaths.slice(i + 1).flat()));
-  if (o.minW > 0) layerPaths = layerPaths.map((lp) => thicken(lp, o.minW));
+  if (o.minW > 0) layerPaths = thickenLayers(layerPaths, o.minW);
   const area = (ps) => ps.reduce((s, p) => s + Math.abs(ClipperAreaAbs(p)), 0);
   const before = area(union(layerPaths.flat()));
   layerPaths = layerPaths.map((lp) => clip(CT.ctIntersection, lp, topFace));
