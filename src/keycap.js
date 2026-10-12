@@ -206,18 +206,20 @@ export function buildKeycap(model, o) {
     if (!sh.length) return;
     parts.push({ name, color: col, paths, shapes: label ? sh : [], z0, z1, role, layer });
   };
-  // 글자
+  // 글자 — 색상별 높이(±mm)가 돋을 높이·상감 높이에 반영됨
   const lh = Math.min(2, Math.max(0.2, k.legendH || 0.6));
+  const step = Math.max(0, o.step || 0);
   model.layers.forEach((l, i) => {
     if (!layerPaths[i].length) return;
-    if (D.mode === 'emboss') add(`글자 ${i + 1} ${l.color}`, l.color, layerPaths[i], D.H, D.H + lh, 'kclegend', i);
-    else if (D.mode === 'inlay') add(`글자 ${i + 1} ${l.color}`, l.color, layerPaths[i], D.zT, D.H, 'kclegend', i);
+    const off = (o.offsets && o.offsets[i] != null ? o.offsets[i] : i * step) + (l.dz || 0);
+    if (D.mode === 'emboss') add(`글자 ${i + 1} ${l.color}`, l.color, layerPaths[i], D.H, D.H + Math.max(0.2, lh + off), 'kclegend', i);
+    else if (D.mode === 'inlay') add(`글자 ${i + 1} ${l.color}`, l.color, layerPaths[i], D.zT, D.H + Math.max(-(D.depth - 0.2), off), 'kclegend', i);
   });
   // 십자 스템 (MX): 바깥 Ø5.5, 구멍 4.1 × 1.35 (+공차)
   const tol = Math.min(0.5, Math.max(0, k.tol == null ? 0.1 : k.tol));
   const L = 4.1 + tol, Wd = 1.35 + tol;
   const cross = union([[pathOf([[cx - L / 2, cy - Wd / 2], [cx + L / 2, cy - Wd / 2], [cx + L / 2, cy + Wd / 2], [cx - L / 2, cy + Wd / 2]])], [pathOf([[cx - Wd / 2, cy - L / 2], [cx + Wd / 2, cy - L / 2], [cx + Wd / 2, cy + L / 2], [cx - Wd / 2, cy + L / 2]])]].flat());
-  const stemLen = Math.min(D.zi - 0.5, Math.max(2, k.stemLen || 4.6));
+  const stemLen = k.stem === 'floor' ? D.zi : Math.min(D.zi - 0.5, 4.6); // 바닥까지 닿게 / 기본 4.6mm
   const stemOuter = geo2d.circle(cx, cy, 2.75);
   add('스템', color, diff(stemOuter, cross), D.zi - stemLen, D.zi + 0.3, 'kcstem', undefined, false);
   const zmax = Math.max(...parts.map((p) => p.z1));

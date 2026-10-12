@@ -484,6 +484,8 @@ dialog#prefs .row label{flex-basis:70px}
       <div class="row"><label for="kcEdge" title="키캡 윗면 둘레 모서리를 깎습니다 (크기 mm). 모깎기=둥글게, 모따기=비스듬히" style="flex-basis:52px">윗모서리</label>
         <select id="kcEdge" class="grow" style="min-width:96px"><option value="none">그대로</option><option value="fillet" selected>모깎기 (둥글게)</option><option value="chamfer">모따기 (비스듬히)</option></select>
         <input id="kcEdgeSize" class="mini" type="number" min="0.1" max="2.5" step="0.1" value="0.8" title="모서리 크기 (mm)"></div>
+      <div class="row"><label for="kcStem" title="십자 스템 길이: 기본(4.6mm) 또는 키캡 바닥까지 닿게" style="flex-basis:52px">스템</label>
+        <select id="kcStem" class="grow" style="min-width:96px"><option value="std" selected>기본 길이</option><option value="floor">바닥까지 닿게</option></select></div>
       <div id="kcInfo" class="note2" style="font-size:12px;color:var(--sub);margin:2px 0 4px"></div>
     </div>
   </aside>
