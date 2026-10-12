@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { traceImage, otsuThreshold, estimateHardEdges, estimateColorCount, parseFont, missingGlyphs, textToLayers } from './trace.js';
 import { makeModel } from './geom.js';
 import { applyEdits, hitItem } from './edit.js';
+import { keycapDims } from './keycap.js';
 import { potracePathsToRings } from './pathparse.js';
 import { toFillSvg, toLaserSvg, toDxf, laserModel } from './export.js';
 import { printabilityReport } from './solid.js';
@@ -22,7 +23,7 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'preset', 'advImage', 'bgRow', 'removeBg', 'keepRow', 'keepInner', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcInfo',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear', 'edCut', 'edCutW',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -648,12 +649,18 @@ async function compute() {
     S.flash = '';
   }
   el.heightOut.textContent = m.height.toFixed(2);
+  {
+    const kk = kcOpts();
+    const fk = kk.on + '|' + kk.u + '|' + kk.h;
+    if (S.kcFrameKey !== fk) (S.kcFrameKey = fk), (S.dirty3d = true); // 키캡을 켜거나 크기를 바꾸면 화면을 다시 맞춤
+  }
   S.dirty3d = S.dirty3d || !S.frameSize; // 새 이미지·모드·프로젝트·'처음으로' 때만 화면을 처음 자리로
   render2d();
   render3dIfVisible();
   S.keepView = false;
   updateButtons();
   updateEditBar();
+  updateKcInfo();
   const sw = m.layers.map((l) => `<span><i class="sw" style="background:${l.color}"></i>${l.color}</span>`).join(' ');
   setStatus(
     `<span>${T('도형 {n}개', { n: m.ringCount })}</span><span>${T('노드 {n}', { n: m.nodeCount })}</span><span>${m.width.toFixed(1)} × ${m.height.toFixed(1)} mm</span>${sw}${fixSummary(layers, m)}`
@@ -1576,15 +1583,15 @@ function buildDims3d(t, geos, bb, maxH, so) {
   seg([x0, y0 - off + tk, 0], [x0, y0 - off - tk, 0]);
   seg([x1, y0 - off + tk, 0], [x1, y0 - off - tk, 0]);
   const mw = S.model.width, mh = S.model.height;
-  label([(x0 + x1) / 2, y0 - off * 1.8, 0], `${(x1 - x0).toFixed(1)} mm`, null, { v: x1 - x0, set: (v) => setModelSize((mw + (v - (x1 - x0))) / mw) });
+  label([(x0 + x1) / 2, y0 - off * 1.8, 0], `${(x1 - x0).toFixed(1)} mm`, null, so.keycap && so.keycap.on ? null : { v: x1 - x0, set: (v) => setModelSize((mw + (v - (x1 - x0))) / mw) });
   seg([x0 - off, y0, 0], [x0 - off, y1, 0]);
   seg([x0 - off + tk, y0, 0], [x0 - off - tk, y0, 0]);
   seg([x0 - off + tk, y1, 0], [x0 - off - tk, y1, 0]);
-  label([x0 - off * 1.8, (y0 + y1) / 2, 0], `${(y1 - y0).toFixed(1)} mm`, null, { v: y1 - y0, set: (v) => setModelSize((mh + (v - (y1 - y0))) / mh) });
+  label([x0 - off * 1.8, (y0 + y1) / 2, 0], `${(y1 - y0).toFixed(1)} mm`, null, so.keycap && so.keycap.on ? null : { v: y1 - y0, set: (v) => setModelSize((mh + (v - (y1 - y0))) / mh) });
   seg([x1 + off, y1, 0], [x1 + off, y1, maxH]);
   seg([x1 + off - tk, y1, maxH], [x1 + off + tk, y1, maxH]);
   seg([x1 + off - tk, y1, 0], [x1 + off + tk, y1, 0]);
-  label([x1 + off * 1.9, y1, maxH / 2], `${maxH.toFixed(1)} mm`, null, {
+  label([x1 + off * 1.9, y1, maxH / 2], `${maxH.toFixed(1)} mm`, null, so.keycap && so.keycap.on ? null : {
     v: maxH,
     set: (v) => {
       el.thick.value = Math.max(0.2, Math.round(((parseFloat(el.thick.value) || 3) + v - maxH) * 100) / 100);
@@ -1627,7 +1634,8 @@ function buildDims3d(t, geos, bb, maxH, so) {
       renderHeightChips();
       on3dChange(false);
     };
-    if (p.role === 'base') (text = `${T('받침')} ${th.toFixed(1)}`), (edit = { v: th, set: (v) => setNum(el.baseH, v, 0.2) });
+    if (p.role === 'kclegend') (text = p.z0 >= so.keycap.h ? `+${th.toFixed(1)}` : `${T('깊이')} ${th.toFixed(1)}`), (edit = null);
+    else if (p.role === 'base') (text = `${T('받침')} ${th.toFixed(1)}`), (edit = { v: th, set: (v) => setNum(el.baseH, v, 0.2) });
     else if (p.role === 'border') (text = `${T('턱')} +${th.toFixed(1)}`), (edit = { v: th, set: (v) => (el.borderFull.checked = false, syncBorderUi(), setNum(el.borderH, v, 0.2)) });
     else if (p.role === 'color' && so.textMode === 'engrave' && p.z0 === 0) {
       const dep = baseTop - p.z1;
@@ -1688,6 +1696,19 @@ function setAllOffsets(fn) {
 }
 
 /** 오른쪽 '3D 출력' 설정 */
+function kcOpts() {
+  const f = (e, d) => (isFinite(parseFloat(e.value)) ? parseFloat(e.value) : d);
+  return { on: el.kcOn.checked, u: el.kcU.value, color: el.kcColor.value, h: f(el.kcH, 9), inset: f(el.kcInset, 2.8), wall: f(el.kcWall, 1.4), tol: f(el.kcTol, 0.1), mode: el.kcMode.value, depth: f(el.kcDepth, 0.5), legendH: f(el.kcDepth, 0.5) };
+}
+/** 키캡 윗면 크기 안내 · 글자가 윗면보다 크면 경고 */
+function updateKcInfo() {
+  const k = kcOpts();
+  el.kcOpts.classList.toggle('hide', !k.on);
+  if (!k.on) return;
+  const D = keycapDims(k);
+  const over = S.model && S.model.width > D.topW - 0.8 || S.model && S.model.height > D.topD - 0.8;
+  el.kcInfo.innerHTML = `${T('몸체 {w} × {d} mm · 윗면 {tw} × {td} mm', { w: D.bw.toFixed(1), d: D.bd.toFixed(1), tw: D.topW.toFixed(1), td: D.topD.toFixed(1) })}` + (over ? `<br><b style="color:#c2410c">${T('글자가 윗면보다 커서 잘립니다. 너비(mm)를 줄이세요.')}</b>` : '');
+}
 function solidOpts() {
   const nv = (e, d, lo = 0) => Math.max(lo, parseFloat(e.value) || d);
   return {
@@ -1702,6 +1723,7 @@ function solidOpts() {
     border: { on: el.baseOn.checked && el.borderOn.checked, width: nv(el.borderW, 1.2, 0.4), height: nv(el.borderH, 1, 0.2), full: el.borderFull.checked },
     ring: { on: el.ringOn.checked, list: (ringFromInputs(), S.rings.map((r) => ({ ...r }))) },
     edge: { type: el.edgeType.value, size: nv(el.edgeSize, 0.6, 0.1), onColor: el.edgeColor.checked, onBase: el.edgeBase.checked },
+    keycap: kcOpts(),
   };
 }
 
@@ -1886,6 +1908,7 @@ const PRESETS = {
   keyring: { base: true, border: true, ring: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판·테두리·고리를 켰습니다. 위쪽 저장에서 노란 테두리 버튼(3MF는 색 나눔, STL은 한 덩어리)을 누르세요.' },
   print3d: { base: false, border: false, ring: false, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판 없이 도형만 만듭니다. 노란 테두리 버튼(3MF 또는 STL)으로 저장하세요.' },
   laser: { base: false, border: false, ring: false, view3d: false, rec: ['btnLaser', 'btnDxf'], hint: '윤곽선만 저장합니다. 노란 테두리 버튼 파일을 여세요 (RDWorks는 DXF · 레이저, LightBurn은 둘 다).' },
+  keycap: { base: false, border: false, ring: false, kc: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '키캡(MX) 모드입니다. 글자·그림이 윗면에 올라갑니다. 3D 출력의 키캡 항목에서 크기·글자 방식을 바꾸세요. 스템 공차는 시험 출력으로 맞추세요.' },
   maker: { base: false, border: false, ring: false, view3d: false, rec: ['btnFill'], hint: 'MakerLab용 SVG입니다. 노란 테두리 버튼으로 저장해 MakerLab에 올리세요.' },
 };
 function showPresetRec() {
@@ -1897,6 +1920,10 @@ el.preset.addEventListener('change', () => {
   showPresetRec();
   if (!pr) return;
   S.flash = T(pr.hint);
+  el.kcOn.checked = !!pr.kc;
+  if (pr.kc) {
+    el.kcOn.dispatchEvent(new Event('change'));
+  }
   el.baseOn.checked = pr.base;
   if (pr.base) {
     el.baseShape.value = 'outline';
@@ -1944,6 +1971,13 @@ function syncBorderUi() {
 }
 // 3D 설정: 바꾸면 3D 미리보기로 보여줌
 function on3dChange(showView) {
+  const kcOn = el.kcOn.checked;
+  if (kcOn) (el.baseOn.checked = false), (el.ringOn.checked = false);
+  el.baseOn.disabled = kcOn;
+  const kk = kcOpts();
+  const kcKey = kk.on + '|' + kk.u + '|' + kk.h;
+  if (S.kcKey !== kcKey) (S.kcKey = kcKey), (S.dirty3d = true); // 키캡 크기가 바뀌면 화면을 다시 맞춤
+  updateKcInfo();
   // 키링 고리는 받침판이 있을 때만
   if (!el.baseOn.checked) el.ringOn.checked = false;
   el.ringOn.disabled = el.ringAdd.disabled = el.ringDel.disabled = !el.baseOn.checked;
@@ -1970,7 +2004,18 @@ function on3dChange(showView) {
   pushHist();
 }
 [el.thick, el.baseMargin, el.baseH, el.baseFill, el.edgeSize, el.ringDx, el.ringDy, el.borderW, el.borderH, el.ringOuter, el.ringHole].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
-[el.baseOn, el.baseShape, el.baseColor, el.baseStretch, el.textMode, el.ringType, el.edgeType, el.edgeColor, el.edgeBase, el.borderOn, el.borderFull, el.ringOn, el.ringPos].forEach((e) => e.addEventListener('change', () => on3dChange(true)));
+[el.baseOn, el.baseShape, el.baseColor, el.baseStretch, el.textMode, el.ringType, el.edgeType, el.edgeColor, el.edgeBase, el.borderOn, el.borderFull, el.ringOn, el.ringPos, el.kcOn, el.kcU, el.kcMode].forEach((e) => e.addEventListener('change', () => on3dChange(true)));
+[el.kcColor, el.kcH, el.kcInset, el.kcWall, el.kcTol, el.kcDepth].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
+el.kcOn.addEventListener('change', () => {
+  if (!el.kcOn.checked) return;
+  const D = keycapDims(kcOpts());
+  const w = parseFloat(el.width.value) || 50;
+  if (w > D.topW - 0.8) {
+    el.width.value = Math.max(3, Math.floor((D.topW * 0.75) * 2) / 2);
+    S.flash = T('글자 너비를 키캡 윗면에 맞게 줄였습니다. 필요하면 너비(mm)를 바꾸세요.');
+    schedule(0);
+  }
+});
 
 el.stepAuto.onclick = () => setAllOffsets((i) => i * 0.4);
 el.stepZero.onclick = () => setAllOffsets(() => 0);

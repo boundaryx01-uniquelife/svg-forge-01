@@ -50,7 +50,7 @@ textarea{resize:vertical;min-height:56px;max-height:160px}
 .val{flex:0 0 34px;text-align:right;color:var(--sub);font-variant-numeric:tabular-nums;font-size:12px}
 .chk{display:flex;align-items:center;gap:6px;color:var(--sub);font-size:12px;margin:3px 0;min-height:22px}
 .chk input{margin:0}
-.row input.mini{width:58px;flex:0 0 auto}
+.row input.mini{width:68px;flex:0 0 auto;padding-left:5px;padding-right:2px}
 .row input[type=color]{width:34px;height:28px;padding:1px;border:1px solid var(--line);border-radius:6px;background:#fff;flex:0 0 auto}
 .sub{margin:0 0 4px 12px}
 .sub .row label{flex-basis:66px}
@@ -109,7 +109,7 @@ body.dragging .view::after{content:attr(data-drop);position:absolute;inset:8px;b
 #editbar .edgrp{display:inline-flex;align-items:center;gap:4px}
 #editbar select{width:auto;font-size:12px;padding:3px 4px}
 #editbar input[type=color]{width:26px;height:22px;padding:0;border:1px solid #bbb;border-radius:4px;background:none}
-#editbar input.mini{width:52px}
+#editbar input.mini{width:68px;padding-left:5px;padding-right:2px}
 .viewtools{position:absolute;right:10px;bottom:10px;display:flex;gap:4px;z-index:3}
 .viewtools .btn{background:rgba(255,255,255,.92)}
 .charchips{display:flex;flex-wrap:wrap;gap:3px;max-height:88px;overflow:auto;margin:2px 0}
@@ -227,6 +227,7 @@ dialog#prefs .row label{flex-basis:70px}
     <select id="preset" class="presetsel" title="목적에 맞게 받침판·고리·저장 버튼 추천을 한 번에 맞춥니다">
       <option value="">직접 설정</option>
       <option value="keyring">🔑 키링 · 네임택 (3D 프린트)</option>
+      <option value="keycap">⌨ 키캡 (MX 호환)</option>
       <option value="print3d">🧊 일반 3D 프린트</option>
       <option value="laser">✂ 레이저 자르기</option>
       <option value="maker">🌐 MakerLab에 올리기</option>
@@ -461,9 +462,25 @@ dialog#prefs .row label{flex-basis:70px}
         <input id="ringOuter" class="mini" type="number" min="3" max="40" step="0.5" value="8" title="바깥 지름 (mm)">
         <input id="ringHole" class="mini" type="number" min="1" max="30" step="0.5" value="4" title="구멍 지름 (mm)"></div>
       <div class="row" title="자동 위치에서 옮긴 거리 (mm). 3D 화면에서 고리를 마우스로 끌어도 됩니다"><label style="flex-basis:40px">이동</label>
-        <input id="ringDx" class="mini" style="width:52px" type="number" step="0.5" value="0" title="가로 이동 (mm, +오른쪽)">
-        <input id="ringDy" class="mini" style="width:52px" type="number" step="0.5" value="0" title="세로 이동 (mm, +위)">
+        <input id="ringDx" class="mini" style="width:68px" type="number" step="0.5" value="0" title="가로 이동 (mm, +오른쪽)">
+        <input id="ringDy" class="mini" style="width:68px" type="number" step="0.5" value="0" title="세로 이동 (mm, +위)">
         <button class="btn small" id="ringReset" title="자동 위치로">↺</button></div>
+    </div>
+    <label class="chk" title="MX 스위치용 키캡 몸체를 만들어 윗면에 지금 글자·그림을 올립니다 (받침판·고리와는 함께 쓰지 않음)"><input type="checkbox" id="kcOn"> ⌨ 키캡 (MX)</label>
+    <div id="kcOpts" class="sub hide">
+      <div class="row"><label for="kcU" style="flex-basis:44px">크기</label>
+        <select id="kcU" class="grow" style="min-width:96px"><option value="1">1u</option><option value="1.25">1.25u</option><option value="1.5">1.5u</option><option value="1.75">1.75u</option><option value="2">2u (스태빌라이저 별도)</option><option value="2.25">2.25u</option><option value="2.75">2.75u</option><option value="6.25">스페이스 6.25u</option></select>
+        <input id="kcColor" type="color" value="#f2f2f2" title="키캡 몸체 색 (3MF 필라멘트 구분용)"></div>
+      <div class="row"><label title="전체 높이 · 윗면이 몸체 아래보다 줄어드는 양 (mm, 한쪽)">높이·윗면 줄임</label>
+        <input id="kcH" class="mini" type="number" min="4" max="20" step="0.5" value="9" title="전체 높이 (mm)">
+        <input id="kcInset" class="mini" type="number" min="0" max="6" step="0.2" value="2.8" title="윗면이 한쪽으로 줄어드는 양 (mm)"></div>
+      <div class="row"><label title="벽 두께 · 십자 스템 구멍 공차 (mm). 출력기마다 달라서 시험 출력으로 맞추세요 (보통 0.1~0.2)">벽·스템 공차</label>
+        <input id="kcWall" class="mini" type="number" min="0.8" max="3" step="0.1" value="1.4" title="벽 두께 (mm)">
+        <input id="kcTol" class="mini" type="number" min="0" max="0.5" step="0.05" value="0.1" title="스템 십자 구멍을 이만큼 넓힘 (mm)"></div>
+      <div class="row"><label for="kcMode" style="flex-basis:44px">글자</label>
+        <select id="kcMode" class="grow" style="min-width:96px"><option value="emboss">돋을 (볼록)</option><option value="engrave">새김 (오목)</option><option value="inlay">상감 (색 채움)</option></select>
+        <input id="kcDepth" class="mini" type="number" min="0.2" max="2" step="0.1" value="0.5" title="돋을 높이 · 새김·상감 깊이 (mm)"></div>
+      <div id="kcInfo" class="note2" style="font-size:12px;color:var(--sub);margin:2px 0 4px"></div>
     </div>
   </aside>
 </main>

@@ -689,3 +689,6 @@ function repairTJunctions(T, verts) {
     if (!changed) return;
   }
 }
+
+/** 키캡 생성기(keycap.js)용 도형 연산 */
+export const geo2d = { clip, union, diff, offset, toShapes, toPath, heal, circle, bbox, SC, CT, PF };

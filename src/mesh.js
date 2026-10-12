@@ -3,9 +3,11 @@ import * as THREE from 'three';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildParts, beveledSolid } from './solid.js';
+import { buildKeycap } from './keycap.js';
 
 /** 파트(도형+높이) → 지오메트리 */
 export function partGeometry(part) {
+  if (part.geom) return part.geom;
   if (part.paths) {
     // 모서리 다듬기 없으면 아주 작은 크기 → 층이 하나로 합쳐져 그냥 기둥. (자체 삼각분할 + T자 이음 보정으로 항상 닫힌 메시)
     const pos = beveledSolid(part.paths, part.z0, part.z1, part.bevel || { type: 'chamfer', size: 0.001 });
@@ -34,7 +36,7 @@ export function partGeometry(part) {
 
 /** 모델 + 3D 옵션 → [{name, color, geometry, z1, role}] */
 export function buildPartGeometries(model, opts) {
-  const { parts, info } = buildParts(model, opts);
+  const { parts, info } = opts.keycap && opts.keycap.on ? buildKeycap(model, opts) : buildParts(model, opts);
   const out = [];
   for (const p of parts) {
     const g = partGeometry(p);
