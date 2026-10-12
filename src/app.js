@@ -24,7 +24,7 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'preset', 'advImage', 'bgRow', 'removeBg', 'keepRow', 'keepInner', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'tabSim', 'viewSim', 'simCv', 'simHead', 'simPlay', 'simRst', 'simPos', 'simTime', 'simSpd', 'simCut', 'simEng', 'simTrv', 'simInfo',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'minWOn', 'minW', 'tabSim', 'viewSim', 'simCv', 'simHead', 'simPlay', 'simRst', 'simPos', 'simTime', 'simSpd', 'simCut', 'simEng', 'simTrv', 'simInfo',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear', 'edCut', 'edCutW', 'edText', 'edDrop', 'textDlg', 'tdText', 'tdSize', 'tdColor',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -645,7 +645,8 @@ async function compute() {
     try {
       const r = printabilityReport(m);
       const parts = [];
-      if (r.thin) parts.push(T('가는 선 {n}곳 (폭 {w}mm 미만)', { n: r.thin, w: r.minW }));
+      if (r.thin && el.minWOn.checked) warnings.push(T('가는 선 {n}곳을 {w}mm 이상으로 보정해 3D에 반영했습니다 (모양이 조금 굵어짐).', { n: r.thin, w: nv(el.minW, 0.8, 0.2) }));
+      else if (r.thin) parts.push(T('가는 선 {n}곳 (폭 {w}mm 미만)', { n: r.thin, w: r.minW }));
       if (r.island) parts.push(T('아주 작은 조각 {n}개', { n: r.island }));
       if (r.hole) parts.push(T('아주 작은 구멍 {n}개', { n: r.hole }));
       if (parts.length) warnings.push(T(S.mode === 'text' ? '⚠ 출력이 잘 안 될 수 있는 부분: {list}. 너비를 키우거나 두꺼운 폰트를 써 보세요.' : '⚠ 출력이 잘 안 될 수 있는 부분: {list}. 너비를 키우거나 고급 설정의 노이즈 제거를 올려 보세요.', { list: parts.join(', ') }));
@@ -2035,6 +2036,7 @@ function solidOpts() {
     ring: { on: el.ringOn.checked, list: (ringFromInputs(), S.rings.map((r) => ({ ...r }))) },
     edge: { type: el.edgeType.value, size: nv(el.edgeSize, 0.6, 0.1), onColor: el.edgeColor.checked, onBase: el.edgeBase.checked },
     keycap: kcOpts(),
+    minW: el.minWOn.checked ? nv(el.minW, 0.8, 0.2) : 0,
   };
 }
 
@@ -2221,10 +2223,10 @@ const bindRange = (input, label, fmt = (v) => v) => {
 };
 // ---------- 목적별 시작 프리셋 ----------
 const PRESETS = {
-  keyring: { base: true, border: true, ring: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판·테두리·고리를 켰습니다. 위쪽 저장에서 노란 테두리 버튼(3MF는 색 나눔, STL은 한 덩어리)을 누르세요.' },
-  print3d: { base: false, border: false, ring: false, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판 없이 도형만 만듭니다. 노란 테두리 버튼(3MF 또는 STL)으로 저장하세요.' },
-  laser: { base: false, border: false, ring: false, view3d: false, rec: ['btnLaser', 'btnDxf'], hint: '레이저 가공 모드: 윤곽선만 저장합니다. 색마다 절단·새김을 정하고 ▶ 작업 미리보기로 순서와 시간을 확인하세요. (RDWorks는 DXF · 레이저, LightBurn은 둘 다)' },
-  keycap: { base: false, border: false, ring: false, kc: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '키캡(MX) 모드입니다. 글자·그림이 윗면에 올라갑니다. 3D 출력의 키캡 항목에서 크기·글자 방식을 바꾸세요. 스템 공차는 시험 출력으로 맞추세요.' },
+  keyring: { minW: true, base: true, border: true, ring: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판·테두리·고리를 켰습니다. 위쪽 저장에서 노란 테두리 버튼(3MF는 색 나눔, STL은 한 덩어리)을 누르세요.' },
+  print3d: { minW: true, base: false, border: false, ring: false, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판 없이 도형만 만듭니다. 노란 테두리 버튼(3MF 또는 STL)으로 저장하세요.' },
+  laser: { minW: false, base: false, border: false, ring: false, view3d: false, rec: ['btnLaser', 'btnDxf'], hint: '레이저 가공 모드: 윤곽선만 저장합니다. 색마다 절단·새김을 정하고 ▶ 작업 미리보기로 순서와 시간을 확인하세요. (RDWorks는 DXF · 레이저, LightBurn은 둘 다)' },
+  keycap: { minW: true, base: false, border: false, ring: false, kc: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '키캡(MX) 모드입니다. 글자·그림이 윗면에 올라갑니다. 3D 출력의 키캡 항목에서 크기·글자 방식을 바꾸세요. 스템 공차는 시험 출력으로 맞추세요.' },
 };
 function applyModeUi() {
   const m = el.preset.value || 'free';
@@ -2242,6 +2244,7 @@ el.preset.addEventListener('change', () => {
   showPresetRec();
   if (!pr) return;
   S.flash = T(pr.hint);
+  el.minWOn.checked = !!pr.minW;
   el.kcOn.checked = !!pr.kc;
   if (pr.kc) {
     el.kcOn.dispatchEvent(new Event('change'));
@@ -2294,6 +2297,7 @@ function syncBorderUi() {
 // 3D 설정: 바꾸면 3D 미리보기로 보여줌
 function on3dChange(showView) {
   const kcOn = el.kcOn.checked;
+  document.body.classList.toggle('kc-on', kcOn);
   if (kcOn) (el.baseOn.checked = false), (el.ringOn.checked = false);
   el.baseOn.disabled = kcOn;
   el.edgeType.disabled = el.edgeSize.disabled = kcOn; // 키캡은 아래 키캡 항목의 '윗면 모서리'를 씀
@@ -2328,8 +2332,8 @@ function on3dChange(showView) {
   autosave();
   pushHist();
 }
-[el.thick, el.baseMargin, el.baseH, el.baseFill, el.edgeSize, el.ringDx, el.ringDy, el.borderW, el.borderH, el.wallW, el.wallH, el.wallGap, el.wallColor, el.ringOuter, el.ringHole].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
-[el.baseOn, el.baseShape, el.baseColor, el.baseStretch, el.textMode, el.ringType, el.edgeType, el.edgeColor, el.edgeBase, el.borderOn, el.borderFull, el.wallOn, el.ringOn, el.ringPos, el.kcOn, el.kcU, el.kcMode, el.kcEdge, el.kcStem].forEach((e) => e.addEventListener('change', () => on3dChange(true)));
+[el.thick, el.baseMargin, el.baseH, el.baseFill, el.edgeSize, el.ringDx, el.ringDy, el.borderW, el.borderH, el.minW, el.wallW, el.wallH, el.wallGap, el.wallColor, el.ringOuter, el.ringHole].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
+[el.baseOn, el.baseShape, el.baseColor, el.baseStretch, el.textMode, el.ringType, el.edgeType, el.edgeColor, el.edgeBase, el.borderOn, el.borderFull, el.minWOn, el.wallOn, el.ringOn, el.ringPos, el.kcOn, el.kcU, el.kcMode, el.kcEdge, el.kcStem].forEach((e) => e.addEventListener('change', () => on3dChange(true)));
 [el.kcColor, el.kcH, el.kcInset, el.kcWall, el.kcTol, el.kcDepth, el.kcEdgeSize].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
 el.kcOn.addEventListener('change', () => {
   if (!el.kcOn.checked) return;

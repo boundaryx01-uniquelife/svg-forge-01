@@ -21,6 +21,20 @@ function clip(type, subj, clp, fill = PF.pftNonZero) {
 const union = (paths, fill = PF.pftNonZero) => clip(CT.ctUnion, paths, [], fill);
 const diff = (a, b) => (b.length ? clip(CT.ctDifference, a, b) : a);
 
+/** 폭이 m(mm)보다 가는 부분을 m 이상으로 두껍게 (노즐 0.4mm → 0.8mm 권장). 큰 도형의 모서리는 건드리지 않음 */
+function thicken(paths, m) {
+  if (!paths.length || !(m > 0)) return paths;
+  const r = m / 2;
+  let cur = paths;
+  for (let it = 0; it < 3; it++) {
+    const open = offset(offset(cur, -r), r);
+    const thin = diff(cur, open).filter((p) => Math.abs(ClipperLib.Clipper.Area(p)) / (SC * SC) > 0.8 * r * r);
+    if (!thin.length) break;
+    cur = union(cur.concat(offset(thin, r / 2)));
+  }
+  return cur;
+}
+
 function offset(paths, deltaMm) {
   if (!paths.length || !deltaMm) return paths;
   const co = new ClipperLib.ClipperOffset(2, 0.01 * SC);
@@ -315,6 +329,7 @@ export function buildParts(model, o) {
   if (model.fromText && layerPaths.length > 1) {
     for (let i = 0; i < layerPaths.length - 1; i++) layerPaths[i] = diff(layerPaths[i], union(layerPaths.slice(i + 1).flat()));
   }
+  if (o.minW > 0) layerPaths = layerPaths.map((lp) => thicken(lp, o.minW));
   const all = union(layerPaths.flat());
   const info = {};
   if (!all.length) return { parts: [], info };
@@ -698,4 +713,4 @@ function repairTJunctions(T, verts) {
 }
 
 /** 키캡 생성기(keycap.js)용 도형 연산 */
-export const geo2d = { clip, union, diff, offset, toShapes, toPath, heal, circle, bbox, SC, CT, PF };
+export const geo2d = { thicken, clip, union, diff, offset, toShapes, toPath, heal, circle, bbox, SC, CT, PF };
