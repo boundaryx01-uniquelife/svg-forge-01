@@ -90,6 +90,18 @@ body.dragging .view::after{content:attr(data-drop);position:absolute;inset:8px;b
 .adv[open]>summary::before{content:"▾ "}
 .adv small{font-weight:400}
 .exports .btn.rec{box-shadow:0 0 0 2px #f4b400;border-color:#f4b400}
+/* 모드별 화면 구성 */
+.g-simtab{display:none}
+body[data-mode=laser] .g-simtab{display:inline-block}
+body[data-mode=laser] .g-3d,body[data-mode=laser] .g-base,body[data-mode=laser] .g-kc{display:none!important}
+body[data-mode=keycap] .g-laser,body[data-mode=keycap] .g-base{display:none!important}
+body[data-mode=keyring] .g-laser,body[data-mode=keyring] .g-kc,body[data-mode=print3d] .g-laser,body[data-mode=print3d] .g-kc{display:none!important}
+#viewSim{background:#f4f1ea;display:flex;flex-direction:column}
+#simHead{position:absolute;left:0;top:0;width:12px;height:12px;border-radius:50%;background:#ff2d2d;box-shadow:0 0 0 3px rgba(255,45,45,.3),0 0 10px 3px rgba(255,80,40,.7);pointer-events:none;display:none}
+#viewSim canvas{flex:1;min-height:0;width:100%;display:block}
+.simbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:6px 10px;background:#fffdf8;border-top:1px solid var(--line);font-size:12px}
+.simbar input[type=range]{min-width:90px}
+.simbar .mini{width:56px}
 .presetsel{width:auto;max-width:150px;font-size:12.5px;padding:3px 5px}
 .phint{font-size:11.5px;color:var(--sub);margin:2px 0 4px;line-height:1.35}
 .note{width:fit-content;max-width:100%;line-height:1.35;background:var(--warn-bg);color:var(--warn);border:1px solid #f1d9a8;border-radius:8px;padding:3px 9px;font-size:12px}
@@ -219,19 +231,19 @@ dialog#prefs .row label{flex-basis:70px}
 <body>
 <header>
   <h1>SVG Forge</h1>
+  <span class="lbl">입력</span>
   <div class="tabs" id="modeTabs">
     <button id="modeImage" class="on">이미지</button>
     <button id="modeText">텍스트</button>
   </div>
   <div class="exports">
-    <span class="lbl">목적</span>
-    <select id="preset" class="presetsel" title="목적에 맞게 받침판·고리·저장 버튼 추천을 한 번에 맞춥니다">
-      <option value="">직접 설정</option>
+    <span class="lbl">모드</span>
+    <select id="preset" class="presetsel" title="모드에 따라 화면의 설정·저장 버튼·미리보기가 달라집니다">
+      <option value="">⚙ 자유 (모두 보기)</option>
       <option value="keyring">🔑 키링 · 네임택 (3D 프린트)</option>
       <option value="keycap">⌨ 키캡 (MX 호환)</option>
       <option value="print3d">🧊 일반 3D 프린트</option>
-      <option value="laser">✂ 레이저 자르기</option>
-      <option value="maker">🌐 MakerLab에 올리기</option>
+      <option value="laser">✂ 레이저 가공 (절단·새김)</option>
     </select>
   </div>
   <div class="exports proj">
@@ -243,12 +255,12 @@ dialog#prefs .row label{flex-basis:70px}
   <div class="spacer"></div>
   <div class="exports">
     <span class="lbl">저장</span>
-    <button class="btn pri" id="btnFill" disabled title="MakerLab·3D용: 닫힌 채움 경로만, 선·글꼴 없음, mm 단위">SVG · MakerLab</button>
-    <button class="btn" id="btnLaser" disabled title="레이저용 SVG: 채움 없이 0.1mm 윤곽선, 색상=레이어 (LightBurn 등). RDWorks는 DXF · 레이저를 권장합니다">SVG · 레이저</button>
-    <button class="btn" id="btnDxf" disabled title="레이저용 DXF R12, 단위 mm, 색상별 레이어 (RDWorks 권장 · LightBurn도 가능)">DXF · 레이저</button>
-    <label class="chk" style="margin:0 6px 0 0;font-size:11.5px" title="레이저 SVG·DXF에서 모든 색을 한 레이어(CUT)로 합칩니다"><input type="checkbox" id="laserSingle"> 한 레이어</label>
-    <button class="btn" id="btnStl" disabled title="바이너리 STL, 오른쪽 '3D 출력'의 두께로 압출 (모든 파트 한 파일)">STL</button>
-    <button class="btn" id="btn3mf" disabled title="3MF: 색·받침판·고리가 각각 파트로 나뉨 (Bambu Studio·OrcaSlicer 필라멘트 지정용)">3MF</button>
+    <button class="btn pri" id="btnFill" disabled title="채움 SVG: 닫힌 채움 경로만, 선·글꼴 없음, mm 단위 (3D 프로그램·디자인 도구용)">SVG</button>
+    <button class="btn g-laser" id="btnLaser" disabled title="레이저용 SVG: 채움 없이 0.1mm 윤곽선, 색상=레이어 (LightBurn 등). RDWorks는 DXF · 레이저를 권장합니다">SVG · 레이저</button>
+    <button class="btn g-laser" id="btnDxf" disabled title="레이저용 DXF R12, 단위 mm, 색상별 레이어 (RDWorks 권장 · LightBurn도 가능)">DXF · 레이저</button>
+    <label class="chk g-laser" style="margin:0 6px 0 0;font-size:11.5px" title="레이저 SVG·DXF에서 모든 색을 한 레이어(CUT)로 합칩니다"><input type="checkbox" id="laserSingle"> 한 레이어</label>
+    <button class="btn g-3d" id="btnStl" disabled title="바이너리 STL, 오른쪽 '3D 출력'의 두께로 압출 (모든 파트 한 파일)">STL</button>
+    <button class="btn g-3d" id="btn3mf" disabled title="3MF: 색·받침판·고리가 각각 파트로 나뉨 (Bambu Studio·OrcaSlicer 필라멘트 지정용)">3MF</button>
   </div>
   <select id="langSel" class="lang" aria-label="화면 언어" title="화면 언어"><option value="ko">한국어</option><option value="en">English</option></select>
   <button class="btn small" id="prefsBtn" title="설정 (치수 색·배경·도움말 등)" aria-label="설정">⚙</button>
@@ -367,7 +379,7 @@ dialog#prefs .row label{flex-basis:70px}
 
   <section class="stage">
     <div class="stagebar">
-      <div class="tabs"><button id="tab2d" class="on">2D</button><button id="tab3d">3D</button></div>
+      <div class="tabs"><button id="tab2d" class="on">2D</button><button id="tab3d" class="g-3d">3D</button><button id="tabSim" class="g-simtab">▶ 작업 미리보기</button></div>
       <div id="modeView2d" class="tabs">
         <button id="v2Fill" class="on">채움</button><button id="v2Line">윤곽선</button>
       </div>
@@ -385,6 +397,15 @@ dialog#prefs .row label{flex-basis:70px}
     </div>
     <div class="stagewrap">
       <div class="view" id="view2d"><div class="empty">미리보기가 여기에 나타납니다.</div></div>
+      <div class="view hide" id="viewSim"><canvas id="simCv"></canvas><span id="simHead"></span>
+        <div class="simbar"><button class="btn small" id="simPlay">▶ 재생</button><button class="btn small" id="simRst" title="처음으로">⏮</button>
+          <input id="simPos" type="range" min="0" max="1000" value="0" style="flex:1 1 140px" title="진행 위치 (끌어서 이동)">
+          <span id="simTime" class="out">0:00 / 0:00</span>
+          <label title="재생 배속">배속 <input id="simSpd" type="range" min="1" max="500" value="40" style="width:80px"></label>
+          <label title="절단 속도 (mm/s)">절단 <input id="simCut" class="mini" type="number" min="1" max="500" value="10"></label>
+          <label title="새김 속도 (mm/s)">새김 <input id="simEng" class="mini" type="number" min="1" max="1000" value="150"></label>
+          <span id="simInfo" class="out" style="color:var(--sub)"></span>
+          <label class="chk" style="margin:0" title="레이저가 꺼진 채 이동하는 경로 보이기"><input type="checkbox" id="simTrv"> 이동선</label></div></div>
       <div class="view hide" id="view3d"><div class="badge3d" id="badge3d"></div><div id="cube" title="면을 누르면 그 방향에서 봅니다"></div><div id="dimLabels"></div></div>
       <div class="viewtools">
         <button class="btn small" id="undoBtn" disabled title="실행 취소 (Ctrl+Z)" aria-label="실행 취소">↶</button>
@@ -409,10 +430,13 @@ dialog#prefs .row label{flex-basis:70px}
         <option value="0.1">0.1 mm</option>
         <option value="0.2">0.2 mm</option>
       </select></div>
-    <h2>레이저 (SVG·DXF)</h2>
+    <div class="g-laser">
+    <h2>레이저 가공 (SVG·DXF)</h2>
     <div class="row"><label for="kerf" title="레이저 빔이 지나간 폭만큼 재료가 없어집니다. 그 폭(mm)을 넣으면 바깥 윤곽을 절반만큼 키워, 잘려 나온 조각이 정확한 크기가 됩니다(구멍은 그만큼 작아짐). 0이면 그대로.">절단 폭 보정</label>
       <input id="kerf" class="mini" type="number" min="0" max="2" step="0.05" value="0" title="빔 폭 (mm)">
       <button class="btn small" id="laserOpsBtn" title="색마다 절단·새김·제외를 정합니다">색상별 작업…</button></div>
+    </div>
+    <div class="g-3d">
     <h2>3D 출력 (STL·3MF)</h2>
     <div class="row"><label for="thick" title="텍스트·색 기본 두께 (mm)">두께 (mm)</label>
       <input id="thick" class="mini" type="number" min="0.2" max="200" step="0.2" value="3" title="기본 두께 (mm)"></div>
@@ -426,6 +450,8 @@ dialog#prefs .row label{flex-basis:70px}
     <div class="row hide" id="edgeOpts" style="margin-left:12px">
       <label class="chk" style="margin:0 10px 0 0"><input type="checkbox" id="edgeColor" checked> 텍스트·색</label>
       <label class="chk" style="margin:0"><input type="checkbox" id="edgeBase" checked> 받침·턱</label></div>
+    </div>
+    <div class="g-base g-3d">
     <label class="chk"><input type="checkbox" id="baseOn"> 받침판</label>
     <div id="baseOpts" class="sub hide">
       <div class="row"><label for="baseShape">모양</label>
@@ -469,6 +495,8 @@ dialog#prefs .row label{flex-basis:70px}
         <input id="ringDy" class="mini" style="width:68px" type="number" step="0.5" value="0" title="세로 이동 (mm, +위)">
         <button class="btn small" id="ringReset" title="자동 위치로">↺</button></div>
     </div>
+    </div>
+    <div class="g-kc">
     <label class="chk" title="MX 스위치용 키캡 몸체를 만들어 윗면에 지금 글자·그림을 올립니다 (받침판·고리와는 함께 쓰지 않음)"><input type="checkbox" id="kcOn"> ⌨ 키캡 (MX)</label>
     <div id="kcOpts" class="sub hide">
       <div class="row"><label for="kcU" style="flex-basis:44px">크기</label>
@@ -489,6 +517,7 @@ dialog#prefs .row label{flex-basis:70px}
       <div class="row"><label for="kcStem" title="십자 스템 길이: 기본(4.6mm) 또는 키캡 바닥까지 닿게" style="flex-basis:52px">스템</label>
         <select id="kcStem" class="grow" style="min-width:96px"><option value="std" selected>기본 길이</option><option value="floor">바닥까지 닿게</option></select></div>
       <div id="kcInfo" class="note2" style="font-size:12px;color:var(--sub);margin:2px 0 4px"></div>
+    </div>
     </div>
   </aside>
 </main>
@@ -533,7 +562,7 @@ dialog#prefs .row label{flex-basis:70px}
     </ul>
     <h4>어떤 저장 버튼?</h4>
     <ul>
-      <li>MakerLab 업로드 → SVG · MakerLab / 레이저 가공 → DXF · 레이저 (RDWorks) 또는 SVG · 레이저 (LightBurn)</li>
+      <li>3D 프로그램·디자인 도구 → SVG / 레이저 가공 → DXF · 레이저 (RDWorks) 또는 SVG · 레이저 (LightBurn)</li>
       <li>3D 프린트 → 3MF(색·받침판·고리가 각각 파트) 또는 STL(한 덩어리)</li>
     </ul>
     <div class="row" style="justify-content:flex-end"><button class="btn pri" value="ok">닫기</button></div>

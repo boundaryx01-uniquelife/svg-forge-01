@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { traceImage, otsuThreshold, estimateHardEdges, estimateColorCount, parseFont, missingGlyphs, textToLayers } from './trace.js';
 import { makeModel } from './geom.js';
 import { applyEdits, hitItem } from './edit.js';
+import { createSim } from './sim.js';
 import { keycapDims } from './keycap.js';
 import { potracePathsToRings } from './pathparse.js';
 import { toFillSvg, toLaserSvg, toDxf, laserModel } from './export.js';
@@ -23,7 +24,7 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'preset', 'advImage', 'bgRow', 'removeBg', 'keepRow', 'keepInner', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'tabSim', 'viewSim', 'simCv', 'simHead', 'simPlay', 'simRst', 'simPos', 'simTime', 'simSpd', 'simCut', 'simEng', 'simTrv', 'simInfo',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear', 'edCut', 'edCutW', 'edText', 'textDlg', 'tdText', 'tdSize', 'tdColor',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -631,7 +632,7 @@ async function compute() {
     warnings.push(T(parseInt(el.colors.value, 10) > 1 ? 'Potrace 엔진은 흑백 전용이라 다색에는 기본 엔진을 썼습니다.' : 'Potrace 엔진: 디자인 보정(직선·원호·평행 등)은 적용되지 않습니다. GPL-2.0 라이선스.'));
   if (S.mode === 'image' && S.img && parseInt(el.upscale.value, 10) > 1 && Math.max(S.img.natW, S.img.natH) >= 1200)
     warnings.push(T('이미지가 이미 충분히 커서 AI 업스케일 효과가 작습니다. 작거나 흐린 이미지에 쓰세요.'));
-  if (m.ringCount <= 3000 && el.preset.value !== 'laser' && el.preset.value !== 'maker') {
+  if (m.ringCount <= 3000 && el.preset.value !== 'laser') {
     // 3D 프린트로 잘 안 나올 수 있는 부분 (얇은 선·아주 작은 조각·아주 작은 구멍)
     try {
       const r = printabilityReport(m);
@@ -642,7 +643,6 @@ async function compute() {
       if (parts.length) warnings.push(T(S.mode === 'text' ? '⚠ 출력이 잘 안 될 수 있는 부분: {list}. 너비를 키우거나 두꺼운 폰트를 써 보세요.' : '⚠ 출력이 잘 안 될 수 있는 부분: {list}. 너비를 키우거나 고급 설정의 노이즈 제거를 올려 보세요.', { list: parts.join(', ') }));
     } catch (e) {}
   }
-  if (m.layers.length > 4) warnings.push(T('색이 {n}개입니다. MakerLab 도구에는 4색 이하를 권장합니다 (색 수를 줄여 보세요).', { n: m.layers.length }));
   if (m.ringCount > 3000) warnings.push(T(S.mode === 'text' ? '도형 조각이 {n}개로 많습니다. 곡선 정밀도를 낮추면 가벼워집니다.' : "도형 조각이 {n}개로 많습니다. 고급 설정의 '노이즈 제거'나 '곡선 허용오차'를 올리면 가벼워집니다.", { n: m.ringCount }));
   if (S.flash) {
     warnings.unshift(S.flash);
@@ -1756,6 +1756,7 @@ function buildDims3d(t, geos, bb, maxH, so) {
 }
 
 function render3dIfVisible() {
+  if (S.view === 'sim') refreshSim();
   if (S.view === '3d') rebuild3d();
 }
 
@@ -1920,8 +1921,12 @@ function setView(v) {
   S.view = v;
   el.tab2d.classList.toggle('on', v === '2d');
   el.tab3d.classList.toggle('on', v === '3d');
+  el.tabSim.classList.toggle('on', v === 'sim');
   el.view2d.classList.toggle('hide', v !== '2d');
   el.view3d.classList.toggle('hide', v !== '3d');
+  el.viewSim.classList.toggle('hide', v !== 'sim');
+  if (v === 'sim') requestAnimationFrame(refreshSim);
+  else if (SIM) SIM.stop();
   el.modeView2d.classList.toggle('hide', v !== '2d');
   if (v === '3d') requestAnimationFrame(rebuild3d);
   updateEditBar();
@@ -1953,6 +1958,7 @@ el.modeImage.onclick = () => setMode('image');
 el.modeText.onclick = () => setMode('text');
 el.tab2d.onclick = () => setView('2d');
 el.tab3d.onclick = () => setView('3d');
+el.tabSim.onclick = () => setView('sim');
 el.v2Fill.onclick = () => {
   S.v2mode = 'fill';
   el.v2Fill.classList.add('on');
@@ -2017,11 +2023,17 @@ const bindRange = (input, label, fmt = (v) => v) => {
 const PRESETS = {
   keyring: { base: true, border: true, ring: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판·테두리·고리를 켰습니다. 위쪽 저장에서 노란 테두리 버튼(3MF는 색 나눔, STL은 한 덩어리)을 누르세요.' },
   print3d: { base: false, border: false, ring: false, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판 없이 도형만 만듭니다. 노란 테두리 버튼(3MF 또는 STL)으로 저장하세요.' },
-  laser: { base: false, border: false, ring: false, view3d: false, rec: ['btnLaser', 'btnDxf'], hint: '윤곽선만 저장합니다. 노란 테두리 버튼 파일을 여세요 (RDWorks는 DXF · 레이저, LightBurn은 둘 다).' },
+  laser: { base: false, border: false, ring: false, view3d: false, rec: ['btnLaser', 'btnDxf'], hint: '레이저 가공 모드: 윤곽선만 저장합니다. 색마다 절단·새김을 정하고 ▶ 작업 미리보기로 순서와 시간을 확인하세요. (RDWorks는 DXF · 레이저, LightBurn은 둘 다)' },
   keycap: { base: false, border: false, ring: false, kc: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '키캡(MX) 모드입니다. 글자·그림이 윗면에 올라갑니다. 3D 출력의 키캡 항목에서 크기·글자 방식을 바꾸세요. 스템 공차는 시험 출력으로 맞추세요.' },
-  maker: { base: false, border: false, ring: false, view3d: false, rec: ['btnFill'], hint: 'MakerLab용 SVG입니다. 노란 테두리 버튼으로 저장해 MakerLab에 올리세요.' },
 };
+function applyModeUi() {
+  const m = el.preset.value || 'free';
+  document.body.dataset.mode = m;
+  if (m === 'laser' && S.view === '3d') setView('2d');
+  if (m !== 'laser' && S.view === 'sim') setView('2d');
+}
 function showPresetRec() {
+  applyModeUi();
   const pr = PRESETS[el.preset.value];
   for (const id of ['btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf']) el[id].classList.toggle('rec', !!pr && pr.rec.includes(id));
 }
@@ -2107,7 +2119,7 @@ function on3dChange(showView) {
   el.baseImgBtn.textContent = S.baseCustom ? '🖼 ' + S.baseCustom.name.slice(0, 14) : T('모양 이미지…');
   el.ringOpts.classList.toggle('hide', !el.ringOn.checked);
   el.edgeOpts.classList.toggle('hide', el.edgeType.value === 'none');
-  if (showView && S.view !== '3d' && S.model) {
+  if (showView && S.view !== '3d' && S.model && el.preset.value !== 'laser') {
     setView('3d');
     pushHist();
     return;
@@ -2812,9 +2824,17 @@ function download(blob, name) {
     a.remove();
   }, 1500);
 }
-el.btnFill.onclick = () => S.model && download(new Blob([toFillSvg(S.model)], { type: 'image/svg+xml' }), `${safeBase()}_makerlab.svg`);
+el.btnFill.onclick = () => S.model && download(new Blob([toFillSvg(S.model)], { type: 'image/svg+xml' }), `${safeBase()}_fill.svg`);
 // ---------- 레이저: 색상별 작업(절단·새김·제외) · 절단 폭 보정 ----------
 S.laserOps = {};
+let SIM = null;
+function refreshSim() {
+  if (!S.model || S.view !== 'sim') return;
+  if (!SIM)
+    SIM = createSim({ canvas: el.simCv, head: el.simHead, play: el.simPlay, rst: el.simRst, pos: el.simPos, time: el.simTime, spd: el.simSpd, cut: el.simCut, eng: el.simEng, trv: el.simTrv, info: el.simInfo, txtPlay: T('▶ 재생'), txtPause: T('⏸ 일시정지') });
+  const lm = laserOut();
+  SIM.setModel(lm, S.model.width, S.model.height, true);
+}
 const laserOut = () => laserModel(S.model, { kerf: Math.max(0, parseFloat(el.kerf.value) || 0), ops: S.laserOps });
 function renderLaserRows() {
   const m = S.model;
