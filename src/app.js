@@ -25,7 +25,7 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'preset', 'advImage', 'bgRow', 'removeBg', 'keepRow', 'keepInner', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'tdTitle', 'tdPrint', 'tdSw', 'tdEst', 'tdMoveRow', 'tdMove', 'tdHint', 'tdDel', 'edTextEdit', 'txtSw', 'txtSwEst', 'thinBtn', 'tabSim', 'viewSim', 'simCv', 'simHead', 'simPlay', 'simRst', 'simPos', 'simTime', 'simSpd', 'simCut', 'simEng', 'simTrv', 'simInfo',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'tdTitle', 'tdPrint', 'tdSw', 'tdEst', 'tdMoveRow', 'tdMove', 'tdHint', 'tdDel', 'edTextEdit', 'txtSw', 'txtSwEst', 'thinBtn', 'bucketBar', 'bucketBtn', 'bucketCol', 'tabSim', 'viewSim', 'simCv', 'simHead', 'simPlay', 'simRst', 'simPos', 'simTime', 'simSpd', 'simCut', 'simEng', 'simTrv', 'simInfo',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear', 'edCut', 'edCutW', 'edText', 'edDrop', 'textDlg', 'tdText', 'tdSize', 'tdColor',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -599,15 +599,19 @@ async function compute() {
   const m = S.model;
   if (S.mode === 'text' && m.layers.length) {
     // 획 폭 맞추기 (3D 출력용): 폰트의 지금 획 폭을 재서 정한 폭이 되도록 굵게·가늘게
-    const allR = m.layers.flatMap((l) => l.items.map((it) => it.ring));
-    const est = strokeOf(allR, tol);
+    const allR = () => m.layers.flatMap((l) => l.items.map((it) => it.ring));
+    const est = strokeOf(allR(), tol);
     const sw = parseFloat(el.txtSw.value);
-    el.txtSwEst.textContent = T('폰트 획 약 {w}mm', { w: est.toFixed(2) });
-    if (sw > 0 && est > 0) {
-      const d = (sw + 0.05 - est) / 2; // 최소 획 폭: 가늘 때만 굵게
-      if (d > 0.005)
+    let now = est;
+    if (sw > 0 && est.min > 0) {
+      const d = (sw + 0.05 - est.min) / 2; // 최소 획 폭: 가는 곳이 정한 폭이 되게
+      if (d > 0.005) {
         m.layers = m.layers.map((l) => ({ ...l, items: buildItems(growRings(l.items.map((it) => it.ring), d, tol), tol) })).filter((l) => l.items.length);
+        now = strokeOf(allR(), tol);
+      }
     }
+    el.txtSwEst.textContent = T('지금 획: 보통 {a} · 가장 가는 곳 {b}mm', { a: now.typ.toFixed(2), b: now.min.toFixed(2) });
+    el.txtSwEst.style.color = now.min < 0.8 ? '#c92a2a' : '';
   }
   if (S.mode === 'image' && S.edits.length) applyEdits(m, S.edits, tol);
   if (S.reselect && S.selPts && S.selPts.length && S.mode === 'image') {
@@ -771,6 +775,7 @@ function render2d() {
     Object.entries({ fill: '#e9ecf2', stroke: '#9aa3b5', 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke', 'stroke-dasharray': '4 3', 'fill-rule': 'evenodd' }).forEach(([k, v]) => pl.setAttribute(k, v));
     sv.insertBefore(pl, sv.firstChild);
   }
+  el.bucketBar.style.display = S.view === '2d' && (S.mode === 'image' || S.mode === 'text') ? '' : 'none';
   // 3D 출력에 너무 가는 부분 표시 (빨강)
   const thinOn = S.thinPolys && S.thinPolys.length && el.preset.value !== 'laser';
   el.thinBtn.classList.toggle('hide', !thinOn);
@@ -924,6 +929,7 @@ function updateEditBar() {
   const it = l && l.items[q.i];
   const on = S.mode === 'image' && S.view === '2d' && !!S.model;
   el.editbar.style.display = on ? '' : 'none';
+  el.bucketBar.style.display = S.view === '2d' && S.model && (S.mode === 'image' || S.mode === 'text') ? '' : 'none';
   el.editbar.classList.toggle('nosel', !it);
   el.edTextEdit.classList.toggle('hide', !(it && addAtSel()));
   if (it && S.sels.length > 1) {
@@ -1261,6 +1267,7 @@ window.addEventListener('keydown', (e) => {
     }
     if (e.key === 'Escape') return setSels([], []);
   }
+  if (S.bucket && e.key === 'Escape') return setBucket(false);
   if (S.eyedrop && e.key === 'Escape') return setDrop(false);
   if (S.placeText && e.key === 'Escape') return setPlace(false);
   if (S.cutMode && e.key === 'Escape') return setCut(false);
@@ -1298,6 +1305,15 @@ function setCut(on) {
   el.view2d.style.cursor = S.cutMode ? 'crosshair' : '';
 }
 el.edScope.onchange = updateEditBar;
+const BUCKET_CUR = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><text x="0" y="20" font-size="18">🪣</text></svg>')}") 3 20, crosshair`;
+function setBucket(on) {
+  S.bucket = !!on;
+  if (on) (setCut(false), setDrop(false), S.placeText && setPlace(false));
+  el.bucketBtn.classList.toggle('on', S.bucket);
+  el.view2d.style.cursor = S.bucket ? BUCKET_CUR : '';
+}
+el.bucketBtn.onclick = () => setBucket(!S.bucket);
+el.bucketCol.addEventListener('change', () => setBucket(true));
 el.thinBtn.onclick = () => {
   S.showThin = S.showThin === false;
   render2d();
@@ -1352,7 +1368,7 @@ async function updTdEst() {
   if (my !== tdEstSeq || !rings.length) return;
   const s = Math.max(0.1, parseFloat(el.tdSize.value) || 5) / 100;
   const w = strokeOf(rings.map((r) => r.map((c) => c.map((v, i) => (i ? v * s : v)))));
-  el.tdEst.textContent = T('이 크기에서 지금 획 폭은 약 {w}mm', { w: w.toFixed(2) }) + (w < 0.8 ? ' — ' + T('3D 출력엔 가늘어요') : '');
+  el.tdEst.textContent = T('이 크기에서 획: 보통 {a} · 가장 가는 곳 {b}mm', { a: w.typ.toFixed(2), b: w.min.toFixed(2) }) + (w.min < 0.8 ? ' — ' + T('3D 출력엔 가늘어요') : '');
 }
 function openTd(editIdx) {
   S.tdEdit = editIdx;
@@ -1531,6 +1547,33 @@ el.view2d.addEventListener(
       cutDrag = { a: [P.x, P.y], b: [P.x, P.y], ctm, id: e.pointerId };
       el.view2d.setPointerCapture(e.pointerId);
       e.preventDefault();
+      return;
+    }
+    if (S.bucket && ctm && S.model && (S.mode === 'image' || S.mode === 'text')) {
+      const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+      e.preventDefault();
+      const to = el.bucketCol.value.toLowerCase();
+      if (S.mode === 'image') {
+        const h = hitItem(S.model, P.x, P.y);
+        if (!h) return;
+        if (e.altKey) return (el.bucketCol.value = h.c);
+        const sh = S.model.editShift || [0, 0];
+        S.edits.push({ t: 'fill', x: P.x + sh[0], y: P.y + sh[1], to, w0: curW() });
+        S.editsKey = S.traceKey;
+        clearSel();
+        S.chain = null;
+        schedule(0);
+      } else if (S.model.chars) {
+        let hit = null, ha = Infinity;
+        for (const c of S.model.chars) {
+          const b = charBoxMm(c.i);
+          const a = b && (b[2] - b[0]) * (b[3] - b[1]);
+          if (b && P.x >= b[0] && P.x <= b[2] && P.y >= b[1] && P.y <= b[3] && a < ha) (hit = c.i), (ha = a);
+        }
+        if (hit == null) return;
+        if (e.altKey) return (el.bucketCol.value = (S.charStyles[hit] || {}).color || '#000000');
+        setCharStyle(hit, { color: to });
+      }
       return;
     }
     if (S.eyedrop && S.mode === 'image' && ctm && S.model) {
@@ -3231,6 +3274,7 @@ el.btn3mf.onclick = async () => {
 };
 
 window.__svgforge = S;
+window.__strokeOf = strokeOf; // 테스트용
 Object.defineProperty(S, 'cam', { get: () => (G3 && !G3.failed ? G3.camera.position.toArray() : null) }); // 테스트용
 Object.defineProperty(S, 'fov', { get: () => (G3 && !G3.failed ? G3.camera.fov : null) }); // 테스트용
 Object.defineProperty(S, 'tgt', { get: () => (G3 && !G3.failed ? G3.controls.target.toArray() : null) }); // 테스트용

@@ -134,6 +134,9 @@ button.swbtn{width:34px;height:28px;padding:0;border:1px solid var(--line);borde
 button.swbtn:disabled{opacity:.5;cursor:default}
 #editbar button.swbtn{width:26px;height:22px;border-radius:4px;border-color:#bbb}
 #wallOpts .mini{width:56px}
+.bucketbar{display:inline-flex;align-items:center;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:2px 4px}
+.bucketbar button.swbtn{width:26px;height:22px}
+#bucketBtn.on{background:var(--pri);color:#fff;border-color:var(--pri)}
 .tilepop{position:fixed;z-index:10000;display:grid;grid-template-columns:repeat(5,30px);gap:4px;padding:8px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.22)}
 .tilepop .tilelbl{grid-column:1/-1;font-size:11px;color:var(--sub);margin-top:2px}
 .tilepop .tile{width:30px;height:30px;border:1px solid rgba(0,0,0,.25);border-radius:6px;padding:0;cursor:pointer}
@@ -373,7 +376,8 @@ dialog#prefs .row label{flex-basis:70px}
       <div class="row"><label for="lineH">줄 간격</label>
         <input id="lineH" class="grow" type="range" min="0.8" max="2" step="0.05" value="1.2"><span class="val" id="lineHVal">1.20</span></div>
       <div class="row"><label for="txtSw" title="3D 프린트·키캡용: 획이 이 폭(mm)보다 가늘면 그만큼 굵게 합니다. 노즐 0.4mm면 0.8mm 권장. 비우면 폰트 그대로">최소 획 폭</label>
-        <input id="txtSw" class="mini" type="number" min="0.2" max="5" step="0.1" placeholder="그대로"><span class="val" style="flex:0 0 auto">mm</span><span class="val" id="txtSwEst" style="flex:1 1 auto;text-align:right"></span></div>
+        <input id="txtSw" class="mini" type="number" min="0.2" max="5" step="0.1" placeholder="그대로"><span class="val" style="flex:0 0 auto">mm</span></div>
+      <p class="hint" id="txtSwEst" style="margin-top:0"></p>
       <h2>글자별 조절</h2>
       <div id="charChips" class="charchips"></div>
       <p class="hint" id="charHint">글자를 고르거나 미리보기에서 글자를 눌러 끌면 옮겨집니다 (방향키로 미세 이동). 상자의 모서리 점은 크기, 위의 ● 점은 회전입니다.</p>
@@ -403,6 +407,7 @@ dialog#prefs .row label{flex-basis:70px}
       <div id="modeView2d" class="tabs">
         <button id="v2Fill" class="on">채움</button><button id="v2Line">윤곽선</button>
       </div>
+      <span id="bucketBar" class="bucketbar" style="display:none"><button class="btn small" id="bucketBtn" title="페인트 통: 색을 고르고 켠 뒤, 미리보기에서 칠할 면(도형·글자·빈 구멍)을 누르면 그 색으로 채웁니다. 여러 번 눌러 계속 칠할 수 있고 Alt+클릭은 그 면의 색을 집어옵니다. Esc로 끄기">🪣 채우기</button><input id="bucketCol" type="color" value="#e53935" title="채울 색"></span>
       <div id="editbar" style="display:none">
         <span id="edInfo" class="edinfo"></span>
         <span class="edgrp edcut"><button class="btn small" id="edText" title="글자 넣기: 글자·크기·색을 정하고 미리보기에서 놓을 곳을 누르면 그 자리에 들어갑니다 (현재 글꼴 사용). Esc로 취소">T 글자</button><button class="btn small" id="edCut" title="연결된 부분을 끊기: 켜고 미리보기에서 끊을 곳을 가로질러 끌면 (화면 이동은 휠 버튼 끌기) 그 선을 따라 도려냅니다 (선택한 도형이 있으면 그 도형만, 없으면 닿는 모든 도형). Esc로 끄기">✂ 끊기</button><input id="edCutW" class="mini" type="number" min="0.05" max="5" step="0.05" value="0.3" title="끊은 틈의 폭 (mm)"><span class="val" style="flex:0 0 auto">mm</span></span>

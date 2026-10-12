@@ -119,20 +119,69 @@ function knock(model, color, rings, tol) {
     model.layers[li] = { ...L, items: buildItems(rs, tol) };
   }
 }
-/** 고리(ring 명령)들의 평균 획 폭 추정 (mm): 2 × 면적 ÷ 둘레 (가는 띠일수록 정확) */
+/** 획 폭 재기 (mm): 그림으로 그려 거리 변환 → 획 가운데 선(능선)의 폭을 모음. { typ: 보통 폭, min: 가장 가는 곳(하위 10%) } */
 export function strokeOf(rings, tol = 0.05) {
   const items = buildItems(rings, tol);
-  if (!items.length) return 0;
+  if (!items.length) return { typ: 0, min: 0 };
   const c = new ClipperLib.Clipper();
   c.AddPaths(toPaths(items), ClipperLib.PolyType.ptSubject, true);
   const u = new ClipperLib.Paths();
   c.Execute(ClipperLib.ClipType.ctUnion, u, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
-  let A = 0, P = 0;
-  for (const q of u) {
-    A += ClipperLib.Clipper.Area(q) / (SC * SC);
-    for (let i = 0, j = q.length - 1; i < q.length; j = i++) P += Math.hypot(q[i].X - q[j].X, q[i].Y - q[j].Y) / SC;
-  }
-  return P > 0 ? (2 * Math.abs(A)) / P : 0;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of u) for (const q of p) (q.X < x0 && (x0 = q.X), q.X > x1 && (x1 = q.X), q.Y < y0 && (y0 = q.Y), q.Y > y1 && (y1 = q.Y));
+  if (!isFinite(x0)) return { typ: 0, min: 0 };
+  const Wmm = (x1 - x0) / SC, Hmm = (y1 - y0) / SC;
+  const res = Math.max(4, Math.min(40, 1600 / Math.max(Wmm, Hmm, 0.1))); // px/mm
+  const W = Math.ceil(Wmm * res) + 4, H = Math.ceil(Hmm * res) + 4;
+  const cv = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(W, H) : Object.assign(document.createElement('canvas'), { width: W, height: H });
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  for (const p of u) p.forEach((q, i) => (i ? ctx.lineTo : ctx.moveTo).call(ctx, ((q.X - x0) / SC) * res + 2, ((q.Y - y0) / SC) * res + 2));
+  ctx.fill('nonzero');
+  const img = ctx.getImageData(0, 0, W, H).data;
+  // 안쪽 픽셀 → 바깥까지 거리 (Felzenszwalb 제곱 거리 변환)
+  const INF = 1e12, f = new Float64Array(W * H);
+  for (let i = 0; i < W * H; i++) f[i] = img[i * 4 + 3] > 127 ? INF : 0;
+  const n = Math.max(W, H), d = new Float64Array(n), v = new Int32Array(n), z = new Float64Array(n + 1), g = new Float64Array(n);
+  const pass = (len, get, set) => {
+    for (let q = 0; q < len; q++) g[q] = get(q);
+    let k = 0;
+    v[0] = 0;
+    z[0] = -INF;
+    z[1] = INF;
+    for (let q = 1; q < len; q++) {
+      let sx = (g[q] + q * q - (g[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+      while (sx <= z[k]) {
+        k--;
+        sx = (g[q] + q * q - (g[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+      }
+      k++;
+      v[k] = q;
+      z[k] = sx;
+      z[k + 1] = INF;
+    }
+    k = 0;
+    for (let q = 0; q < len; q++) {
+      while (z[k + 1] < q) k++;
+      d[q] = (q - v[k]) * (q - v[k]) + g[v[k]];
+    }
+    for (let q = 0; q < len; q++) set(q, d[q]);
+  };
+  for (let x = 0; x < W; x++) pass(H, (y) => f[y * W + x], (y, val) => (f[y * W + x] = val));
+  for (let y = 0; y < H; y++) pass(W, (x) => f[y * W + x], (x, val) => (f[y * W + x] = val));
+  const widths = [];
+  for (let y = 1; y < H - 1; y++)
+    for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x, dv = f[i];
+      if (dv < 2.25) continue; // 1.5px 미만은 가장자리 잡음
+      let top = true;
+      for (let dy = -1; dy <= 1 && top; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && f[i + dy * W + dx] > dv) { top = false; break; }
+      if (top) widths.push((2 * Math.sqrt(dv) - 0.5) / res);
+    }
+  if (!widths.length) return { typ: 1 / res, min: 1 / res };
+  widths.sort((a, b) => a - b);
+  return { typ: widths[Math.floor(widths.length / 2)], min: widths[Math.floor(widths.length * 0.1)] };
 }
 /** 고리들을 d(mm)만큼 굵게(+)·가늘게(−) — 글자 획 폭 맞추기 */
 export function growRings(rings, d, tol = 0.05) {
@@ -199,7 +248,7 @@ export function applyEdits(model, edits, tol) {
       let nr = e.rings.map((r) => transformRing(transformRing(r, sc, mx, my), 1, -e.x * k, -e.y * k));
       // 획 폭 맞추기: 정한 폭(mm, 너비와 상관없는 출력 기준)이 되도록 굵게/가늘게
       if (e.sw > 0) {
-        const cur = strokeOf(nr, tol);
+        const cur = strokeOf(nr, tol).min;
         const d = (e.sw + 0.05 - cur) / 2; // 최소 획 폭: 가는 글자만 굵게 (굵은 글자는 그대로)
         if (d > 0.005) nr = growRings(nr, d, tol);
       }
@@ -218,6 +267,42 @@ export function applyEdits(model, edits, tol) {
     if (e.t === 'cut') {
       cutLine(model, e, tol);
       continue;
+    }
+    if (e.t === 'fill') {
+      // 페인트 통: 누른 점의 면을 칠함. 도형이면 색을 바꾸고, 빈 구멍이면 그 빈 곳(안의 다른 도형 제외)을 새 색으로 채움
+      const px = e.x * k, py = e.y * k;
+      const h = hitItem(model, px, py);
+      if (!h) continue;
+      const L = model.layers.find((l) => l.color === h.c);
+      const it = L.items[h.i];
+      if (!it.hole) {
+        if (h.c === e.to) continue;
+        e = { t: 'col', c: h.c, is: [h.i], to: e.to };
+      } else {
+        const out = new ClipperLib.Paths();
+        // 빈 곳 = 구멍 − (모든 색의 칠해진 면). 색마다 짝홀 규칙이 같아서 합쳐도 같은 결과
+        const filled = new ClipperLib.Paths();
+        const U = new ClipperLib.Clipper();
+        for (const l of model.layers) {
+          const one = new ClipperLib.Paths();
+          const cl = new ClipperLib.Clipper();
+          cl.AddPaths(toPaths(l.items), ClipperLib.PolyType.ptSubject, true);
+          cl.Execute(ClipperLib.ClipType.ctUnion, one, ClipperLib.PolyFillType.pftEvenOdd, ClipperLib.PolyFillType.pftEvenOdd);
+          U.AddPaths(one, ClipperLib.PolyType.ptSubject, true);
+        }
+        U.Execute(ClipperLib.ClipType.ctUnion, filled, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+        const D = new ClipperLib.Clipper();
+        D.AddPaths(toPaths([it]), ClipperLib.PolyType.ptSubject, true);
+        D.AddPaths(filled, ClipperLib.PolyType.ptClip, true);
+        D.Execute(ClipperLib.ClipType.ctDifference, out, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+        const rs = out.filter((p) => p.length >= 3).map((p) => closeRing(p.map((q, i) => [i ? 'L' : 'M', q.X / SC, q.Y / SC])));
+        if (!rs.length) continue;
+        let T0 = model.layers.find((l) => l.color === e.to);
+        if (!T0) model.layers.push((T0 = { color: e.to, items: [] }));
+        const ti = model.layers.indexOf(T0);
+        model.layers[ti] = fixOverlap({ ...T0, items: buildItems(T0.items.map((x) => x.ring).concat(rs), tol) }, tol);
+        continue;
+      }
     }
     if (e.t === 'minw') {
       // 가는 부분 보정 (출력용 최소 폭 m mm — 노즐 기준이라 너비와 상관없이 그대로). 늘어난 부분은 다른 색에서 도려냄
