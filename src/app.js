@@ -1238,14 +1238,27 @@ el.view2d.addEventListener(
     if (cutDrag) {
       const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(cutDrag.ctm.inverse());
       cutDrag.b = [P.x, P.y];
-      let ln = el.view2d.querySelector('svg line.cutline');
       const sv = el.view2d.querySelector('svg');
-      if (!ln && sv) {
-        ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        Object.entries({ class: 'cutline', stroke: '#e11d48', 'stroke-width': 2, 'stroke-dasharray': '5 3', 'vector-effect': 'non-scaling-stroke', 'pointer-events': 'none' }).forEach(([k, v]) => ln.setAttribute(k, v));
-        sv.appendChild(ln);
+      let g = sv && sv.querySelector('g.cutline');
+      if (sv && !g) {
+        const NS = 'http://www.w3.org/2000/svg';
+        g = document.createElementNS(NS, 'g');
+        g.setAttribute('class', 'cutline');
+        g.setAttribute('pointer-events', 'none');
+        const pg = document.createElementNS(NS, 'polygon'), ln = document.createElementNS(NS, 'line');
+        Object.entries({ fill: 'rgba(225,29,72,.35)', stroke: '#e11d48', 'stroke-width': 1.2, 'vector-effect': 'non-scaling-stroke' }).forEach(([k, v]) => pg.setAttribute(k, v));
+        Object.entries({ stroke: '#e11d48', 'stroke-width': 1, 'stroke-dasharray': '4 3', 'vector-effect': 'non-scaling-stroke' }).forEach(([k, v]) => ln.setAttribute(k, v));
+        g.append(pg, ln);
+        sv.appendChild(g);
       }
-      if (ln) Object.entries({ x1: cutDrag.a[0], y1: cutDrag.a[1], x2: cutDrag.b[0], y2: cutDrag.b[1] }).forEach(([k, v]) => ln.setAttribute(k, v));
+      if (g) {
+        // 실제로 지워지는 범위(폭 w mm)를 그대로 보여 줌
+        const [ax, ay] = cutDrag.a, [bx, by] = cutDrag.b, L = Math.hypot(bx - ax, by - ay) || 1;
+        const w = Math.min(5, Math.max(0.05, parseFloat(el.edCutW.value) || 0.3)) / 2;
+        const nx = (-(by - ay) / L) * w, ny = ((bx - ax) / L) * w;
+        g.firstChild.setAttribute('points', `${ax + nx},${ay + ny} ${bx + nx},${by + ny} ${bx - nx},${by - ny} ${ax - nx},${ay - ny}`);
+        Object.entries({ x1: ax, y1: ay, x2: bx, y2: by }).forEach(([k, v]) => g.lastChild.setAttribute(k, v));
+      }
       return;
     }
     if (hd) {
@@ -1297,8 +1310,8 @@ el.view2d.addEventListener(
     if (cutDrag) {
       const c = cutDrag;
       cutDrag = null;
-      const ln = el.view2d.querySelector('svg line.cutline');
-      if (ln) ln.remove();
+      const cg = el.view2d.querySelector('svg g.cutline');
+      if (cg) cg.remove();
       const sh = (S.model && S.model.editShift) || [0, 0];
       if (e && e.type === 'pointerup' && Math.hypot(c.b[0] - c.a[0], c.b[1] - c.a[1]) > 0.3) {
         const whole = el.edScope.value === 'color';
