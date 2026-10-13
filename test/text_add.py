@@ -6,7 +6,7 @@ with sync_playwright() as p:
     pg.goto('file:///home/claude/svg-forge/dist/svg-forge.html'); pg.set_input_files('#file','in/logo.png'); time.sleep(3)
     st=lambda: pg.inner_text('#status').split('\n')[0]
     r={'orig':st()}
-    pg.click('#edText'); pg.fill('#tdText','AB 한글'); pg.fill('#tdSize','10'); pg.fill('#tdColor','#ff0000') if False else pg.evaluate("()=>{const c=document.querySelector('#tdColor');c.value='#ff0000';c.dispatchEvent(new Event('input'))}")
+    pg.click('#edText'); pg.fill('#tdText','AB 한글'); pg.fill('#tdSize','10'); pg.evaluate("()=>{const c=document.querySelector('#tdColor');c.value='#ff0000';c.dispatchEvent(new Event('input',{bubbles:true}));c.dispatchEvent(new Event('change',{bubbles:true}))}") if False else pg.evaluate("()=>{const c=document.querySelector('#tdColor');c.value='#ff0000';c.dispatchEvent(new Event('input'))}")
     pg.click('#textDlg button[value=ok]'); time.sleep(1)
     r['placing']=pg.evaluate("()=>document.querySelector('#edText').classList.contains('on')")
     bb=pg.evaluate("()=>{const s=document.querySelector('#view2d svg');const r=s.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height*0.85]}")

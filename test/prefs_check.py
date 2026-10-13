@@ -17,7 +17,7 @@ with sync_playwright() as p:
     pg.fill('#edgeSize','9'); pg.dispatch_event('#edgeSize','input'); time.sleep(1.5)
     res['edge_after_9']=(pg.input_value('#edgeSize'), pg.get_attribute('#edgeSize','max'), pg.inner_text('#badge3d'))
     pg.click('#prefsBtn'); time.sleep(0.3)
-    pg.fill('#pDimColor','#e0205a'); pg.dispatch_event('#pDimColor','input')
+    pg.evaluate("()=>{const c=document.querySelector('#pDimColor');c.value='#e0205a';c.dispatchEvent(new Event('input',{bubbles:true}));c.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.dispatch_event('#pDimColor','input')
     pg.select_option('#pBg3d','dark'); pg.select_option('#pDimSize','1.3'); time.sleep(0.8)
     pg.screenshot(path=str(OUT/'prefs_dialog.png'))
     pg.click('#prefs button[value=close]'); time.sleep(0.8)

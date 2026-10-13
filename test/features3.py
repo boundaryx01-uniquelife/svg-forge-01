@@ -17,7 +17,7 @@ with sync_playwright() as p:
     pg.locator('.chchip').nth(1).click(); time.sleep(0.3)
     pg.fill('#chScale','200'); pg.dispatch_event('#chScale','input'); wait(pg)
     res['B_x2']=pg.evaluate(M)
-    pg.fill('#chDz','1.5'); pg.dispatch_event('#chDz','input'); pg.fill('#chColor','#d62828'); pg.dispatch_event('#chColor','input'); wait(pg)
+    pg.fill('#chDz','1.5'); pg.dispatch_event('#chDz','input'); pg.evaluate("()=>{const c=document.querySelector('#chColor');c.value='#d62828';c.dispatchEvent(new Event('input',{bubbles:true}));c.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.dispatch_event('#chColor','input'); wait(pg)
     res['B_dz_color']=pg.evaluate(M)
     # 2D에서 C 끌기
     box=pg.evaluate("()=>{const b=document.querySelector('#view2d svg').getBoundingClientRect();return [b.x,b.y,b.width,b.height]}")
