@@ -1,0 +1,474 @@
+<title>수업 도구 만들기 핸드북</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Serif+KR:wght@600;700&display=swap">
+<style>
+/* 레이아웃: 좌측 고정 목차 + 본문 한 줄. 모바일에서는 상단 가로 스크롤 목차로 접힘. */
+:root{
+  --paper:#FBFCFC; --surface:#FFFFFF; --ink:#13232B; --ink-soft:#4C6472;
+  --rule:#D9E3E6; --grid:#EAF1F3;
+  --accent:#0E6A73;        /* 제도용 청록 잉크 */
+  --accent-soft:#E3F0F1;
+  --brass:#A8761A;         /* 작업 표시·강조 */
+  --brass-soft:#FAF0DC;
+  --alert:#A3301F; --alert-soft:#FBEAE7;
+  --ok:#1E6B45; --ok-soft:#E6F2EB;
+  --code-bg:#15262E; --code-fg:#DCE9ED; --code-dim:#7D9BA6;
+  --f-display:"Noto Serif KR",serif;
+  --f-body:"IBM Plex Sans KR","Malgun Gothic",sans-serif;
+  --f-mono:"IBM Plex Mono","D2Coding",monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --paper:#0E181D; --surface:#14232A; --ink:#E7F0F2; --ink-soft:#9DB4BD;
+  --rule:#273C45; --grid:#1B2E36;
+  --accent:#54BFC4; --accent-soft:#143037;
+  --brass:#D9A441; --brass-soft:#2E2512;
+  --alert:#E58C7C; --alert-soft:#33201C;
+  --ok:#6FC79B; --ok-soft:#142C21;
+  --code-bg:#0A1317; --code-fg:#D6E6EA; --code-dim:#6F8D99;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --paper:#0E181D; --surface:#14232A; --ink:#E7F0F2; --ink-soft:#9DB4BD;
+  --rule:#273C45; --grid:#1B2E36;
+  --accent:#54BFC4; --accent-soft:#143037;
+  --brass:#D9A441; --brass-soft:#2E2512;
+  --alert:#E58C7C; --alert-soft:#33201C;
+  --ok:#6FC79B; --ok-soft:#142C21;
+  --code-bg:#0A1317; --code-fg:#D6E6EA; --code-dim:#6F8D99;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--f-body); font-size:16px; line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{display:grid; grid-template-columns:232px minmax(0,1fr); gap:44px; max-width:1180px; margin:0 auto; padding:0 20px}
+@media (max-width:860px){ .wrap{grid-template-columns:minmax(0,1fr); gap:0} }
+
+/* ── 목차 ── */
+nav{position:sticky; top:env(safe-area-inset-top,0px); align-self:start; padding-block:36px 24px}
+nav .navtitle{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:14px}
+nav ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px}
+nav a{display:flex; gap:9px; align-items:baseline; padding:6px 8px; border-radius:6px; text-decoration:none; color:var(--ink-soft); font-size:14px; line-height:1.4}
+nav a:hover{background:var(--accent-soft); color:var(--accent)}
+nav a .n{font-family:var(--f-mono); font-size:11px; color:var(--accent); flex:none}
+@media (max-width:860px){
+  nav{position:sticky; top:env(safe-area-inset-top,0px); z-index:9; background:var(--paper); border-bottom:1px solid var(--rule); padding-block:10px; margin:0 -20px; padding-inline:20px}
+  nav .navtitle{display:none}
+  nav ol{flex-direction:row; overflow-x:auto; gap:4px; scrollbar-width:none}
+  nav ol::-webkit-scrollbar{display:none}
+  nav a{white-space:nowrap; border:1px solid var(--rule)}
+}
+main{padding-block:0 72px; min-width:0}
+
+/* ── 머리 ── */
+header.hero{padding-block:48px 34px; border-bottom:2px solid var(--ink)}
+.eyebrow{display:inline-block; font-family:var(--f-mono); font-size:12px; letter-spacing:.08em; color:var(--brass); border:1px solid var(--brass); padding:3px 10px; border-radius:3px; margin-bottom:18px}
+h1{font-family:var(--f-display); font-size:clamp(30px,5.4vw,44px); line-height:1.25; margin:0 0 14px; text-wrap:balance; letter-spacing:-.01em}
+.lede{font-size:17px; color:var(--ink-soft); max-width:62ch; margin:0}
+.byline{margin-top:20px; font-family:var(--f-mono); font-size:12.5px; color:var(--ink-soft)}
+
+/* ── 수치 띠 ── */
+.facts{display:grid; grid-template-columns:repeat(4,1fr); gap:0; border:1px solid var(--rule); border-radius:8px; overflow:hidden; margin:26px 0 0; background:var(--surface)}
+@media (max-width:620px){ .facts{grid-template-columns:repeat(2,1fr)} }
+.fact{padding:16px 16px 14px; border-right:1px solid var(--rule)}
+.fact:last-child{border-right:0}
+@media (max-width:620px){ .fact:nth-child(2){border-right:0} .fact:nth-child(-n+2){border-bottom:1px solid var(--rule)} }
+.fact b{display:block; font-family:var(--f-mono); font-size:27px; font-weight:500; color:var(--accent); line-height:1.1; font-variant-numeric:tabular-nums}
+.fact span{display:block; font-size:12.5px; color:var(--ink-soft); margin-top:5px}
+
+section{padding-block:38px 6px; scroll-margin-top:72px}
+h2{font-family:var(--f-display); font-size:25px; margin:0 0 6px; letter-spacing:-.01em; text-wrap:balance}
+h2 .num{font-family:var(--f-mono); font-size:13px; color:var(--accent); margin-right:10px; font-weight:500}
+.sub{color:var(--ink-soft); margin:0 0 22px; font-size:15.5px; max-width:64ch}
+h3{font-size:16.5px; margin:26px 0 10px}
+p{max-width:66ch}
+
+/* ── 프롬프트 카드 ── */
+.pcard{background:var(--code-bg); border-radius:10px; padding:16px 18px 14px; margin:14px 0; position:relative}
+.pcard .plabel{font-family:var(--f-mono); font-size:11px; letter-spacing:.08em; color:var(--code-dim); text-transform:uppercase; margin-bottom:9px; display:block}
+.pcard pre{font-family:var(--f-mono); font-size:13.5px; line-height:1.72; color:var(--code-fg); margin:0; white-space:pre-wrap; word-break:break-word}
+.copy{position:absolute; top:12px; right:12px; font-family:var(--f-body); font-size:12px; font-weight:500; color:var(--code-fg); background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); border-radius:5px; padding:4px 10px; cursor:pointer}
+.copy:hover{background:rgba(255,255,255,.2)}
+.copy.done{background:var(--ok); border-color:var(--ok); color:#fff}
+.copy:focus-visible,a:focus-visible,button:focus-visible{outline:2px solid var(--brass); outline-offset:2px}
+.filled{border:1px solid var(--rule); border-left:3px solid var(--brass); background:var(--surface); border-radius:0 8px 8px 0; padding:13px 16px; font-size:14.5px; margin:10px 0 0}
+.filled em{display:block; font-style:normal; font-family:var(--f-mono); font-size:11px; letter-spacing:.07em; text-transform:uppercase; color:var(--brass); margin-bottom:6px}
+
+/* ── 단계 카드 ── */
+.steps{display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin:4px 0 8px}
+@media (max-width:760px){ .steps{grid-template-columns:repeat(2,1fr)} }
+@media (max-width:420px){ .steps{grid-template-columns:1fr} }
+.step{border:1px solid var(--rule); border-top:3px solid var(--accent); border-radius:0 0 8px 8px; padding:13px 14px; background:var(--surface); min-width:0}
+.step b{display:block; font-size:15.5px; margin-bottom:4px}
+.step span{font-size:13.5px; color:var(--ink-soft)}
+.step .k{font-family:var(--f-mono); font-size:11px; color:var(--accent)}
+
+/* ── 비교 ── */
+.vs{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:14px 0}
+@media (max-width:680px){ .vs{grid-template-columns:1fr} }
+.vs>div{border-radius:8px; padding:14px 16px; font-size:14.5px; min-width:0}
+.vs .bad{background:var(--alert-soft); border:1px solid var(--alert-soft)}
+.vs .good{background:var(--ok-soft); border:1px solid var(--ok-soft)}
+.vs b{display:block; font-family:var(--f-mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; margin-bottom:7px}
+.vs .bad b{color:var(--alert)} .vs .good b{color:var(--ok)}
+.vs q{display:block; font-size:15.5px; font-weight:600; margin-bottom:5px; quotes:'"' '"'}
+.vs p{margin:0; color:var(--ink-soft); font-size:13.5px}
+
+/* ── 표 ── */
+.tablewrap{overflow-x:auto; margin:16px 0; border:1px solid var(--rule); border-radius:8px}
+table{border-collapse:collapse; width:100%; min-width:520px; background:var(--surface); font-size:14.5px}
+th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--rule); vertical-align:top}
+th{background:var(--grid); font-size:12.5px; letter-spacing:.04em; color:var(--ink-soft); font-weight:600; white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.day{font-family:var(--f-mono); font-size:13px; color:var(--accent); white-space:nowrap}
+
+/* ── 체크리스트 ── */
+.checks{display:grid; gap:7px; margin:14px 0}
+.check{display:flex; gap:11px; align-items:flex-start; border:1px solid var(--rule); border-radius:8px; padding:11px 14px; background:var(--surface); cursor:pointer; min-width:0}
+.check input{margin:3px 0 0; width:17px; height:17px; accent-color:var(--accent); flex:none; cursor:pointer}
+.check span{font-size:15px; min-width:0}
+.check small{display:block; color:var(--ink-soft); font-size:13px; margin-top:2px}
+.check.on span{color:var(--ink-soft); text-decoration:line-through; text-decoration-color:var(--rule)}
+.progress{font-family:var(--f-mono); font-size:12.5px; color:var(--ink-soft); margin-top:10px}
+
+/* ── 실수 목록 ── */
+.miss{display:grid; gap:8px; margin:14px 0}
+.miss div{display:flex; gap:13px; border-left:3px solid var(--alert); background:var(--surface); border-radius:0 7px 7px 0; padding:11px 15px; min-width:0}
+.miss .mn{font-family:var(--f-mono); font-size:12px; color:var(--alert); flex:none; padding-top:2px}
+.miss b{font-size:15px; display:block}
+.miss small{color:var(--ink-soft); font-size:13.5px}
+
+.callout{background:var(--accent-soft); border-radius:8px; padding:14px 18px; font-size:15px; margin:20px 0; max-width:none}
+.callout.brass{background:var(--brass-soft)}
+.callout strong{color:var(--accent)}
+.callout.brass strong{color:var(--brass)}
+
+footer{border-top:1px solid var(--rule); margin-top:46px; padding-block:22px 10px; font-size:13.5px; color:var(--ink-soft)}
+footer a{color:var(--accent)}
+.quotes{display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin:14px 0}
+@media (max-width:760px){ .quotes{grid-template-columns:1fr 1fr} }
+@media (max-width:460px){ .quotes{grid-template-columns:1fr} }
+.quotes div{background:var(--code-bg); color:var(--code-fg); border-radius:8px; padding:12px 14px; font-family:var(--f-mono); font-size:13px; line-height:1.6; min-width:0; word-break:break-word}
+</style>
+
+<div class="wrap">
+<nav>
+  <div class="navtitle">목차</div>
+  <ol>
+    <li><a href="#start"><span class="n">00</span>시작하기 전에</a></li>
+    <li><a href="#s1"><span class="n">01</span>시작하기</a></li>
+    <li><a href="#s2"><span class="n">02</span>키우기</a></li>
+    <li><a href="#s3"><span class="n">03</span>고치기</a></li>
+    <li><a href="#s4"><span class="n">04</span>확인하기</a></li>
+    <li><a href="#s5"><span class="n">05</span>버리기</a></li>
+    <li><a href="#tpl"><span class="n">06</span>프롬프트 틀</a></li>
+    <li><a href="#plan"><span class="n">07</span>2주 일정</a></li>
+    <li><a href="#miss"><span class="n">08</span>흔한 실수</a></li>
+    <li><a href="#check"><span class="n">09</span>체크리스트</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="hero">
+  <span class="eyebrow">교사·강사용 핸드북</span>
+  <h1>Claude와 수업 도구 만들기</h1>
+  <p class="lede">코딩을 배우지 않고, 필요한 도구를 직접 만드는 방법. 레이저·3D 프린팅용 변환 도구 <strong>SVG Forge</strong>를 실제로 만든 기록에서 뽑은 다섯 단계와, 그대로 복사해 쓰는 프롬프트 틀입니다.</p>
+  <p class="byline">uniquelife · 동래발명교육센터 · 2026.10</p>
+  <div class="facts">
+    <div class="fact"><b>14</b><span>첫 커밋부터 v2.0.0까지 (일)</span></div>
+    <div class="fact"><b>5</b><span>실제로 손댄 날 (일)</span></div>
+    <div class="fact"><b>59</b><span>나눠서 보낸 요청 (커밋)</span></div>
+    <div class="fact"><b>0</b><span>직접 작성한 코드 (줄)</span></div>
+  </div>
+</header>
+
+<section id="start">
+  <h2><span class="num">00</span>시작하기 전에</h2>
+  <p class="sub">프로그래밍 지식은 필요 없습니다. 대신 "이건 아니다"라고 말할 수 있어야 합니다 — 수업을 설계할 때 쓰는 그 능력입니다.</p>
+  <div class="vs">
+    <div class="good"><b>필요한 것</b>
+      <q>이걸 어디에 쓸지 안다</q>
+      <p>MakerLab에 넣을 SVG, 교실 PC에서 설치 없이 — 쓰임새와 환경이 분명하면 나머지는 Claude가 채웁니다.</p>
+    </div>
+    <div class="bad"><b>필요 없는 것</b>
+      <q>프로그래밍 지식</q>
+      <p>언어·도구·수학 모두 몰라도 됩니다. 영어로 길게 쓸 필요도 없습니다. 실제로 쓴 요청 중에는 "다시 확인" 같은 두 글자짜리도 있습니다.</p>
+    </div>
+  </div>
+  <h3>다섯 단계</h3>
+  <div class="steps">
+    <div class="step"><span class="k">01</span><b>시작</b><span>쓰임새와 제약을 먼저 못 박기</span></div>
+    <div class="step"><span class="k">02</span><b>키우기</b><span>한 번에 기능 하나씩</span></div>
+    <div class="step"><span class="k">03</span><b>고치기</b><span>원인 말고 증상으로</span></div>
+    <div class="step"><span class="k">04</span><b>확인</b><span>눈으로 보여 달라고 하기</span></div>
+    <div class="step"><span class="k">05</span><b>버리기</b><span>틀린 방향은 미련 없이</span></div>
+  </div>
+</section>
+
+<section id="s1">
+  <h2><span class="num">01</span>시작하기 — 첫 한 마디가 2주를 결정합니다</h2>
+  <p class="sub">처음에 정한 쓰임새와 제약이 59번 고치는 동안 한 번도 흔들리지 않았습니다.</p>
+  <div class="vs">
+    <div class="bad"><b>기능으로 말하면</b>
+      <q>이미지를 벡터로 변환하는 프로그램 만들어 줘</q>
+      <p>그럴듯한 게 나오지만, 내 장비에서 안 열리는 파일일 수 있습니다.</p>
+    </div>
+    <div class="good"><b>쓰임새로 말하면</b>
+      <q>MakerLab에 넣을 SVG, RDWorks에서 열릴 DXF</q>
+      <p>그 장비가 요구하는 조건까지 맞춰 줍니다. 실제로 RDWorks가 2차 곡선을 못 읽는 문제를 알아서 찾아 고쳤습니다 — 제가 몰랐던 문제입니다.</p>
+    </div>
+  </div>
+  <h3>교사가 꼭 말해야 할 제약</h3>
+  <p>학교 환경은 제약이 많습니다. 제약은 족쇄가 아니라 설계 조건이라, 먼저 말할수록 결과가 좋아집니다. 늦게 말하면 다 만든 뒤에 갈아엎게 됩니다.</p>
+  <div class="tablewrap"><table>
+    <tr><th>제약</th><th>이렇게 말합니다</th></tr>
+    <tr><td>설치 여부</td><td>설치 없이 HTML 파일 하나로 / 설치형으로</td></tr>
+    <tr><td>인터넷</td><td>인터넷 안 되는 교실에서도 돌아가야 한다</td></tr>
+    <tr><td>사용자</td><td>초등 5학년 25명이 각자 PC에서 쓴다</td></tr>
+    <tr><td>개인정보</td><td>학생 이름을 서버로 보내지 않는다</td></tr>
+    <tr><td>장비</td><td>우리 학교 레이저는 RDWorks를 쓴다</td></tr>
+  </table></div>
+  <div class="callout"><strong>결과:</strong> 2주 내내 서버도 회원가입도 끼어들지 않았고, 학생 배포는 USB로 파일 하나 복사하는 것으로 끝났습니다.</div>
+</section>
+
+<section id="s2">
+  <h2><span class="num">02</span>키우기 — 한 번에 기능 하나씩</h2>
+  <p class="sub">10월 12일 하루에 커밋 27개. 각각은 5~20분짜리 작은 요청입니다. 쉬는 시간에 하나, 퇴근 후에 두세 개.</p>
+  <p>"다 만들어 줘"라고 하면 어디가 틀렸는지 찾을 수 없습니다. 하나씩 하면 매번 확인하고 넘어가고, 잘못돼도 그 하나만 되돌리면 됩니다.</p>
+  <h3>실제로 보낸 요청은 이 정도 길이입니다</h3>
+  <div class="quotes">
+    <div>치수의 폰트 크기를 줄이기! 숫자를 선에 가깝게 해야함.. 지금은 이미지랑 너무 근접하고 선과는 너무 멈</div>
+    <div>지우는게 어딧지?</div>
+    <div>안되겠다 이거 다른 배포 계정으로 옮기자</div>
+    <div>주소를 유지하고 싶어서 그래</div>
+    <div>다시 확인</div>
+    <div>만듦</div>
+  </div>
+  <div class="callout brass"><strong>부담 내려놓기:</strong> 맞춤법이 틀려도, 반말이어도, 두 글자여도 됩니다. 앞 대화가 이어지고 있으니까요. 멋진 프롬프트를 쓰려고 시간을 들이지 마세요.</div>
+</section>
+
+<section id="s3">
+  <h2><span class="num">03</span>고치기 — 원인 말고 증상으로</h2>
+  <p class="sub">가장 자주 하게 되는 단계이고, 말하는 방식이 결과를 가장 크게 바꿉니다.</p>
+  <p>원인을 추측해서 말하면 그쪽만 보게 됩니다. 보이는 대로만 말하면 전체를 살펴보고 진짜 원인을 찾습니다.</p>
+  <div class="tablewrap"><table>
+    <tr><th>상황</th><th>아쉬운 신고</th><th>좋은 신고</th></tr>
+    <tr><td>화면이 이상</td><td>CSS가 깨진 것 같아요</td><td>오른쪽 글자가 화면 밖으로 나가요</td></tr>
+    <tr><td>결과가 틀림</td><td>계산 로직 고쳐 줘</td><td>10mm로 넣었는데 12mm로 나와요</td></tr>
+    <tr><td>반응이 없음</td><td>이벤트가 안 걸렸나 봐요</td><td>버튼을 눌러도 아무 일이 없어요</td></tr>
+    <tr><td>오류 창</td><td>오류 났어요</td><td>오류 문구를 그대로 복사해서 붙여넣기</td></tr>
+  </table></div>
+  <h3>이 프로젝트에서 실제로 쓴 신고</h3>
+  <div class="tablewrap"><table>
+    <tr><th>내가 쓴 말</th><th>실제 원인과 수정</th></tr>
+    <tr><td>키캡이 자꾸 오른쪽 위로 밀림</td><td>위치 계산 기준이 그림이어서 — 고정 좌표로 변경</td></tr>
+    <tr><td>텍스트 모드에서 폭의 상태가 실제와는 다름</td><td>계산식 추정 방식 → 실제로 그려서 재는 방식으로 교체</td></tr>
+    <tr><td>가운데 섬은 왜 안됐지</td><td>구멍과 도형이 겹칠 때 고르는 우선순위 문제</td></tr>
+  </table></div>
+  <div class="callout"><strong>"왜 안됐지" 한마디로 충분합니다.</strong> 화면 캡처를 붙여 넣으면 더 빠릅니다. 오류 문구는 번역하거나 요약하지 말고 그대로 복사하세요.</div>
+</section>
+
+<section id="s4">
+  <h2><span class="num">04</span>확인하기 — 눈으로 보여 달라고 하기</h2>
+  <p class="sub">"됐습니다"를 믿고 넘어가면 나중에 한꺼번에 터집니다.</p>
+  <div class="tablewrap"><table>
+    <tr><th>이렇게 요구합니다</th><th>왜</th></tr>
+    <tr><td>화면을 캡처해서 보여 줘</td><td>말이 아니라 결과 이미지로 확인</td></tr>
+    <tr><td>10mm로 넣으면 실제 몇 mm인지 재 봐</td><td>숫자로 확인하면 어긋남이 바로 드러남</td></tr>
+    <tr><td>이 기능이 망가지면 알 수 있게 검사를 만들어 줘</td><td>다음에 고칠 때 자동으로 잡힘</td></tr>
+    <tr><td>전체적으로 점검해 줘</td><td>기능을 많이 추가한 뒤에는 꼭</td></tr>
+  </table></div>
+  <div class="callout brass"><strong>이 프로젝트에는 자동 검사 67개가 쌓였습니다.</strong> 전부 "확인해 달라"고 말해서 생긴 것입니다. 기능을 추가할 때마다 다른 데가 망가졌는지 자동으로 잡아 줍니다.</div>
+</section>
+
+<section id="s5">
+  <h2><span class="num">05</span>버리기 — 틀린 방향은 미련 없이</h2>
+  <p class="sub">손으로 만들었으면 아까워서 못 버립니다. 다시 만드는 데 10분이면 되니까 과감해질 수 있습니다 — 이게 진짜 장점입니다.</p>
+  <div class="tablewrap"><table>
+    <tr><th>버린 것</th><th>무엇이 문제였나</th><th>어떻게 했나</th></tr>
+    <tr><td>3D 단계 자동 보정</td><td>가는 선을 출력 직전에 자동으로 굵게 했더니 그림이 통째로 뭉개짐</td><td>전부 삭제 → 2D 화면에서 사람이 보고 고르는 방식으로</td></tr>
+    <tr><td>16/32/64/128색 색판</td><td>색을 많이 고를 수 있게 했더니 학생들이 오히려 헤맴</td><td>5×5 고정 타일 + "그림에 쓰인 색" 줄로 교체</td></tr>
+  </table></div>
+  <div class="callout"><strong>이미 만든 게 아까워서 붙들고 있으면 도구가 나빠집니다.</strong> 만드는 비용이 싸니까, 버리는 비용도 쌉니다.</div>
+</section>
+
+<section id="tpl">
+  <h2><span class="num">06</span>복사해서 바로 쓰는 프롬프트 틀</h2>
+  <p class="sub">네 가지면 처음부터 끝까지 갑니다. 대괄호 안을 내 상황으로 바꿔서 그대로 붙여넣으세요.</p>
+
+  <h3>틀 ① 시작할 때</h3>
+  <div class="pcard">
+    <span class="plabel">복사해서 쓰기</span>
+    <button class="copy" type="button">복사</button>
+<pre>[무엇을] 만들고 싶다.
+
+· 쓰는 사람: [초등 5학년 학생 25명 / 나 혼자]
+· 쓰는 상황: [교실 PC, 인터넷이 불안정함]
+· 넣는 곳: [MakerLab / 한글 / 엑셀]
+· 꼭 지킬 것: [설치 없이 HTML 파일 하나로]
+
+먼저 가장 단순한 형태로 만들어 줘.</pre>
+  </div>
+  <div class="filled"><em>이렇게 채워서 보냅니다</em>모둠을 자동으로 짜 주는 도구를 만들고 싶다. 쓰는 사람은 담임교사 혼자, 교실 PC에서 쓴다. 학생 이름은 엑셀에서 붙여넣는다. 설치 없이 HTML 파일 하나로 되게 해 줘. 먼저 가장 단순한 형태로.</div>
+  <p style="font-size:14px;color:var(--ink-soft);margin-top:10px">기능 목록은 쓰지 않습니다 — 그건 쓰면서 나옵니다.</p>
+
+  <h3>틀 ② 기능 하나 추가할 때</h3>
+  <div class="pcard">
+    <span class="plabel">복사해서 쓰기</span>
+    <button class="copy" type="button">복사</button>
+<pre>지금 것에서 [한 가지]를 추가해 줘.
+
+· 왜 필요한지: [학생들이 매번 손으로 지워야 해서]
+· 어디에 있으면 좋을지: [왼쪽 설정 칸 아래]
+· 기존 것은 건드리지 말 것
+
+다 되면 화면 캡처로 보여 줘.</pre>
+  </div>
+  <div class="filled"><em>이렇게 채워서 보냅니다</em>남녀가 한쪽으로 몰리지 않게 섞는 기능을 넣어 줘. 모둠별로 성비가 비슷해야 활동이 잘 돌아가서 그렇다. 지금 있는 "다시 뽑기" 버튼 옆에 두면 좋겠다. 다 되면 화면 캡처로 보여 줘.</div>
+  <p style="font-size:14px;color:var(--ink-soft);margin-top:10px">한 번에 하나만. "왜"를 붙이면 더 나은 방법을 제안받을 때가 많습니다.</p>
+
+  <h3>틀 ③ 잘못됐을 때</h3>
+  <div class="pcard">
+    <span class="plabel">복사해서 쓰기</span>
+    <button class="copy" type="button">복사</button>
+<pre>[내가 한 행동] 했더니 [보이는 결과]가 나온다.
+기대한 건 [원하는 결과]다.
+
+(오류 문구가 있으면 그대로 붙여넣기)
+(화면 캡처가 있으면 함께)
+
+원인을 찾아서 고쳐 줘.</pre>
+  </div>
+  <div class="filled"><em>이렇게 채워서 보냅니다</em>학생 27명을 붙여넣고 4모둠으로 뽑았더니 한 모둠만 9명이 됐다. 고르게 나뉘길 기대했다. 오류 창은 안 뜬다. 원인을 찾아서 고쳐 줘.</div>
+  <p style="font-size:14px;color:var(--ink-soft);margin-top:10px">원인 추측은 쓰지 않습니다. 행동 → 결과 → 기대, 세 줄이면 충분합니다.</p>
+
+  <h3>틀 ④ 마무리할 때</h3>
+  <div class="pcard">
+    <span class="plabel">복사해서 쓰기</span>
+    <button class="copy" type="button">복사</button>
+<pre>전체적으로 점검해 줘.
+
+· 기능이 서로 망가뜨리는 데가 없는지
+· 처음 쓰는 사람이 헤맬 만한 곳이 없는지
+· 버전을 붙이고 설명 문서를 정리해 줘
+
+이상 없으면 최종 파일을 줘.</pre>
+  </div>
+  <div class="filled"><em>이 프로젝트에서 실제로 쓴 말</em>전체적으로 프로그램 검증하고 이제 이상 없으면 version 지정하고 정리 푸쉬하자 — 이 한 줄로 전체 점검, 버전 2.0.0 지정, 문서 정리가 한 번에 됐습니다.</div>
+</section>
+
+<section id="plan">
+  <h2><span class="num">07</span>따라 하기 — 2주 일정</h2>
+  <p class="sub">하루에 몰아서 하는 게 아니라 틈틈이 합니다. 실제로 손댄 날은 5일이었습니다.</p>
+  <div class="tablewrap"><table>
+    <tr><th>때</th><th>할 일</th><th>메모</th></tr>
+    <tr><td class="day">1일차</td><td>가장 단순한 형태로 완성</td><td>틀 ①로 시작 · 돌아가기만 하면 성공</td></tr>
+    <tr><td class="day">2~3일차</td><td>직접 써 보기 (만들지 않음)</td><td>불편한 점을 메모만 해 둔다</td></tr>
+    <tr><td class="day">4~5일차</td><td>메모를 하나씩 요청</td><td>틀 ② · 하루 2~3개면 충분</td></tr>
+    <tr><td class="day">6~7일차</td><td>학생 1~2명에게 시켜 보기</td><td>내가 못 보던 문제가 나옴</td></tr>
+    <tr><td class="day">2주차</td><td>고치고 · 버리고 · 점검</td><td>틀 ③·④ · 버전 붙이고 마무리</td></tr>
+  </table></div>
+  <div class="callout brass"><strong>2~3일차의 "만들지 않는 기간"이 핵심입니다.</strong> 써 보지 않으면 무엇이 필요한지 모릅니다. SVG Forge도 10월 2일부터 11일까지 열흘을 쉬었고, 그 사이 쌓인 불편함이 2주차 작업 목록이 됐습니다.</div>
+  <h3>무엇부터 만들까</h3>
+  <div class="tablewrap"><table>
+    <tr><th>난이도</th><th>예시</th><th>걸리는 시간</th></tr>
+    <tr><td>처음이면 여기서</td><td>랜덤 모둠 짜기, 타이머, 발표 순서 뽑기</td><td>1~2시간</td></tr>
+    <tr><td>두 번째</td><td>성적 표 정리, 이름표·상장 일괄 만들기</td><td>반나절</td></tr>
+    <tr><td>익숙해지면</td><td>학생용 제작 도구, 측정·계산기</td><td>2~5일</td></tr>
+  </table></div>
+  <p style="font-size:14.5px;color:var(--ink-soft)">고르는 기준: <strong style="color:var(--ink)">지금 손으로 하고 있어서 귀찮은 일</strong> — 그게 가장 좋은 첫 과제입니다.</p>
+</section>
+
+<section id="miss">
+  <h2><span class="num">08</span>흔한 실수 다섯 가지</h2>
+  <p class="sub">전부 제가 실제로 한 실수입니다. 특히 마지막은 뼈아픕니다.</p>
+  <div class="miss">
+    <div><span class="mn">01</span><div><b>한 번에 다 요청한다</b><small>"이런 거 저런 거 다 되는 프로그램" → 어디가 틀렸는지 못 찾습니다.</small></div></div>
+    <div><span class="mn">02</span><div><b>원인을 추측해서 말한다</b><small>"메모리 문제 같은데" → 엉뚱한 곳을 고치게 됩니다.</small></div></div>
+    <div><span class="mn">03</span><div><b>결과를 확인하지 않는다</b><small>"됐습니다"를 믿고 넘어감 → 나중에 한꺼번에 터집니다.</small></div></div>
+    <div><span class="mn">04</span><div><b>아까워서 못 버린다</b><small>이상한 기능을 붙들고 그 위에 또 쌓습니다.</small></div></div>
+    <div><span class="mn">05</span><div><b>저장을 안 한다</b><small>잘 되던 시점으로 못 돌아갑니다. 한 단계 끝날 때마다 저장하거나 커밋하세요.</small></div></div>
+  </div>
+</section>
+
+<section id="check">
+  <h2><span class="num">09</span>첫 도구 체크리스트</h2>
+  <p class="sub">하나씩 지우면서 진행하세요. 표시는 이 브라우저에만 남습니다.</p>
+  <div class="checks" id="checks"></div>
+  <p class="progress" id="prog"></p>
+</section>
+
+<footer>
+  <p>이 핸드북과 함께 쓰는 연수용 발표자료가 있습니다 — <strong>Claude와 수업 도구 만들기</strong> (27장, 발표자 노트 포함).</p>
+  <p>예시로 든 도구: SVG Forge · <a href="https://svg-forge-01.netlify.app" target="_blank" rel="noopener">svg-forge-01.netlify.app</a> · 저장소 <a href="https://github.com/boundaryx01-uniquelife/svg-forge-01" target="_blank" rel="noopener">github.com/boundaryx01-uniquelife/svg-forge-01</a></p>
+  <p>uniquelife · 동래발명교육센터 · 이 핸드북도 같은 방식으로 만들었습니다.</p>
+</footer>
+</main>
+</div>
+
+<script>
+// 복사 버튼
+document.querySelectorAll('.copy').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var pre = btn.parentElement.querySelector('pre');
+    var text = pre.innerText;
+    var ok = function(){ btn.textContent = '복사됨'; btn.classList.add('done');
+      setTimeout(function(){ btn.textContent = '복사'; btn.classList.remove('done'); }, 1600); };
+    try {
+      navigator.clipboard.writeText(text).then(ok, function(){ selectPre(pre, btn); });
+    } catch (e) { selectPre(pre, btn); }
+  });
+});
+function selectPre(pre, btn){
+  try {
+    var r = document.createRange(); r.selectNodeContents(pre);
+    var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    btn.textContent = '선택됨 — Ctrl+C';
+    setTimeout(function(){ btn.textContent = '복사'; }, 2400);
+  } catch (e) { btn.textContent = '직접 선택하세요'; }
+}
+
+// 체크리스트
+var ITEMS = [
+  ['만들 것을 한 문장으로 적었다', '"지금 손으로 해서 귀찮은 일"에서 고른다'],
+  ['쓰는 사람과 환경을 적었다', '몇 학년 몇 명, 어떤 PC, 인터넷 여부'],
+  ['꼭 지킬 제약을 적었다', '설치 여부 · 개인정보 · 우리 학교 장비'],
+  ['틀 ①로 첫 요청을 보냈다', '가장 단순한 형태부터'],
+  ['돌아가는 것을 눈으로 확인했다', '화면 캡처나 실제 실행으로'],
+  ['2~3일 직접 써 보고 불편한 점을 메모했다', '이 기간에는 만들지 않는다'],
+  ['메모를 틀 ②로 하나씩 요청했다', '한 번에 하나, 매번 확인'],
+  ['학생이나 동료에게 한 번 시켜 봤다', '내가 못 보던 문제가 나온다'],
+  ['틀 ③으로 증상만 적어 신고했다', '원인 추측은 쓰지 않는다'],
+  ['쓸모없어진 기능을 버렸다', '아까워하지 않기'],
+  ['틀 ④로 전체 점검을 돌렸다', '버전을 붙이고 설명 문서 정리'],
+  ['최종 파일을 안전한 곳에 저장했다', 'USB · 클라우드 · GitHub 중 하나']
+];
+var KEY = 'handbook-checks-v1';
+var state = {};
+try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { state = {}; }
+
+var box = document.getElementById('checks');
+ITEMS.forEach(function(it, i){
+  var lab = document.createElement('label');
+  lab.className = 'check' + (state[i] ? ' on' : '');
+  var cb = document.createElement('input');
+  cb.type = 'checkbox'; cb.id = 'chk' + i; cb.checked = !!state[i];
+  var sp = document.createElement('span');
+  sp.innerHTML = it[0] + '<small>' + it[1] + '</small>';
+  lab.appendChild(cb); lab.appendChild(sp); box.appendChild(lab);
+  cb.addEventListener('change', function(){
+    state[i] = cb.checked;
+    lab.classList.toggle('on', cb.checked);
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+    draw();
+  });
+});
+function draw(){
+  var done = ITEMS.filter(function(_, i){ return state[i]; }).length;
+  document.getElementById('prog').textContent = done + ' / ' + ITEMS.length + ' 완료'
+    + (done === ITEMS.length ? '  —  첫 도구 완성입니다.' : '');
+}
+draw();
+</script>
