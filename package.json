@@ -1,7 +1,7 @@
 {
   "name": "svg-forge",
-  "version": "1.0.0",
-  "description": "이미지·글자를 MakerLab·레이저·3D프린팅용 SVG/DXF/STL로 변환하는 단일 HTML 도구",
+  "version": "2.0.0",
+  "description": "이미지·글자를 레이저·3D프린팅·키캡(MX)용 SVG/DXF/STL/3MF로 변환하는 단일 HTML 도구",
   "scripts": {
     "build": "node build.mjs && node build.mjs --no-potrace",
     "build:nogpl": "node build.mjs --no-potrace",

@@ -5,6 +5,7 @@ import { makeModel } from './geom.js';
 import { applyEdits, hitItem, innerPoint, strokeOf, growRings } from './edit.js';
 import { buildItems } from './geom.js';
 import { createSim } from './sim.js';
+import { VERSION } from './version.js';
 import { enhanceColorInputs } from './tiles.js';
 import { keycapDims } from './keycap.js';
 import { potracePathsToRings } from './pathparse.js';
@@ -3423,6 +3424,7 @@ window.__strokeOf = strokeOf; // 테스트용
 Object.defineProperty(S, 'cam', { get: () => (G3 && !G3.failed ? G3.camera.position.toArray() : null) }); // 테스트용
 Object.defineProperty(S, 'fov', { get: () => (G3 && !G3.failed ? G3.camera.fov : null) }); // 테스트용
 Object.defineProperty(S, 'tgt', { get: () => (G3 && !G3.failed ? G3.controls.target.toArray() : null) }); // 테스트용
+document.querySelectorAll('.appver').forEach((e) => (e.textContent = 'v' + VERSION));
 enhanceColorInputs(document, () => (S.model ? [...new Set(S.model.layers.map((l) => l.color))] : []));
 initLang();
 applyLang();

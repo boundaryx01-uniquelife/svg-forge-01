@@ -1,5 +1,8 @@
 import { build } from 'esbuild';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+// 버전: package.json → src/version.js (화면·3MF·도움말에 표시)
+const PKG = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+writeFileSync(new URL('./src/version.js', import.meta.url), `// build.mjs가 package.json에서 만듦 — 직접 고치지 마세요\nexport const VERSION = '${PKG.version}';\n`);
 
 const wres = await build({
   entryPoints: ['src/worker.js'],

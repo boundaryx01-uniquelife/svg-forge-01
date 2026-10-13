@@ -1,3 +1,4 @@
+import { VERSION } from './version.js';
 // 입체 파트 → 3D 지오메트리, STL / 3MF 내보내기
 import * as THREE from 'three';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
@@ -116,7 +117,7 @@ export function build3mfFiles(model, opts, title = 'SVG Forge') {
   const modelXml =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">\n' +
-    ` <metadata name="Title">${xmlEsc(title)}</metadata>\n <metadata name="Application">SVG Forge by uniquelife (made with Claude)</metadata>\n` +
+    ` <metadata name="Title">${xmlEsc(title)}</metadata>\n <metadata name="Application">SVG Forge ${VERSION} by uniquelife (made with Claude)</metadata>\n` +
     ' <resources>\n' +
     `  <basematerials id="1">${mats}</basematerials>\n` +
     body +

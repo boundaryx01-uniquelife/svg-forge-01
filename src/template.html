@@ -137,6 +137,7 @@ button.swbtn:disabled{opacity:.5;cursor:default}
 .bucketbar{display:inline-flex;align-items:center;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:2px 4px}
 .bucketbar button.swbtn{width:26px;height:22px}
 #bucketBtn.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+.appver{font-size:11px;font-weight:500;color:var(--sub);margin-left:2px;letter-spacing:0}
 .tilepop{position:fixed;z-index:10000;display:grid;grid-template-columns:repeat(5,30px);gap:4px;padding:8px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.22)}
 .tilepop .tilelbl{grid-column:1/-1;font-size:11px;color:var(--sub);margin-top:2px}
 .tilepop .tile{width:30px;height:30px;border:1px solid rgba(0,0,0,.25);border-radius:6px;padding:0;cursor:pointer}
@@ -251,7 +252,7 @@ dialog#prefs .row label{flex-basis:70px}
 </head>
 <body>
 <header>
-  <h1>SVG Forge</h1>
+  <h1>SVG Forge <small id="appVer" class="appver"></small></h1>
   <span class="lbl">입력</span>
   <div class="tabs" id="modeTabs">
     <button id="modeImage" class="on">이미지</button>
@@ -573,7 +574,7 @@ dialog#prefs .row label{flex-basis:70px}
 </dialog>
 <dialog id="help">
   <form method="dialog">
-    <h3>사용법 · 단축키</h3>
+    <h3>사용법 · 단축키 <small id="helpVer" class="appver"></small></h3>
     <h4>시작</h4>
     <ul>
       <li>이미지를 화면에 끌어놓거나 Ctrl+V로 붙여넣으세요. 텍스트는 위쪽 '텍스트' 탭에서 입력합니다.</li>

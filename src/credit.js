@@ -1,5 +1,6 @@
 // 제작자 표기: 화면 오른쪽 아래 · 사용법 창 · 3MF 정보 · 콘솔에 들어가며, 지워져도 다시 나타납니다.
 import { T } from './i18n.js';
+import { VERSION } from './version.js';
 export const CREDIT = { author: 'uniquelife', tool: 'Claude', year: 2026 };
 const a = () => `© ${CREDIT.year} ${CREDIT.author}`;
 
@@ -34,7 +35,7 @@ function mountInner() {
   }
   const txt = build();
   if (c.textContent !== txt) c.textContent = txt;
-  const tip = 'SVG Forge — ' + a() + ' · Made with Claude (Anthropic)';
+  const tip = 'SVG Forge v' + VERSION + ' — ' + a() + ' · Made with Claude (Anthropic)';
   if (c.title !== tip) c.title = tip;
   if (c.getAttribute('style')) c.removeAttribute('style'); // 숨기기 스타일이 붙으면 지움
   if (c.hidden) c.hidden = false;

@@ -1,4 +1,4 @@
-# SVG Forge
+# SVG Forge v2.0.0
 
 이미지·글자를 **레이저 커팅(LightBurn·RDWorks)**, **3D 프린팅**, **키캡(MX)** 에 바로 쓸 수 있는 SVG · DXF · STL · 3MF로 변환하는 도구입니다.
 빌드 결과는 **HTML 파일 하나**이며, 설치·인터넷 없이 브라우저(크롬·엣지)에서 동작합니다. 파일은 브라우저 밖으로 나가지 않습니다.
@@ -33,7 +33,7 @@
 - **설정(⚙)**: 치수 색·글씨 크기, 2D·3D 배경, 영어 용어 표시, 자동 저장, 작업 설정 처음값으로
 - 무거운 계산은 백그라운드(Web Worker)에서 실행
 
-작업 내역: [docs/WORKLOG.md](docs/WORKLOG.md) · 교육자료(키캡 만들기 PPT): [docs/education](docs/education/README.md)
+변경 이력: [CHANGELOG.md](CHANGELOG.md) · 작업 내역: [docs/WORKLOG.md](docs/WORKLOG.md) · 교육자료(키캡 만들기 PPT): [docs/education](docs/education/README.md)
 
 ## 빌드
 ```bash
@@ -56,6 +56,11 @@ npm run build:nogpl    # 배포용만
 | `src/geom.js`, `src/export.js` | mm 모델, SVG/DXF 내보내기 |
 | `src/solid.js`, `src/mesh.js` | 받침판·테두리·고리 도형 연산(Clipper), STL/3MF 내보내기 |
 | `src/worker.js`, `src/upscale.js`, `src/potrace_entry.js` | 백그라운드 계산, AI 업스케일, Potrace(선택) |
+| `src/edit.js` | 2D 도형 편집(삭제·두께·이동·끊기·채우기·글자 넣기·가는 부분 보정), 획 폭 측정 |
+| `src/keycap.js` | 키캡(MX) 몸체·스템·글자 |
+| `src/sim.js` | 레이저 작업 미리보기 |
+| `src/tiles.js` | 5×5 색 타일 |
+| `src/version.js` | 버전 (빌드 때 package.json에서 생성) |
 | `test/` | 브라우저 자동 테스트·파일 검증 스크립트 |
 
 ## 사용한 오픈소스와 라이선스
