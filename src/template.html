@@ -578,6 +578,25 @@ dialog#prefs .row label{flex-basis:70px}
       <div class="row" id="mpSpokesRow"><label for="mpSpokes" title="거미줄·방사선에서 중심에서 뻗는 줄 수">줄 수</label>
         <input id="mpSpokes" class="mini" type="number" min="3" max="48" step="1" value="12" title="방사 줄 수"></div>
       <div id="mpInfo" class="note2" style="font-size:12px;color:var(--sub);margin:2px 0 4px"></div>
+      <label class="chk" title="같은 도형으로 음각 형틀을 함께 만듭니다. 석고·비누·초콜릿을 부어 굳히는 용도입니다."><input type="checkbox" id="mdOn"> 🧊 몰드도 같이 만들기</label>
+      <div id="mdOpts" class="sub hide">
+        <div class="row"><label for="mdOut" style="flex-basis:44px">출력</label>
+          <select id="mdOut" class="grow" style="min-width:96px">
+            <option value="both" selected>나란히 (본체 + 몰드)</option>
+            <option value="mold">몰드만</option>
+          </select>
+          <input id="mdColor" type="color" value="#9aa7b0" title="몰드 색"></div>
+        <div class="row"><label title="파낼 깊이 · 바닥에 남길 두께 (mm)">깊이·바닥</label>
+          <input id="mdDepth" class="mini" type="number" min="0.4" max="40" step="0.5" value="4" title="캐비티 깊이 (mm)">
+          <input id="mdFloor" class="mini" type="number" min="0.6" max="20" step="0.2" value="2" title="바닥 두께 (mm)"></div>
+        <div class="row"><label title="주조물이 잘 빠지게 벽을 기울이는 각도(°) · 도형보다 넓힐 여유(mm). 여유는 재료마다 달라 시험 출력으로 맞춥니다">구배·여유</label>
+          <input id="mdDraft" class="mini" type="number" min="0" max="20" step="1" value="5" title="빼기 구배 (°)">
+          <input id="mdClear" class="mini" type="number" min="0" max="2" step="0.05" value="0.2" title="여유 (mm)"></div>
+        <div class="row"><label title="도형 둘레에 남길 판 폭 (mm) · 바닥에 새길 무늬 높이 (mm, 0이면 없음)">판 폭·무늬</label>
+          <input id="mdFlange" class="mini" type="number" min="1" max="40" step="1" value="5" title="판 테두리 폭 (mm)">
+          <input id="mdRibH" class="mini" type="number" min="0" max="5" step="0.1" value="0.8" title="바닥 무늬 높이 (mm)"></div>
+        <div id="mdInfo" class="note2" style="font-size:12px;color:var(--sub);margin:2px 0 4px"></div>
+      </div>
     </div>
     </div>
   </aside>

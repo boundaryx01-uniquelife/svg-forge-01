@@ -7,7 +7,10 @@
 // 패턴은 전부 "닫힌 폴리곤 목록"으로만 만든다. 직선 계열은 선을 그려 오프셋하지 않고
 // 처음부터 가느다란 사각형을 늘어놓는다 → 오프셋에서 생기는 모서리·자기교차 문제가 없음.
 import ClipperLib from 'clipper-lib';
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildItems, closeRing } from './geom.js';
+import { beveledSolid } from './solid.js';
 
 const SC = 1000; // mm → µm
 const CT = ClipperLib.ClipType;
@@ -15,6 +18,8 @@ const PT = ClipperLib.PolyType;
 const PF = ClipperLib.PolyFillType;
 
 const toPath = (poly) => poly.map(([x, y]) => ({ X: Math.round(x * SC), Y: Math.round(y * SC) }));
+// 3D 파트는 solid.js 와 같은 좌표(Y 뒤집기)를 써야 본체와 몰드가 같은 방향으로 놓인다
+const toPathH = (poly, H) => poly.map(([x, y]) => ({ X: Math.round(x * SC), Y: Math.round((H - y) * SC) }));
 const toRing = (path) => closeRing(path.map((q, i) => [i ? 'L' : 'M', q.X / SC, q.Y / SC]));
 
 function clip(type, subj, clp, fill = PF.pftNonZero) {
@@ -211,4 +216,132 @@ export function applyPattern(model, o = {}) {
     moldPattern: true,
   };
   return { model: out, info };
+}
+
+/* ───────────────────────── 음각 몰드 ─────────────────────────
+ * 판에 도형을 파낸 형틀. 석고·비누·초콜릿을 부어 굳히는 용도.
+ *
+ * 빼기 구배는 캐비티를 얇은 층으로 쌓아 만든다(층마다 조금씩 넓힘).
+ * 층 두께를 프린터 레이어(0.2mm)보다 얇게 잡으므로 출력물에서는 계단이 보이지 않고,
+ * 전용 메셔 없이 검증된 압출 경로만 쓰므로 오목한 도형에서도 깨지지 않는다.
+ */
+
+const treeShapes = (paths) => {
+  const c = new ClipperLib.Clipper();
+  c.StrictlySimple = true;
+  c.AddPaths(paths, PT.ptSubject, true);
+  const tree = new ClipperLib.PolyTree();
+  c.Execute(CT.ctUnion, tree, PF.pftNonZero, PF.pftNonZero);
+  const out = [];
+  const walk = (node, into) => {
+    for (const ch of node.Childs()) {
+      if (ch.IsHole()) into.holes.push(ch.Contour());
+      else {
+        const s = { outer: ch.Contour(), holes: [] };
+        out.push(s);
+        walk(ch, s);
+        continue;
+      }
+      walk(ch, into);
+    }
+  };
+  walk(tree, { holes: [] });
+  return out;
+};
+
+/** 교집합에서 생기는 실오라기 조각·자기교차 정리 (삼각분할이 깨져 메시에 구멍이 생김) */
+function clean(paths, minArea = 0.02) {
+  if (!paths.length) return paths;
+  const s = ClipperLib.Clipper.SimplifyPolygons(paths, PF.pftNonZero);
+  return s.filter((p) => p.length >= 3 && Math.abs(ClipperLib.Clipper.Area(p)) / (SC * SC) >= minArea);
+}
+
+/** Clipper paths → 압출 지오메트리 (z0..z1)
+ *  solid.js 의 beveledSolid 를 씀: 자체 삼각분할 + T자 이음 보정이라
+ *  격자·삼각 무늬처럼 구멍이 많은 도형에서도 닫힌 메시가 나온다. */
+function extrude(paths, z0, z1) {
+  if (!paths.length || z1 - z0 <= 0.001) return null;
+  const pos = beveledSolid(paths, z0, z1, { type: 'chamfer', size: 0.001 });
+  if (!pos.length) return null;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+  return g;
+}
+
+const rectPath = (x0, y0, x1, y1) =>
+  [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(([x, y]) => ({ X: Math.round(x * SC), Y: Math.round(y * SC) }));
+
+/**
+ * 음각 몰드 파트 만들기.
+ * o: { clearance, depth, draft, floor, flange, ribs, ribH, color, shiftX }
+ * 반환: { parts, info }
+ */
+export function buildMold(model, o = {}) {
+  const clearance = Math.max(0, o.clearance ?? 0.2);
+  const depth = Math.max(0.4, o.depth ?? 4);
+  const draft = Math.min(20, Math.max(0, o.draft ?? 5));   // °
+  const floor = Math.max(0.6, o.floor ?? 2);
+  const flange = Math.max(1, o.flange ?? 5);
+  const ribH = Math.max(0, o.ribH ?? 0.8);
+  const color = o.color || '#9aa7b0';
+  const dx = o.shiftX || 0;
+  const info = { depth, draft, clearance, steps: 1, warn: null };
+
+  // 실루엣(= 지금 모델 전체) → 여유만큼 넓힌 캐비티 바닥
+  const H = model.height;
+  const sil = union(model.layers.flatMap((l) => l.items.map((it) => toPathH(it.poly, H))), PF.pftEvenOdd);
+  if (!sil.length) return { parts: [], info: { ...info, warn: 'empty' } };
+  const cavBase = clearance ? offset(sil, clearance) : sil;
+
+  const [bx0, by0, bx1, by1] = bboxOf(cavBase);
+  const plate = [rectPath(bx0 - flange, by0 - flange, bx1 + flange, by1 + flange)];
+  const top = floor + depth;
+
+  // 구배: 위로 갈수록 tan(draft)*높이 만큼 넓어짐. 층은 0.15mm 이하(프린터 레이어보다 얇게)
+  const grow = Math.tan((draft * Math.PI) / 180) * depth;
+  const steps = draft > 0 ? Math.min(60, Math.max(2, Math.ceil(depth / 0.15))) : 1;
+  info.steps = steps;
+
+  const geos = [];
+  const push = (g) => g && geos.push(g);
+  push(extrude(plate, 0, floor)); // 바닥판
+  for (let k = 0; k < steps; k++) {
+    const z0 = floor + (depth * k) / steps;
+    const z1 = floor + (depth * (k + 1)) / steps;
+    const d = grow * ((k + 0.5) / steps);          // 이 층에서의 캐비티 확장량
+    const cav = d > 0.001 ? offset(cavBase, d) : cavBase;
+    const ring = clean(diff(plate, cav), 0.001);     // 판 − 캐비티
+    if (!ring.length) { info.warn = 'cavityTooBig'; break; }
+    if (k === steps - 1 && diff(cav, plate).length) info.warn = 'cavityOutOfPlate'; // 캐비티가 판 밖으로
+    push(extrude(ring, z0, z1));
+  }
+
+  // 무늬 리브: 캐비티 바닥에 얕게 솟아 주조물 표면에 무늬가 찍히게
+  if (ribH > 0.01 && o.ribs && o.ribs.length) {
+    const inner = offset(cavBase, -Math.max(0.4, grow + 0.3)); // 기울어진 벽에 닿지 않게
+    const r = clean(inter(o.ribs, inner));
+    if (r.length) push(extrude(r, floor, floor + ribH));
+    else info.warn = info.warn || 'noRib';
+  }
+
+  if (!geos.length) return { parts: [], info: { ...info, warn: 'empty' } };
+  let geom = geos.length === 1 ? geos[0] : mergeGeometries(geos);
+  geos.forEach((g) => g !== geom && g.dispose());
+  if (dx) geom.translate(dx, 0, 0);
+  geom.computeVertexNormals();
+  info.size = [bx1 - bx0 + flange * 2, by1 - by0 + flange * 2, top];
+  info.bbox = [bx0 - flange + dx, by0 - flange, bx1 + flange + dx, by1 + flange];
+  return { parts: [{ name: '몰드', color, geom, z0: 0, z1: top, role: 'mold' }], info };
+}
+
+/** 패턴 폴리곤만 따로 (몰드 리브용) */
+export function patternFor(model, o = {}) {
+  const H = model.height;
+  const sil = union(model.layers.flatMap((l) => l.items.map((it) => toPathH(it.poly, H))), PF.pftEvenOdd);
+  if (!sil.length) return [];
+  const pp = patternPaths(o.pattern || 'web', bboxOf(sil), {
+    width: o.width, pitch: o.pitch, angle: o.angle, spokes: o.spokes,
+  });
+  return inter(pp, sil);
 }

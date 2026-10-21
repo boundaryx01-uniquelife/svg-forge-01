@@ -73,6 +73,27 @@ with sync_playwright() as p:
     pg.select_option('#preset', 'keycap'); time.sleep(2.5)
     r['키캡전환_패턴꺼짐'] = not pg.is_checked('#mpOn')
 
+    # ── 음각 몰드 ──
+    pg.select_option('#preset', 'mold'); time.sleep(2.5)
+    pg.check('#mdOn'); time.sleep(1)
+    r['몰드패널'] = pg.is_visible('#mdOpts')
+    pg.click('#tab3d'); time.sleep(3.5)
+    r['나란히_파트'] = pg.inner_text('#badge3d') if pg.query_selector('#badge3d') else ''
+    pg.screenshot(path='/tmp/claude-0/mold_set.png')
+    with pg.expect_download(timeout=40000) as dl:
+        pg.click('#btnStl')
+    import os
+    dl.value.save_as('/tmp/claude-0/mold_set.stl')
+    r['세트STL_KB'] = round(os.path.getsize('/tmp/claude-0/mold_set.stl') / 1024)
+    # 몰드만
+    pg.select_option('#mdOut', 'mold'); time.sleep(3)
+    pg.screenshot(path='/tmp/claude-0/mold_only.png')
+    with pg.expect_download(timeout=40000) as dl2:
+        pg.click('#btnStl')
+    dl2.value.save_as('/tmp/claude-0/mold_only.stl')
+    r['몰드만STL_KB'] = round(os.path.getsize('/tmp/claude-0/mold_only.stl') / 1024)
+    r['몰드만_더작음'] = r['몰드만STL_KB'] < r['세트STL_KB']
+
     r['errors'] = errs
     print(json.dumps(r, ensure_ascii=False, indent=1))
     b.close()

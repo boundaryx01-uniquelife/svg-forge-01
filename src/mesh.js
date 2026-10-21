@@ -5,6 +5,7 @@ import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildParts, beveledSolid } from './solid.js';
 import { buildKeycap } from './keycap.js';
+import { buildMold, patternFor } from './mold.js';
 
 /** 파트(도형+높이) → 지오메트리 */
 export function partGeometry(part) {
@@ -37,11 +38,27 @@ export function partGeometry(part) {
 
 /** 모델 + 3D 옵션 → [{name, color, geometry, z1, role}] */
 export function buildPartGeometries(model, opts) {
+  const md = opts.mold && opts.mold.on ? opts.mold : null;
   const { parts, info } = opts.keycap && opts.keycap.on ? buildKeycap(model, opts) : buildParts(model, opts);
   const out = [];
-  for (const p of parts) {
-    const g = partGeometry(p);
-    if (g) out.push({ name: p.name, color: p.color, geometry: g, z0: p.z0, z1: p.z1, role: p.role, shapes: p.shapes, layer: p.layer });
+  if (!(md && md.out === 'mold')) {
+    for (const p of parts) {
+      const g = partGeometry(p);
+      if (g) out.push({ name: p.name, color: p.color, geometry: g, z0: p.z0, z1: p.z1, role: p.role, shapes: p.shapes, layer: p.layer });
+    }
+  }
+  if (md) {
+    const src = md.sil || model; // 몰드는 무늬가 아니라 원래 실루엣 기준
+    const ribs = md.ribH > 0.01 ? patternFor(src, md.pattern || {}) : [];
+    const r = buildMold(src, { ...md, ribs, shiftX: md.out === 'both' ? model.width + Math.max(6, md.flange * 2) : 0 });
+    for (const p of r.parts) out.push({ name: p.name, color: p.color, geometry: p.geom, z0: p.z0, z1: p.z1, role: p.role });
+    info.mold = r.info;
+    if (r.info.bbox) { // 카메라·치수가 몰드까지 포함하도록 범위를 넓힘
+      const b = info.bbox || [0, 0, model.width, model.height];
+      const mb = r.info.bbox;
+      info.bbox = [Math.min(b[0], mb[0]), Math.min(b[1], mb[1]), Math.max(b[2], mb[2]), Math.max(b[3], mb[3])];
+      info.size = [info.bbox[2] - info.bbox[0], info.bbox[3] - info.bbox[1], Math.max((info.size || [0, 0, 0])[2] || 0, r.info.size[2])];
+    }
   }
   out.info = info;
   return out;

@@ -29,6 +29,7 @@ const el = {};
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
   'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'tdTitle', 'tdPrint', 'tdSw', 'tdEst', 'tdMoveRow', 'tdMove', 'tdHint', 'tdDel', 'edTextEdit', 'txtSw', 'txtSwEst', 'thinBtn', 'bucketBar', 'bucketBtn', 'bucketCol', 'tabSim', 'viewSim', 'simCv', 'simHead', 'simPlay', 'simRst', 'simPos', 'simTime', 'simSpd', 'simCut', 'simEng', 'simTrv', 'simInfo',
   'mpOn', 'mpOpts', 'mpKind', 'mpColor', 'mpW', 'mpPitch', 'mpWall', 'mpAngle', 'mpSpokes', 'mpSpokesRow', 'mpInfo',
+  'mdOn', 'mdOpts', 'mdOut', 'mdColor', 'mdDepth', 'mdFloor', 'mdDraft', 'mdClear', 'mdFlange', 'mdRibH', 'mdInfo',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear', 'edCut', 'edCutW', 'edText', 'edDrop', 'textDlg', 'tdText', 'tdSize', 'tdColor',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -650,6 +651,7 @@ async function compute() {
       spokes: parseInt(el.mpSpokes.value, 10) || 12,
       color: el.mpColor.value,
     });
+    S.silModel = { ...m, layers: m.layers.map((l) => ({ ...l })) }; // 몰드는 무늬가 아니라 원래 실루엣 기준
     S.model = m = r.model;
     const msgs = [];
     if (r.info.noInner) msgs.push(T('도형이 벽 폭보다 얇아 무늬가 들어갈 자리가 없습니다. 벽 폭을 줄이거나 너비를 키우세요.'));
@@ -658,7 +660,7 @@ async function compute() {
     el.mpInfo.textContent = msgs.length ? '' : T('벽 {w}mm · 선 {l}mm · 조각 {n}개', { w: r.info.wall, l: r.info.lineWidth, n: m.ringCount });
     el.mpInfo.style.color = msgs.length ? '#c92a2a' : '';
     if (msgs.length) el.mpInfo.textContent = msgs[0];
-  } else if (el.mpInfo) el.mpInfo.textContent = '';
+  } else { S.silModel = null; if (el.mpInfo) el.mpInfo.textContent = ''; }
   if (S.mode === 'text') {
     m.fromText = true;
     m.chars = layers.chars || [];
@@ -2304,6 +2306,16 @@ function solidOpts() {
     ring: { on: el.ringOn.checked, list: (ringFromInputs(), S.rings.map((r) => ({ ...r }))) },
     edge: { type: el.edgeType.value, size: nv(el.edgeSize, 0.6, 0.1), onColor: el.edgeColor.checked, onBase: el.edgeBase.checked },
     keycap: kcOpts(),
+    mold: {
+      on: el.mdOn.checked && el.mpOn.checked,
+      out: el.mdOut.value,
+      depth: nv(el.mdDepth, 4, 0.4), floor: nv(el.mdFloor, 2, 0.6),
+      draft: Math.max(0, parseFloat(el.mdDraft.value) || 0), clearance: Math.max(0, parseFloat(el.mdClear.value) || 0),
+      flange: nv(el.mdFlange, 5, 1), ribH: Math.max(0, parseFloat(el.mdRibH.value) || 0),
+      color: el.mdColor.value,
+      sil: S.silModel,
+      pattern: { pattern: el.mpKind.value, width: nv(el.mpW, 1.2, 0.2), pitch: nv(el.mpPitch, 5, 0.5), angle: parseFloat(el.mpAngle.value) || 0, spokes: parseInt(el.mpSpokes.value, 10) || 12 },
+    },
   };
 }
 
@@ -2337,6 +2349,20 @@ function rebuild3d() {
   for (const g of geos) maxH = Math.max(maxH, g.z1);
   buildDims3d(t, geos, bb, maxH, so);
   el.badge3d.textContent = inf.size ? `${inf.size[0].toFixed(1)} × ${inf.size[1].toFixed(1)} × ${inf.size[2].toFixed(1)} mm · ${T('파트 {n}개', { n: geos.length })}` : '';
+  if (el.mdInfo) {
+    const mi = inf.mold;
+    const W = { cavityOutOfPlate: '캐비티가 판 밖으로 나갑니다. 판 폭을 늘리거나 구배·깊이를 줄이세요.', cavityTooBig: '캐비티가 판을 덮었습니다. 판 폭을 늘리세요.', noRib: '무늬가 캐비티 안에 들어가지 않았습니다. 무늬 높이를 0으로 두거나 간격을 좁히세요.', empty: '몰드를 만들 도형이 없습니다.' };
+    if (!mi) el.mdInfo.textContent = '';
+    else if (mi.warn) {
+      el.mdInfo.textContent = T(W[mi.warn] || mi.warn);
+      el.mdInfo.style.color = '#c92a2a';
+    } else {
+      el.mdInfo.textContent = T('몰드 {w} × {d} × {h} mm · 구배 {a}° · 여유 {c}mm', {
+        w: mi.size[0].toFixed(1), d: mi.size[1].toFixed(1), h: mi.size[2].toFixed(1), a: mi.draft, c: mi.clearance,
+      });
+      el.mdInfo.style.color = '';
+    }
+  }
   const badRing = (inf.rings || []).find((r) => !r.attached);
   if (badRing) el.badge3d.textContent += ' · ' + T(badRing.type === 'hole' ? '⚠ 구멍이 가장자리에 걸림' : '⚠ 고리가 몸체에서 떨어져 있음');
   else if (inf.rings && inf.rings.length) el.badge3d.textContent += ' · ' + T('고리는 끌어서 옮길 수 있음');
@@ -2619,7 +2645,13 @@ function updateMpUi() {
 }
 [el.mpOn, el.mpKind, el.mpColor].forEach((e) => e.addEventListener('change', () => (updateMpUi(), schedule(0))));
 [el.mpW, el.mpPitch, el.mpWall, el.mpAngle, el.mpSpokes].forEach((e) => e.addEventListener('input', () => schedule()));
+function updateMdUi() {
+  el.mdOpts.classList.toggle('hide', !el.mdOn.checked);
+}
+[el.mdOn, el.mdOut, el.mdColor].forEach((e) => e.addEventListener('change', () => (updateMdUi(), on3dChange(true))));
+[el.mdDepth, el.mdFloor, el.mdDraft, el.mdClear, el.mdFlange, el.mdRibH].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
 updateMpUi();
+updateMdUi();
 el.kcOn.addEventListener('change', () => {
   if (!el.kcOn.checked) return;
   const D = keycapDims(kcOpts());
