@@ -96,6 +96,7 @@ body[data-mode=keycap]{--pri:#7048e8}
 body[data-mode=keyring]{--pri:#0ca678}
 body[data-mode=print3d]{--pri:#1d5fd6}
 body[data-mode=free]{--pri:#495057}
+body[data-mode=mold]{--pri:#0e8a8a}
 header{border-top:4px solid var(--pri)}
 .presetsel{border-color:var(--pri)!important;color:var(--pri);font-weight:700}
 .panel h2{color:var(--pri);border-left:3px solid var(--pri);padding-left:6px}
@@ -105,6 +106,9 @@ body[data-mode=laser] .g-simtab{display:inline-block}
 body[data-mode=laser] .g-wall,body[data-mode=laser] .g-3d,body[data-mode=laser] .g-base,body[data-mode=laser] .g-kc{display:none!important}
 body[data-mode=keycap] .g-laser,body[data-mode=keycap] .g-base{display:none!important}
 body[data-mode=keyring] .g-laser,body[data-mode=keyring] .g-kc,body[data-mode=print3d] .g-laser,body[data-mode=print3d] .g-kc{display:none!important}
+.g-mold{display:none}
+body[data-mode=mold] .g-mold,body[data-mode=free] .g-mold{display:block}
+body[data-mode=mold] .g-laser,body[data-mode=mold] .g-kc,body[data-mode=mold] .g-base{display:none!important}
 #viewSim{background:#f4f1ea;display:flex;flex-direction:column}
 #simHead{position:absolute;left:0;top:0;width:12px;height:12px;border-radius:50%;background:#ff2d2d;box-shadow:0 0 0 3px rgba(255,45,45,.3),0 0 10px 3px rgba(255,80,40,.7);pointer-events:none;display:none}
 #viewSim canvas{flex:1;min-height:0;width:100%;display:block}
@@ -266,6 +270,7 @@ dialog#prefs .row label{flex-basis:70px}
       <option value="keycap">⌨ 키캡 (MX 호환)</option>
       <option value="print3d">🧊 일반 3D 프린트</option>
       <option value="laser">✂ 레이저 가공 (절단·새김)</option>
+      <option value="mold">🕸 몰드 · 패턴</option>
     </select>
   </div>
   <div class="exports proj">
@@ -548,6 +553,31 @@ dialog#prefs .row label{flex-basis:70px}
       <div class="row"><label for="kcStem" title="십자 스템 길이: 기본(4.6mm) 또는 키캡 바닥까지 닿게" style="flex-basis:52px">스템</label>
         <select id="kcStem" class="grow" style="min-width:96px"><option value="std" selected>기본 길이</option><option value="floor">바닥까지 닿게</option></select></div>
       <div id="kcInfo" class="note2" style="font-size:12px;color:var(--sub);margin:2px 0 4px"></div>
+    </div>
+    </div>
+    <div class="g-mold">
+    <div class="sect">몰드 · 패턴</div>
+    <label class="chk" title="그림의 바깥 둘레만 벽으로 남기고, 안쪽을 고른 무늬로 채웁니다. 속이 뚫린 장식·형틀용 본체를 만듭니다."><input type="checkbox" id="mpOn"> 🕸 패턴 채우기</label>
+    <div id="mpOpts" class="sub hide">
+      <div class="row"><label for="mpKind" style="flex-basis:44px">무늬</label>
+        <select id="mpKind" class="grow" style="min-width:96px">
+          <option value="web" selected>거미줄</option>
+          <option value="grid">격자</option>
+          <option value="hatch">빗금</option>
+          <option value="tri">삼각 격자</option>
+          <option value="rings">동심원</option>
+          <option value="spokes">방사선</option>
+        </select>
+        <input id="mpColor" type="color" value="#1b1b1b" title="본체 색"></div>
+      <div class="row"><label title="무늬 선의 폭 · 선 사이 간격 (mm). 선 폭은 0.8mm 이상을 권합니다">선 폭·간격</label>
+        <input id="mpW" class="mini" type="number" min="0.2" max="10" step="0.1" value="1.2" title="무늬 선 폭 (mm)">
+        <input id="mpPitch" class="mini" type="number" min="0.5" max="40" step="0.5" value="5" title="선 사이 간격 (mm)"></div>
+      <div class="row"><label title="바깥 둘레에 남길 벽 폭 (mm) · 무늬를 기울이는 각도(°)">벽 폭·각도</label>
+        <input id="mpWall" class="mini" type="number" min="0.4" max="20" step="0.2" value="2" title="바깥 벽 폭 (mm)">
+        <input id="mpAngle" class="mini" type="number" min="0" max="180" step="5" value="0" title="무늬 각도 (°)"></div>
+      <div class="row" id="mpSpokesRow"><label for="mpSpokes" title="거미줄·방사선에서 중심에서 뻗는 줄 수">줄 수</label>
+        <input id="mpSpokes" class="mini" type="number" min="3" max="48" step="1" value="12" title="방사 줄 수"></div>
+      <div id="mpInfo" class="note2" style="font-size:12px;color:var(--sub);margin:2px 0 4px"></div>
     </div>
     </div>
   </aside>

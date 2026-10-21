@@ -8,6 +8,7 @@ import { createSim } from './sim.js';
 import { VERSION } from './version.js';
 import { enhanceColorInputs } from './tiles.js';
 import { keycapDims } from './keycap.js';
+import { applyPattern } from './mold.js';
 import { potracePathsToRings } from './pathparse.js';
 import { toFillSvg, toLaserSvg, toDxf, laserModel } from './export.js';
 import { printabilityReport } from './solid.js';
@@ -27,6 +28,7 @@ const el = {};
   'invert', 'invertRow', 'preset', 'advImage', 'bgRow', 'removeBg', 'keepRow', 'keepInner', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
   'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'tdTitle', 'tdPrint', 'tdSw', 'tdEst', 'tdMoveRow', 'tdMove', 'tdHint', 'tdDel', 'edTextEdit', 'txtSw', 'txtSwEst', 'thinBtn', 'bucketBar', 'bucketBtn', 'bucketCol', 'tabSim', 'viewSim', 'simCv', 'simHead', 'simPlay', 'simRst', 'simPos', 'simTime', 'simSpd', 'simCut', 'simEng', 'simTrv', 'simInfo',
+  'mpOn', 'mpOpts', 'mpKind', 'mpColor', 'mpW', 'mpPitch', 'mpWall', 'mpAngle', 'mpSpokes', 'mpSpokesRow', 'mpInfo',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear', 'edCut', 'edCutW', 'edText', 'edDrop', 'textDlg', 'tdText', 'tdSize', 'tdColor',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -603,7 +605,7 @@ async function compute() {
     if (Math.abs(w - width) > 0.005 && w >= 1) el.width.value = w;
     S.txtWidthIn = Math.min(1000, Math.max(1, parseFloat(el.width.value) || 50));
   } else S.model = makeModel(mlayers, width, tol, refW);
-  const m = S.model;
+  let m = S.model;
   if (S.mode === 'text' && m.layers.length) {
     // 획 폭 맞추기 (3D 출력용): 폰트의 지금 획 폭을 재서 정한 폭이 되도록 굵게·가늘게
     const allR = () => m.layers.flatMap((l) => l.items.map((it) => it.ring));
@@ -637,6 +639,26 @@ async function compute() {
   }
   S.reselect = false;
   checkSel();
+  // 몰드·패턴: 실루엣을 바깥 벽 + 내부 무늬로 바꿈 (마지막 단계 — 편집·선택은 원래 도형 기준)
+  if (el.mpOn && el.mpOn.checked && m.layers.length) {
+    const r = applyPattern(m, {
+      pattern: el.mpKind.value,
+      width: parseFloat(el.mpW.value) || 1.2,
+      pitch: parseFloat(el.mpPitch.value) || 5,
+      wall: parseFloat(el.mpWall.value) || 2,
+      angle: parseFloat(el.mpAngle.value) || 0,
+      spokes: parseInt(el.mpSpokes.value, 10) || 12,
+      color: el.mpColor.value,
+    });
+    S.model = m = r.model;
+    const msgs = [];
+    if (r.info.noInner) msgs.push(T('도형이 벽 폭보다 얇아 무늬가 들어갈 자리가 없습니다. 벽 폭을 줄이거나 너비를 키우세요.'));
+    else if (r.info.empty) msgs.push(T('무늬가 하나도 들어가지 않았습니다. 간격을 좁혀 보세요.'));
+    if (msgs.length) warnings.push('⚠ ' + msgs.join(' '));
+    el.mpInfo.textContent = msgs.length ? '' : T('벽 {w}mm · 선 {l}mm · 조각 {n}개', { w: r.info.wall, l: r.info.lineWidth, n: m.ringCount });
+    el.mpInfo.style.color = msgs.length ? '#c92a2a' : '';
+    if (msgs.length) el.mpInfo.textContent = msgs[0];
+  } else if (el.mpInfo) el.mpInfo.textContent = '';
   if (S.mode === 'text') {
     m.fromText = true;
     m.chars = layers.chars || [];
@@ -934,9 +956,10 @@ function updateEditBar() {
   const m = S.model, q = S.sel;
   const l = m && q && m.layers.find((x) => x.color === q.c);
   const it = l && l.items[q.i];
-  const on = S.mode === 'image' && S.view === '2d' && !!S.model;
+  const mp = el.mpOn && el.mpOn.checked; // 패턴을 씌운 뒤에는 도형 편집 대상이 달라져 혼란 → 도구를 숨김
+  const on = S.mode === 'image' && S.view === '2d' && !!S.model && !mp;
   el.editbar.style.display = on ? '' : 'none';
-  el.bucketBar.style.display = S.view === '2d' && S.model && (S.mode === 'image' || S.mode === 'text') ? '' : 'none';
+  el.bucketBar.style.display = !mp && S.view === '2d' && S.model && (S.mode === 'image' || S.mode === 'text') ? '' : 'none';
   el.editbar.classList.toggle('nosel', !it);
   el.edTextEdit.classList.toggle('hide', !(it && addAtSel()));
   if (it && S.sels.length > 1) {
@@ -2470,6 +2493,7 @@ const PRESETS = {
   keyring: { base: true, border: true, ring: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판·테두리·고리를 켰습니다. 위쪽 저장에서 노란 테두리 버튼(3MF는 색 나눔, STL은 한 덩어리)을 누르세요.' },
   print3d: { base: false, border: false, ring: false, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판 없이 도형만 만듭니다. 노란 테두리 버튼(3MF 또는 STL)으로 저장하세요.' },
   laser: { base: false, border: false, ring: false, view3d: false, rec: ['btnLaser', 'btnDxf'], hint: '레이저 가공 모드: 윤곽선만 저장합니다. 색마다 절단·새김을 정하고 ▶ 작업 미리보기로 순서와 시간을 확인하세요. (RDWorks는 DXF · 레이저, LightBurn은 둘 다)' },
+  mold: { base: false, border: false, ring: false, mp: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '몰드·패턴 모드입니다. 그림의 바깥 둘레만 벽으로 남기고 안쪽을 무늬로 채웁니다. 오른쪽에서 무늬 종류·선 폭·간격을 바꾸세요. 선 폭은 0.8mm 이상이어야 출력됩니다.' },
   keycap: { base: false, border: false, ring: false, kc: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '키캡(MX) 모드입니다. 글자·그림이 윗면에 올라갑니다. 3D 출력의 키캡 항목에서 크기·글자 방식을 바꾸세요. 스템 공차는 시험 출력으로 맞추세요.' },
 };
 function applyModeUi() {
@@ -2486,6 +2510,14 @@ function showPresetRec() {
 el.preset.addEventListener('change', () => {
   const pr = PRESETS[el.preset.value];
   showPresetRec();
+  // 패턴은 몰드 모드에서만 자동으로 켜고, 다른 모드로 가면 끈다 (자유 모드에서는 쓰던 대로 둠)
+  if (pr || el.mpOn.checked) {
+    const want = !!(pr && pr.mp);
+    if (pr && el.mpOn.checked !== want) {
+      el.mpOn.checked = want;
+      el.mpOn.dispatchEvent(new Event('change'));
+    }
+  }
   if (!pr) return;
   S.flash = T(pr.hint);
   el.kcOn.checked = !!pr.kc;
@@ -2578,6 +2610,16 @@ function on3dChange(showView) {
 [el.thick, el.baseMargin, el.baseH, el.baseFill, el.edgeSize, el.ringDx, el.ringDy, el.borderW, el.borderH, el.wallW, el.wallH, el.wallGap, el.wallColor, el.ringOuter, el.ringHole].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
 [el.baseOn, el.baseShape, el.baseColor, el.baseStretch, el.textMode, el.ringType, el.edgeType, el.edgeColor, el.edgeBase, el.borderOn, el.borderFull, el.wallOn, el.ringOn, el.ringPos, el.kcOn, el.kcU, el.kcMode, el.kcEdge, el.kcStem].forEach((e) => e.addEventListener('change', () => on3dChange(true)));
 [el.kcColor, el.kcH, el.kcInset, el.kcWall, el.kcTol, el.kcDepth, el.kcEdgeSize].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
+// ---------- 몰드 · 패턴 ----------
+function updateMpUi() {
+  el.mpOpts.classList.toggle('hide', !el.mpOn.checked);
+  const k = el.mpKind.value;
+  el.mpSpokesRow.style.display = k === 'web' || k === 'spokes' || k === 'rings' ? '' : 'none';
+  el.mpAngle.parentElement.style.opacity = k === 'rings' ? 0.5 : 1;
+}
+[el.mpOn, el.mpKind, el.mpColor].forEach((e) => e.addEventListener('change', () => (updateMpUi(), schedule(0))));
+[el.mpW, el.mpPitch, el.mpWall, el.mpAngle, el.mpSpokes].forEach((e) => e.addEventListener('input', () => schedule()));
+updateMpUi();
 el.kcOn.addEventListener('change', () => {
   if (!el.kcOn.checked) return;
   const D = keycapDims(kcOpts());
