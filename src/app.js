@@ -9,6 +9,7 @@ import { VERSION } from './version.js';
 import { enhanceColorInputs } from './tiles.js';
 import { keycapDims } from './keycap.js';
 import { applyPattern } from './mold.js';
+import { SAMPLES, sampleSvg } from './samples.js';
 import { potracePathsToRings } from './pathparse.js';
 import { toFillSvg, toLaserSvg, toDxf, laserModel } from './export.js';
 import { printabilityReport } from './solid.js';
@@ -29,7 +30,7 @@ const el = {};
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
   'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'tdTitle', 'tdPrint', 'tdSw', 'tdEst', 'tdMoveRow', 'tdMove', 'tdHint', 'tdDel', 'edTextEdit', 'txtSw', 'txtSwEst', 'thinBtn', 'bucketBar', 'bucketBtn', 'bucketCol', 'tabSim', 'viewSim', 'simCv', 'simHead', 'simPlay', 'simRst', 'simPos', 'simTime', 'simSpd', 'simCut', 'simEng', 'simTrv', 'simInfo',
   'mpOn', 'mpOpts', 'mpKind', 'mpColor', 'mpW', 'mpPitch', 'mpWall', 'mpAngle', 'mpSpokes', 'mpSpokesRow', 'mpInfo',
-  'mdOn', 'mdOpts', 'mdOut', 'mdColor', 'mdDepth', 'mdFloor', 'mdDraft', 'mdClear', 'mdFlange', 'mdRibH', 'mdInfo',
+  'mdOn', 'mdOpts', 'mdOut', 'mdColor', 'mdDepth', 'mdFloor', 'mdDraft', 'mdClear', 'mdFlange', 'mdRibH', 'mdInfo', 'sampleRow',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear', 'edCut', 'edCutW', 'edText', 'edDrop', 'textDlg', 'tdText', 'tdSize', 'tdColor',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -2546,6 +2547,11 @@ el.preset.addEventListener('change', () => {
   }
   if (!pr) return;
   S.flash = T(pr.hint);
+  if (pr.mp && !S.img && S.mode === 'image') { // 몰드 모드인데 그림이 없으면 샘플로 시작
+    const sp = SAMPLES[0];
+    loadSample(sp);
+    S.flash = T('{n} 샘플로 시작합니다. 위쪽 샘플 줄에서 다른 도형을 고르거나 내 그림을 열 수 있어요.', { n: sp.name });
+  }
   el.kcOn.checked = !!pr.kc;
   if (pr.kc) {
     el.kcOn.dispatchEvent(new Event('change'));
@@ -2636,6 +2642,28 @@ function on3dChange(showView) {
 [el.thick, el.baseMargin, el.baseH, el.baseFill, el.edgeSize, el.ringDx, el.ringDy, el.borderW, el.borderH, el.wallW, el.wallH, el.wallGap, el.wallColor, el.ringOuter, el.ringHole].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
 [el.baseOn, el.baseShape, el.baseColor, el.baseStretch, el.textMode, el.ringType, el.edgeType, el.edgeColor, el.edgeBase, el.borderOn, el.borderFull, el.wallOn, el.ringOn, el.ringPos, el.kcOn, el.kcU, el.kcMode, el.kcEdge, el.kcStem].forEach((e) => e.addEventListener('change', () => on3dChange(true)));
 [el.kcColor, el.kcH, el.kcInset, el.kcWall, el.kcTol, el.kcDepth, el.kcEdgeSize].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
+// ---------- 샘플 도형 ----------
+/** 샘플 하나를 SVG 파일처럼 불러온다 */
+function loadSample(sp) {
+  const svg = sampleSvg(sp);
+  return loadFile(new File([svg], `${sp.name}.svg`, { type: 'image/svg+xml' }));
+}
+function buildSampleChips() {
+  for (const sp of SAMPLES) {
+    const b = document.createElement('button');
+    b.className = 'samp';
+    b.type = 'button';
+    b.title = T('{n} 샘플로 시작', { n: sp.name });
+    b.innerHTML = `<svg viewBox="0 0 ${sp.w} ${sp.h}" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="${sp.d}"/></svg><span>${sp.name}</span>`;
+    b.addEventListener('click', () => {
+      if (S.mode !== 'image') el.modeImage.click();
+      loadSample(sp);
+    });
+    el.sampleRow.appendChild(b);
+  }
+}
+buildSampleChips();
+
 // ---------- 몰드 · 패턴 ----------
 function updateMpUi() {
   el.mpOpts.classList.toggle('hide', !el.mpOn.checked);
