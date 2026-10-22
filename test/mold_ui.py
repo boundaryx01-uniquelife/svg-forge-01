@@ -73,9 +73,11 @@ with sync_playwright() as p:
     pg.select_option('#preset', 'keycap'); time.sleep(2.5)
     r['키캡전환_패턴꺼짐'] = not pg.is_checked('#mpOn')
 
-    # ── 음각 몰드 ──
+    # ── 틀 (주조 몰드) ──
     pg.select_option('#preset', 'mold'); time.sleep(2.5)
+    pg.fill('#width', '60'); time.sleep(2.5)      # 키캡 구간에서 9mm 로 줄어 있으므로 되돌림
     pg.check('#mdOn'); time.sleep(1)
+    pg.select_option('#mdKind', 'cast'); time.sleep(2)
     r['몰드패널'] = pg.is_visible('#mdOpts')
     pg.click('#tab3d'); time.sleep(3.5)
     r['나란히_파트'] = pg.inner_text('#badge3d') if pg.query_selector('#badge3d') else ''
@@ -93,6 +95,17 @@ with sync_playwright() as p:
     dl2.value.save_as('/tmp/claude-0/mold_only.stl')
     r['몰드만STL_KB'] = round(os.path.getsize('/tmp/claude-0/mold_only.stl') / 1024)
     r['몰드만_더작음'] = r['몰드만STL_KB'] < r['세트STL_KB']
+
+    # ── 성형 틀 ──
+    pg.select_option('#mdKind', 'press'); time.sleep(1)
+    pg.select_option('#mdOut', 'both'); time.sleep(3.5)
+    r['성형_파트'] = pg.inner_text('#badge3d')
+    r['성형_안내'] = pg.inner_text('#mdInfo')[:60]
+    r['테두리기본'] = pg.input_value('#mdRim')
+    with pg.expect_download(timeout=60000) as dl3:
+        pg.click('#btnStl')
+    dl3.value.save_as('/tmp/claude-0/press_set.stl')
+    r['성형STL_KB'] = round(os.path.getsize('/tmp/claude-0/press_set.stl') / 1024)
 
     r['errors'] = errs
     print(json.dumps(r, ensure_ascii=False, indent=1))

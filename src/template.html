@@ -602,6 +602,9 @@ dialog#prefs .row label{flex-basis:70px}
           <div class="row"><label title="가운데가 볼록해지는 높이 (mm) · 두 짝 사이 간격 (mm) = 본체 두께 + 여유">돔 높이·간격</label>
             <input id="mdDome" class="mini" type="number" min="0.5" max="60" step="0.5" value="10" title="돔 높이 (mm)">
             <input id="mdGap" class="mini" type="number" min="0.2" max="20" step="0.1" value="3.4" title="두 짝 사이 간격 (mm) — 본체 두께보다 조금 크게"></div>
+          <div class="row"><label title="가장자리에 평평하게 남길 폭 (mm). 두 장을 만들어 이 테두리끼리 붙이면 입체가 됩니다. 무늬 벽 폭 이하로 두세요">붙임 테두리</label>
+            <input id="mdRim" class="mini" type="number" min="0" max="20" step="0.5" value="3" title="평평하게 남길 테두리 폭 (mm)">
+            <span class="lbl" style="font-size:11px;color:var(--sub)">두 장 접착면</span></div>
           <div class="row"><label title="정렬 핀 지름 (mm, 0이면 없음). 한 개는 굵게 만들어 한 방향으로만 맞물립니다 · 어느 짝을 낼지">정렬 핀</label>
             <input id="mdPin" class="mini" type="number" min="0" max="12" step="0.5" value="4" title="정렬 핀 지름 (mm)">
             <select id="mdPair" class="grow" style="min-width:86px">

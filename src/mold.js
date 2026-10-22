@@ -384,15 +384,36 @@ export function buildPressMold(model, o = {}) {
   const pinD = Math.max(0, o.pinD ?? 4);
   const info = { warn: null };
 
-  const fp = union(model.layers.flatMap((l) => l.items.map((it) => toPathH(it.poly, H))), PF.pftEvenOdd);
+  const rim = Math.max(0, o.rim ?? 3);              // 평평하게 남길 테두리 폭 — 두 장을 붙이는 자리
+  const sil = union(model.layers.flatMap((l) => l.items.map((it) => toPathH(it.poly, H))), PF.pftEvenOdd);
+  if (!sil.length) return { parts: [], info: { warn: 'empty' } };
+  // 돔은 테두리 안쪽만 올라간다 (테두리는 평평하게 남아 접착면이 됨)
+  // 도형이 작아 테두리가 다 먹어 버리면 실패시키지 말고 들어가는 만큼 줄인다
+  let useRim = rim, fp = rim > 0.01 ? clean(offset(sil, -rim), 0.5) : sil;
+  let rimClamped = false;
+  for (const f of [0.6, 0.35, 0.15, 0]) {
+    if (fp.length) break;
+    useRim = rim * f;
+    fp = useRim > 0.01 ? clean(offset(sil, -useRim), 0.5) : sil;
+    rimClamped = true;
+  }
   if (!fp.length) return { parts: [], info: { warn: 'empty' } };
-  const [fx0, fy0, fx1, fy1] = bboxOf(fp);
-  const r0 = Math.min(fx1 - fx0, fy1 - fy0) / 2;    // 짧은 쪽 기준 (돔이 가장자리를 넘지 않게)
-  const domeH = Math.max(0.5, Math.min(o.domeH ?? Math.round(r0 * 0.45 * 2) / 2, r0 * 0.95));
+  const [fx0, fy0, fx1, fy1] = bboxOf(sil);
+  const [dx0, dy0, dx1, dy1] = bboxOf(fp);
+  const r0 = Math.min(dx1 - dx0, dy1 - dy0) / 2;    // 짧은 쪽 기준 (돔이 가장자리를 넘지 않게)
+  let domeH = Math.max(0.5, Math.min(o.domeH ?? Math.round(r0 * 0.45 * 2) / 2, r0 * 0.95));
+  // 자동값이면 늘어남이 18% 를 넘지 않게 낮춘다 (직접 입력한 값은 그대로 두고 경고만)
+  if (o.domeAuto) {
+    while (domeH > 0.6 && domeStretch(r0, domeH) > 0.18) domeH = Math.round((domeH - 0.5) * 2) / 2;
+    info.domeAuto = true;
+  }
   info.domeH = domeH;
   info.r0 = r0;
+  info.rim = Math.round(useRim * 10) / 10;
+  if (rimClamped) info.warn = 'rimClamped';
   info.stretch = domeStretch(r0, domeH);
   if (info.stretch > 0.22) info.warn = 'tooHigh';
+  else if (!rimClamped && rim > 0.01 && o.wall && rim > o.wall + 0.01) info.warn = 'rimOverPattern'; // 테두리에 무늬 구멍이 걸침
 
   const plate = [rectPath(fx0 - flange, fy0 - flange, fx1 + flange, fy1 + flange)];
   const steps = Math.min(80, Math.max(6, Math.ceil(domeH / 0.15)));
@@ -445,6 +466,7 @@ export function buildPressMold(model, o = {}) {
     const dx = want === 'both' ? (o.gapX ?? 0) : 0;
     const top = floor + domeH + gap;
     const fpM = mirX(fp);                                   // 뒤집어 덮을 것이므로 좌우 반전
+    const silM = mirX(sil);
     const holes = pins.length ? offset(mirX(pins), 0.3) : []; // 핀 구멍 = 핀 + 여유 0.3mm
     const cut = (paths) => (holes.length ? clean(diff(paths, holes), 0.001) : paths);
     const G = [extrude(cut(plate), 0, floor)];
@@ -454,7 +476,10 @@ export function buildPressMold(model, o = {}) {
       // 뒤집어 덮으면 암틀 캐비티 높이 h 가 수틀 높이 (domeH - h) 와 맞닿는다.
       // h 가 domeH 를 넘는 구간(윗 gap 만큼)은 곧은 벽 — 가장자리에서 본체 두께를 받아 준다.
       const t = Math.max(0, domeH - hm);
-      const cav = offset(fpM, -domeInset(t, r0, domeH) + gap);
+      // 돔 구간은 돔 윤곽을 따르고, 그 위 gap 구간은 실루엣 전체를 비워 평평한 테두리가 들어갈 자리를 만든다
+      const cav = hm <= domeH
+        ? offset(fpM, -domeInset(t, r0, domeH) + gap)
+        : union([...offset(fpM, gap), ...offset(silM, gap)]);
       const ring = clean(diff(plate, cav), 0.001);
       if (!ring.length) { info.warn = info.warn || 'cavityOutOfPlate'; break; }
       G.push(extrude(cut(ring), floor + h0, floor + h1));       // 핀 구멍은 전층을 관통해야 핀이 들어간다

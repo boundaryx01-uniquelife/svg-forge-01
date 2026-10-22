@@ -30,7 +30,7 @@ const el = {};
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
   'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'tdTitle', 'tdPrint', 'tdSw', 'tdEst', 'tdMoveRow', 'tdMove', 'tdHint', 'tdDel', 'edTextEdit', 'txtSw', 'txtSwEst', 'thinBtn', 'bucketBar', 'bucketBtn', 'bucketCol', 'tabSim', 'viewSim', 'simCv', 'simHead', 'simPlay', 'simRst', 'simPos', 'simTime', 'simSpd', 'simCut', 'simEng', 'simTrv', 'simInfo',
   'mpOn', 'mpOpts', 'mpKind', 'mpColor', 'mpW', 'mpPitch', 'mpWall', 'mpAngle', 'mpSpokes', 'mpSpokesRow', 'mpInfo',
-  'mdOn', 'mdOpts', 'mdKind', 'mdOut', 'mdColor', 'mdDome', 'mdGap', 'mdPin', 'mdPair', 'mdDepth', 'mdFloor', 'mdDraft', 'mdClear', 'mdFlange', 'mdRibH', 'mdInfo', 'sampleRow',
+  'mdOn', 'mdOpts', 'mdKind', 'mdOut', 'mdColor', 'mdDome', 'mdGap', 'mdRim', 'mdPin', 'mdPair', 'mdDepth', 'mdFloor', 'mdDraft', 'mdClear', 'mdFlange', 'mdRibH', 'mdInfo', 'sampleRow',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear', 'edCut', 'edCutW', 'edText', 'edDrop', 'textDlg', 'tdText', 'tdSize', 'tdColor',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -2315,7 +2315,8 @@ function solidOpts() {
       flange: nv(el.mdFlange, 5, 1), ribH: Math.max(0, parseFloat(el.mdRibH.value) || 0),
       color: el.mdColor.value,
       kind: el.mdKind.value,
-      domeH: nv(el.mdDome, 10, 0.5), gap: nv(el.mdGap, 3.4, 0.2), pinD: Math.max(0, parseFloat(el.mdPin.value) || 0),
+      domeH: nv(el.mdDome, 10, 0.5), domeAuto: !el.mdDome.dataset.set, gap: nv(el.mdGap, 3.4, 0.2), pinD: Math.max(0, parseFloat(el.mdPin.value) || 0),
+      rim: Math.max(0, parseFloat(el.mdRim.value) || 0), wall: nv(el.mpWall, 2, 0.4),
       pair: el.mdPair.value,
       sil: S.silModel,
       pattern: { pattern: el.mpKind.value, width: nv(el.mpW, 1.2, 0.2), pitch: nv(el.mpPitch, 5, 0.5), angle: parseFloat(el.mpAngle.value) || 0, spokes: parseInt(el.mpSpokes.value, 10) || 12 },
@@ -2355,14 +2356,15 @@ function rebuild3d() {
   el.badge3d.textContent = inf.size ? `${inf.size[0].toFixed(1)} × ${inf.size[1].toFixed(1)} × ${inf.size[2].toFixed(1)} mm · ${T('파트 {n}개', { n: geos.length })}` : '';
   if (el.mdInfo) {
     const mi = inf.mold;
-    const W = { cavityOutOfPlate: '캐비티가 판 밖으로 나갑니다. 판 폭을 늘리거나 구배·깊이를 줄이세요.', cavityTooBig: '캐비티가 판을 덮었습니다. 판 폭을 늘리세요.', noRib: '무늬가 캐비티 안에 들어가지 않았습니다. 무늬 높이를 0으로 두거나 간격을 좁히세요.', empty: '틀을 만들 도형이 없습니다.', tooHigh: '돔이 너무 높아 누를 때 무늬가 찢어질 수 있습니다. 돔 높이를 줄이세요.' };
+    const W = { cavityOutOfPlate: '캐비티가 판 밖으로 나갑니다. 판 폭을 늘리거나 구배·깊이를 줄이세요.', cavityTooBig: '캐비티가 판을 덮었습니다. 판 폭을 늘리세요.', noRib: '무늬가 캐비티 안에 들어가지 않았습니다. 무늬 높이를 0으로 두거나 간격을 좁히세요.', empty: '틀을 만들 도형이 없습니다.', rimTooWide: '붙임 테두리가 너무 넓어 돔이 들어갈 자리가 없습니다. 테두리를 줄이세요.', rimClamped: '도형이 작아 붙임 테두리를 줄였습니다. 너비를 키우면 테두리를 넓게 쓸 수 있어요.', rimOverPattern: '붙임 테두리가 무늬 벽보다 넓습니다. 테두리에 구멍이 생겨 붙이기 어려우니 벽 폭을 키우거나 테두리를 줄이세요.', tooHigh: '돔이 너무 높아 누를 때 무늬가 찢어질 수 있습니다. 돔 높이를 줄이세요.' };
     if (!mi) el.mdInfo.textContent = '';
     else if (mi.warn) {
       el.mdInfo.textContent = T(W[mi.warn] || mi.warn) + (mi.stretch != null ? T(' (늘어남 {s}%)', { s: (mi.stretch * 100).toFixed(0) }) : '');
       el.mdInfo.style.color = '#c92a2a';
     } else if (mi.domeH != null) {
-      el.mdInfo.textContent = T('틀 {w} × {d} mm · 돔 {h}mm · 간격 {g}mm · 늘어남 {s}%', {
-        w: mi.size[0].toFixed(1), d: mi.size[1].toFixed(1), h: mi.domeH, g: mi.gap, s: (mi.stretch * 100).toFixed(0),
+      if (mi.domeAuto && Math.abs(parseFloat(el.mdDome.value) - mi.domeH) > 0.01) el.mdDome.value = mi.domeH.toFixed(1);
+      el.mdInfo.textContent = T('틀 {w} × {d} mm · 돔 {h}mm · 간격 {g}mm · 테두리 {r}mm · 늘어남 {s}%', {
+        w: mi.size[0].toFixed(1), d: mi.size[1].toFixed(1), h: mi.domeH, g: mi.gap, r: mi.rim, s: (mi.stretch * 100).toFixed(0),
       });
       el.mdInfo.style.color = '';
     } else {
@@ -2528,7 +2530,7 @@ const PRESETS = {
   keyring: { base: true, border: true, ring: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판·테두리·고리를 켰습니다. 위쪽 저장에서 노란 테두리 버튼(3MF는 색 나눔, STL은 한 덩어리)을 누르세요.' },
   print3d: { base: false, border: false, ring: false, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판 없이 도형만 만듭니다. 노란 테두리 버튼(3MF 또는 STL)으로 저장하세요.' },
   laser: { base: false, border: false, ring: false, view3d: false, rec: ['btnLaser', 'btnDxf'], hint: '레이저 가공 모드: 윤곽선만 저장합니다. 색마다 절단·새김을 정하고 ▶ 작업 미리보기로 순서와 시간을 확인하세요. (RDWorks는 DXF · 레이저, LightBurn은 둘 다)' },
-  mold: { base: false, border: false, ring: false, mp: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '몰드·패턴 모드입니다. 그림의 바깥 둘레만 벽으로 남기고 안쪽을 무늬로 채웁니다. 선 폭은 0.8mm 이상이어야 출력됩니다. 성형 틀은 암틀을 좌우로 뒤집어 덮습니다 — 굵은 핀이 있는 쪽이 맞물리는 방향입니다.' },
+  mold: { base: false, border: false, ring: false, mp: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '몰드·패턴 모드입니다. 그림의 바깥 둘레만 벽으로 남기고 안쪽을 무늬로 채웁니다. 선 폭은 0.8mm 이상이어야 출력됩니다. 성형 틀은 암틀을 좌우로 뒤집어 덮습니다(굵은 핀 쪽이 맞물리는 방향). 같은 것을 두 장 만들어 평평한 테두리끼리 붙이면 입체가 됩니다.' },
   keycap: { base: false, border: false, ring: false, kc: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '키캡(MX) 모드입니다. 글자·그림이 윗면에 올라갑니다. 3D 출력의 키캡 항목에서 크기·글자 방식을 바꾸세요. 스템 공차는 시험 출력으로 맞추세요.' },
 };
 function applyModeUi() {
@@ -2686,15 +2688,27 @@ function updateMdUi() {
   const press = el.mdKind.value === 'press';
   document.body.classList.toggle('mold-press', press);
   document.body.classList.toggle('mold-cast', !press);
-  // 간격 기본값은 본체 두께 + 0.4 (직접 건드린 적 없을 때만)
+  // 기본값 따라가기 (직접 건드린 적 없을 때만): 간격 = 본체 두께 + 0.4, 테두리 = 무늬 벽 폭
   if (press && !el.mdGap.dataset.set) {
     const t = parseFloat(el.thick.value) || 3;
     el.mdGap.value = (Math.round((t + 0.4) * 10) / 10).toFixed(1);
   }
+  if (press && !el.mdRim.dataset.set) {
+    const w = parseFloat(el.mpWall.value) || 2;
+    el.mdRim.value = (Math.round(w * 2) / 2).toFixed(1);
+  }
+  // 돔 높이 기본값은 도형 크기에 맞춰 (늘어남 5% 안팎이 되는 정도)
+  if (press && !el.mdDome.dataset.set && S.model && S.model.width) {
+    const r = Math.min(S.model.width, S.model.height) / 2;
+    el.mdDome.value = Math.max(1, Math.round(r * 0.3 * 2) / 2).toFixed(1);
+  }
 }
 el.mdGap.addEventListener('input', () => (el.mdGap.dataset.set = '1'));
+el.mdRim.addEventListener('input', () => (el.mdRim.dataset.set = '1'));
+el.mdDome.addEventListener('input', () => (el.mdDome.dataset.set = '1'));
+el.mpWall.addEventListener('input', () => updateMdUi());
 [el.mdOn, el.mdKind, el.mdOut, el.mdPair, el.mdColor].forEach((e) => e.addEventListener('change', () => (updateMdUi(), on3dChange(true))));
-[el.mdDepth, el.mdFloor, el.mdDraft, el.mdClear, el.mdFlange, el.mdRibH, el.mdDome, el.mdGap, el.mdPin].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
+[el.mdDepth, el.mdFloor, el.mdDraft, el.mdClear, el.mdFlange, el.mdRibH, el.mdDome, el.mdGap, el.mdPin, el.mdRim].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
 el.thick.addEventListener('input', () => updateMdUi());
 updateMpUi();
 updateMdUi();
