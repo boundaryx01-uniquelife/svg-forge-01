@@ -48,6 +48,26 @@ function fixOverlap(L, tol) {
   return { ...L, items: buildItems(rings, tol) };
 }
 
+/** 구멍 안의 빈 곳 = 그 구멍 − (모든 색의 칠해진 면). 구멍 속에 떠 있는 다른 도형은 남긴다 */
+function emptyInside(model, it) {
+  const filled = new ClipperLib.Paths();
+  const U = new ClipperLib.Clipper();
+  for (const l of model.layers) {
+    const one = new ClipperLib.Paths();
+    const cl = new ClipperLib.Clipper();
+    cl.AddPaths(toPaths(l.items), ClipperLib.PolyType.ptSubject, true);
+    cl.Execute(ClipperLib.ClipType.ctUnion, one, ClipperLib.PolyFillType.pftEvenOdd, ClipperLib.PolyFillType.pftEvenOdd);
+    U.AddPaths(one, ClipperLib.PolyType.ptSubject, true);
+  }
+  U.Execute(ClipperLib.ClipType.ctUnion, filled, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  const out = new ClipperLib.Paths();
+  const D = new ClipperLib.Clipper();
+  D.AddPaths(toPaths([it]), ClipperLib.PolyType.ptSubject, true);
+  D.AddPaths(filled, ClipperLib.PolyType.ptClip, true);
+  D.Execute(ClipperLib.ClipType.ctDifference, out, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  return out.filter((p) => p.length >= 3).map((p) => closeRing(p.map((q, i) => [i ? 'L' : 'M', q.X / SC, q.Y / SC])));
+}
+
 /** 두 묶음을 '영역'으로 합쳐 링으로 돌려준다.
  *  링만 모아 buildItems 로 중첩을 다시 계산하면, 다른 색 도형 위에 얹혀 있던
  *  테두리가 그 도형의 구멍으로 뒤집힌다(색을 합쳤는데 구멍이 뚫리는 문제). */
@@ -291,23 +311,7 @@ export function applyEdits(model, edits, tol) {
         if (h.c === e.to) continue;
         e = { t: 'col', c: h.c, is: [h.i], to: e.to };
       } else {
-        const out = new ClipperLib.Paths();
-        // 빈 곳 = 구멍 − (모든 색의 칠해진 면). 색마다 짝홀 규칙이 같아서 합쳐도 같은 결과
-        const filled = new ClipperLib.Paths();
-        const U = new ClipperLib.Clipper();
-        for (const l of model.layers) {
-          const one = new ClipperLib.Paths();
-          const cl = new ClipperLib.Clipper();
-          cl.AddPaths(toPaths(l.items), ClipperLib.PolyType.ptSubject, true);
-          cl.Execute(ClipperLib.ClipType.ctUnion, one, ClipperLib.PolyFillType.pftEvenOdd, ClipperLib.PolyFillType.pftEvenOdd);
-          U.AddPaths(one, ClipperLib.PolyType.ptSubject, true);
-        }
-        U.Execute(ClipperLib.ClipType.ctUnion, filled, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
-        const D = new ClipperLib.Clipper();
-        D.AddPaths(toPaths([it]), ClipperLib.PolyType.ptSubject, true);
-        D.AddPaths(filled, ClipperLib.PolyType.ptClip, true);
-        D.Execute(ClipperLib.ClipType.ctDifference, out, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
-        const rs = out.filter((p) => p.length >= 3).map((p) => closeRing(p.map((q, i) => [i ? 'L' : 'M', q.X / SC, q.Y / SC])));
+        const rs = emptyInside(model, it);
         if (!rs.length) continue;
         let T0 = model.layers.find((l) => l.color === e.to);
         if (!T0) model.layers.push((T0 = { color: e.to, items: [] }));
@@ -341,6 +345,9 @@ export function applyEdits(model, edits, tol) {
     const keep = all.filter((_, j) => !selSet.has(j));
     const picked = sel.map((j) => all[j]);
     let rings = keep.map((it) => it.ring);
+    // 구멍만 따로 고른 경우(부모는 안 골랐을 때). 색 바꾸기에서는 '빈 곳을 새 색으로 채우기'가 되어야 한다
+    const idxSet = new Set(idx);
+    const soloHoles = whole ? [] : idx.filter((j) => all[j].hole && !idxSet.has(all[j].parent));
     if (e.t === 'del') {
       // 구멍을 지우면 메워짐, 바깥 도형을 지우면 그 안의 구멍도 같이
     } else if (e.t === 'holes') {
@@ -357,13 +364,23 @@ export function applyEdits(model, edits, tol) {
       for (const j of hs) rings = rings.concat(offsetRings([all[j]], -e.d));
     } else if (e.t === 'col') {
       if (e.to === e.c) continue;
+      // 빈 곳은 레이어를 건드리기 전에 재야 한다 (모든 색의 칠해진 면을 기준으로 삼으므로)
+      const holeSet = new Set(soloHoles);
+      const fillRings = [];
+      for (const j of soloHoles) fillRings.push(...emptyInside(model, all[j]));
+      // 고른 구멍은 원래 색에 그대로 남긴다 (빼면 원래 색이 그 구멍을 메워 두 색이 겹친다)
+      if (holeSet.size) rings = all.filter((_, j) => !selSet.has(j) || holeSet.has(j)).map((it) => it.ring);
+      const move = sel.filter((j) => !holeSet.has(j)).map((j) => all[j]);
       model.layers[li] = { ...L, items: buildItems(rings, tol) };
       let T = model.layers.find((l) => l.color === e.to);
       if (!T) {
         T = { color: e.to, items: [] };
         model.layers.push(T);
       }
-      T.items = buildItems(unionRings(T.items, picked), tol);
+      let add = move;
+      if (fillRings.length) add = add.concat(buildItems(fillRings, tol));
+      if (!add.length) continue;
+      T.items = buildItems(unionRings(T.items, add), tol);
       model.layers[model.layers.indexOf(T)] = T;
       continue;
     } else if (e.t === 'mv') {
