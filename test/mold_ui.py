@@ -23,6 +23,13 @@ with sync_playwright() as p:
     r['거미줄'] = st()
     r['안내'] = pg.inner_text('#mpInfo')
 
+    # 구멍 채우기 (두 번째 색)
+    r['채움_기본켜짐'] = pg.is_checked('#mpFill')
+    r['채움_색수'] = pg.evaluate("()=>window.__svgforge.model.layers.length")
+    pg.uncheck('#mpFill'); time.sleep(2)
+    r['채움끔_색수'] = pg.evaluate("()=>window.__svgforge.model.layers.length")
+    pg.check('#mpFill'); time.sleep(2)
+
     # 무늬 바꿔 보기
     for kind in ['grid', 'tri', 'rings', 'hatch', 'spokes']:
         pg.select_option('#mpKind', kind)
@@ -109,6 +116,7 @@ with sync_playwright() as p:
 
     # ── 성형 미리보기 탭이 보이는 조건 ──
     pg.select_option('#preset', 'mold'); time.sleep(3)
+    r['핀칸없음'] = pg.query_selector('#mdPin') is None
     r['탭_몰드모드'] = pg.is_visible('#tabPress')
     pg.select_option('#mdKind', 'cast'); time.sleep(2)
     r['탭_주조면숨김'] = not pg.is_visible('#tabPress')

@@ -1,5 +1,6 @@
 // 성형 틀: 수틀·암틀이 닫힌 메시인지 · 돔 높이와 간격이 실제로 반영되는지
-import { buildPressMold } from '../src/mold.js';
+import ClipperLib from 'clipper-lib';
+import { buildPressMold, smoothSil, toPathH, union } from '../src/mold.js';
 import { makeModel } from '../src/geom.js';
 
 function ghostRings() {
@@ -30,7 +31,7 @@ const box = (g) => { g.computeBoundingBox(); const b = g.boundingBox; return { w
 let bad = 0;
 const check = (l, c, e = '') => { if (!c) bad++; console.log(`${c ? 'OK ' : '✗  '} ${l}${e ? '  ' + e : ''}`); };
 
-const r = buildPressMold(model, { domeH: 12, gap: 3.4, flange: 6, floor: 2.5, pinD: 4, out: 'both', gapX: 90 });
+const r = buildPressMold(model, { domeH: 12, gap: 3.4, flange: 6, floor: 2.5, out: 'both', gapX: 90 });
 console.log(`돔 ${r.info.domeH}mm · 밑면반지름 ${r.info.r0.toFixed(1)}mm · 층 ${r.info.steps} · 늘어남 ${(r.info.stretch * 100).toFixed(1)}%`);
 check('두 짝이 나옴', r.parts.length === 2, `${r.parts.length}개`);
 const male = r.parts.find((p) => p.name.includes('수틀')), female = r.parts.find((p) => p.name.includes('암틀'));
@@ -45,56 +46,83 @@ check('암틀이 옆에 배치됨', bf.x0 > 80, `x최소 ${bf.x0.toFixed(1)}`);
 check('경고 없음', !r.info.warn, String(r.info.warn));
 
 // 돔을 너무 높이면 늘어남 경고
-const hi = buildPressMold(model, { domeH: 26, gap: 3.4, flange: 6, pinD: 0, out: 'maleOnly' });
+const hi = buildPressMold(model, { domeH: 26, gap: 3.4, flange: 6, out: 'maleOnly' });
 check('돔이 너무 높으면 경고', hi.info.warn === 'tooHigh', `늘어남 ${(hi.info.stretch * 100).toFixed(1)}%`);
-check('낮은 돔은 경고 없음', !buildPressMold(model, { domeH: 6, gap: 3.4, pinD: 0, out: 'maleOnly' }).info.warn);
+check('낮은 돔은 경고 없음', !buildPressMold(model, { domeH: 6, gap: 3.4, out: 'maleOnly' }).info.warn);
 
 // 한 짝만
-const only = buildPressMold(model, { domeH: 10, gap: 3, pinD: 4, out: 'maleOnly' });
+const only = buildPressMold(model, { domeH: 10, gap: 3, out: 'maleOnly' });
 check('수틀만 출력', only.parts.length === 1 && only.parts[0].name.includes('수틀'));
 
 // 핀 없이도 닫힘
-const np = buildPressMold(model, { domeH: 10, gap: 3, pinD: 0, out: 'both', gapX: 90 });
+const np = buildPressMold(model, { domeH: 10, gap: 3, out: 'both', gapX: 90 });
 check('핀 없이 수틀 닫힘', openEdges(np.parts[0].geom) === 0);
 check('핀 없이 암틀 닫힘', openEdges(np.parts[1].geom) === 0);
 
-// ── 핀이 실제로 들어가는지: 핀 자리에서 암틀이 전층 뚫려 있어야 ──
-function nearZ(geom, px, py, rad) {
-  const p = geom.getAttribute('position').array; let lo = 1e9, hi = -1e9, n = 0;
-  for (let i = 0; i < p.length / 3; i++) {
-    const x = p[3 * i], y = p[3 * i + 1], z = p[3 * i + 2];
-    if (Math.hypot(x - px, y - py) < rad) { lo = Math.min(lo, z); hi = Math.max(hi, z); n++; }
-  }
-  return n ? { lo, hi, n } : null;
-}
+// ── 솟은 기둥·송곳이 없어야 (정렬 핀 제거) ──
 console.log('');
 {
-  const pr = buildPressMold(model, { domeH: 12, gap: 3.4, flange: 6, floor: 2.5, pinD: 4, out: 'both', gapX: 0 });
+  const pr = buildPressMold(model, { domeH: 12, gap: 3.4, flange: 6, floor: 2.5, out: 'both', gapX: 0 });
   const M = pr.parts[0].geom, F = pr.parts[1].geom;
-  // 수틀에서 바닥 위로 솟은 핀 찾기
-  const pm = M.getAttribute('position').array;
-  let px = null, py = null;
-  for (let i = 0; i < pm.length / 3; i++) {
-    const x = pm[3 * i], y = pm[3 * i + 1], z = pm[3 * i + 2];
-    if (z > 2.6 && z < 10 && (px === null || x < px)) { px = x; py = y; }
+  // 돔은 안쪽(테두리 안)에만 있어야 한다. 플랜지 위로 솟은 점이 있으면 기둥이다
+  M.computeBoundingBox();
+  const bb = M.boundingBox;
+  const p = M.getAttribute('position').array;
+  let tall = 0;
+  for (let i = 0; i < p.length / 3; i++) {
+    const x = p[3 * i], y = p[3 * i + 1], z = p[3 * i + 2];
+    const onFlange = x < bb.min.x + 5 || x > bb.max.x - 5 || y < bb.min.y + 5 || y > bb.max.y - 5;
+    if (onFlange && z > 2.5 + 0.3) tall++;           // 바닥(floor 2.5) 위로 솟음
   }
-  const mp = nearZ(M, px, py, 3.5), fp2 = nearZ(F, px, py, 3.5);
-  F.computeBoundingBox();
-  const fTop = F.boundingBox.max.z;
-  console.log(`핀 자리 (${px.toFixed(1)}, ${py.toFixed(1)}) · 수틀 핀 z ${mp.lo.toFixed(1)}~${mp.hi.toFixed(1)} · 암틀 z ${fp2.lo.toFixed(1)}~${fp2.hi.toFixed(1)} (전체 ${fTop.toFixed(1)})`);
-  check('핀 구멍이 암틀 전층을 관통', fp2.hi > fTop - 0.3, `구멍 끝 ${fp2.hi.toFixed(1)} / 윗면 ${fTop.toFixed(1)}`);
-  check('핀 높이가 간격보다 큼 (헛돌지 않게)', mp.hi - 2.5 > 3.4, `핀 ${(mp.hi - 2.5).toFixed(1)}mm / 간격 3.4mm`);
+  console.log(`플랜지 위로 솟은 점 ${tall}개`);
+  check('플랜지에 기둥이 없음', tall === 0, `${tall}개`);
 
-  // ── 암틀이 좌우 반전되어 있는지 (뒤집어 덮어야 맞음) ──
-  const cx = (x) => { let s2 = 0, n = 0; const p = x.getAttribute('position').array;
-    for (let i = 0; i < p.length / 3; i++) if (p[3 * i + 2] > 3) { s2 += p[3 * i]; n++; } return n ? s2 / n : 0; };
-  // 비대칭 도형(유령 밑단 물결)이므로 반전되면 돔 단면이 달라진다 — 같은 높이에서 x 분포 비교
-  const span = (g, z0, z1) => { const p = g.getAttribute('position').array; let a = 1e9, b = -1e9;
-    for (let i = 0; i < p.length / 3; i++) { const z = p[3 * i + 2]; if (z > z0 && z < z1) { a = Math.min(a, p[3 * i]); b = Math.max(b, p[3 * i]); } } return [a, b]; };
-  const sM = span(M, 8, 9), sF = span(F, 8, 9);
-  console.log(`z=8~9 에서 x범위 — 수틀 ${sM.map((v) => v.toFixed(1)).join('~')} · 암틀 ${sF.map((v) => v.toFixed(1)).join('~')}`);
-  check('두 짝 x 범위가 겹침 (크게 어긋나지 않음)', Math.abs((sM[0] + sM[1]) / 2 - (sF[0] + sF[1]) / 2) < 3,
-    `중심 ${((sM[0] + sM[1]) / 2).toFixed(1)} vs ${((sF[0] + sF[1]) / 2).toFixed(1)}`);
+  // ── 맞춤 모서리: 판 한 귀퉁이가 잘려 있고, 암틀은 반대쪽이어야 (뒤집으면 맞음) ──
+  const corner = (g, z0, z1) => {
+    const q = g.getAttribute('position').array;
+    g.computeBoundingBox(); const B = g.boundingBox;
+    const near = (x, y) => {
+      let m = 1e9;
+      for (let i = 0; i < q.length / 3; i++) { const z = q[3 * i + 2];
+        if (z > z0 && z < z1) m = Math.min(m, Math.hypot(q[3 * i] - x, q[3 * i + 1] - y)); }
+      return m;
+    };
+    return { LL: near(B.min.x, B.min.y), LR: near(B.max.x, B.min.y), UL: near(B.min.x, B.max.y), UR: near(B.max.x, B.max.y) };
+  };
+  const cm = corner(M, -0.05, 0.05), cf = corner(F, -0.05, 0.05);   // 바닥면 꼭짓점
+  const far = (c) => Object.entries(c).sort((u, v) => v[1] - u[1])[0];
+  const [mName, mD] = far(cm), [fName, fD] = far(cf);
+  console.log(`잘린 귀퉁이 — 수틀 ${mName} (${mD.toFixed(1)}mm) · 암틀 ${fName} (${fD.toFixed(1)}mm) · 표시크기 ${pr.info.key}mm`);
+  check('수틀 한 귀퉁이가 잘려 있음', mD > 1.5, `${mD.toFixed(1)}mm`);
+  check('암틀은 좌우 반대쪽 귀퉁이', fName === { LL: 'LR', LR: 'LL', UL: 'UR', UR: 'UL' }[mName], `${mName} ↔ ${fName}`);
+}
+
+// ── 틀 면이 매끈한지: 구멍·가는 돌기가 틀에 남으면 안 된다 ──
+console.log('');
+{
+  // 네모 몸통 + 눈 구멍 2개 + 위로 뻗은 0.8mm 송곳
+  const body = [['M', 10, 20], ['L', 50, 20], ['L', 50, 60], ['L', 10, 60], ['L', 10, 20]];
+  const eye = (cx) => [['M', cx - 4, 30], ['L', cx + 4, 30], ['L', cx + 4, 38], ['L', cx - 4, 38], ['L', cx - 4, 30]];
+  const spike = [['M', 29.6, 20], ['L', 30.4, 20], ['L', 30.4, 4], ['L', 29.6, 4], ['L', 29.6, 20]];
+  const m2 = makeModel([{ color: '#222', rings: [body, eye(22), eye(38), spike] }], 60, 0.05);
+
+  // 틀에 쓰이는 실루엣을 직접 본다 (메시 꼭짓점 수로는 면의 구멍을 가늠할 수 없다)
+  const SCL = 1000;
+  const raw = union(m2.layers.flatMap((l) => l.items.map((it) => toPathH(it.poly, m2.height))), ClipperLib.PolyFillType.pftEvenOdd);
+  const sm = smoothSil(raw, 1.0);
+  const area = (ps) => ps.reduce((t, q) => t + ClipperLib.Clipper.Area(q), 0) / (SCL * SCL);
+  const neg = (ps) => ps.filter((q) => ClipperLib.Clipper.Area(q) < 0).length;   // 구멍 = 반대 방향 고리
+  const bb = (ps) => { let a = 1e9, b = -1e9; for (const q of ps) for (const pt of q) (pt.Y / SCL < a && (a = pt.Y / SCL), pt.Y / SCL > b && (b = pt.Y / SCL)); return b - a; };
+  console.log(`실루엣 — 그대로: 넓이 ${area(raw).toFixed(0)}mm² 구멍 ${neg(raw)}개 세로 ${bb(raw).toFixed(1)}mm / 매끈: 넓이 ${area(sm).toFixed(0)}mm² 구멍 ${neg(sm)}개 세로 ${bb(sm).toFixed(1)}mm`);
+  check('눈 구멍이 메워짐', neg(raw) > 0 && neg(sm) === 0, `${neg(raw)} → ${neg(sm)}`);
+  check('가는 송곳이 사라짐 (세로가 송곳 길이만큼 줄어듦)', bb(raw) - bb(sm) > 15, `${bb(raw).toFixed(1)} → ${bb(sm).toFixed(1)}mm`);
+  check('몸통은 그대로 남음', area(sm) > 3300, `${area(sm).toFixed(0)}mm²`);
+
+  const mold = buildPressMold(m2, { domeH: 8, gap: 3.4, flange: 6, floor: 2.5, out: 'maleOnly' });
+  check('매끈 처리 반지름이 잡힘', mold.info.smoothR >= 0.6, `${mold.info.smoothR}mm`);
+  check('매끈 틀도 메시가 닫힘', openEdges(mold.parts[0].geom) === 0, `열린 모서리 ${openEdges(mold.parts[0].geom)}`);
+  const off = buildPressMold(m2, { domeH: 8, gap: 3.4, out: 'maleOnly', smooth: false });
+  check('끄면 예전처럼 원래 실루엣', !off.info.smoothR, `${off.info.smoothR}`);
 }
 
 // ── 좌우 비대칭 도형: 암틀이 좌우 반전되어 있어야 뒤집어 덮었을 때 맞는다 ──
@@ -102,7 +130,7 @@ console.log('');
   const skew = [[['M', 0, 0], ['L', 70, 0], ['L', 56, 60], ['L', 0, 70], ['L', 0, 0]]];
   const mdl = makeModel([{ color: '#222', rings: skew }], 70, 0.05);
   const GAP = 3.4, DOME = 10, FLOOR = 2.5;
-  const pr = buildPressMold(mdl, { domeH: DOME, gap: GAP, flange: 6, floor: FLOOR, pinD: 0, out: 'both', gapX: 0 });
+  const pr = buildPressMold(mdl, { domeH: DOME, gap: GAP, flange: 6, floor: FLOOR, out: 'both', gapX: 0 });
   const M = pr.parts[0].geom, F = pr.parts[1].geom;
   M.computeBoundingBox(); F.computeBoundingBox();
   const fTop = F.boundingBox.max.z;

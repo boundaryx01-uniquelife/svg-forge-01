@@ -19,7 +19,7 @@ const PF = ClipperLib.PolyFillType;
 
 const toPath = (poly) => poly.map(([x, y]) => ({ X: Math.round(x * SC), Y: Math.round(y * SC) }));
 // 3D 파트는 solid.js 와 같은 좌표(Y 뒤집기)를 써야 본체와 몰드가 같은 방향으로 놓인다
-const toPathH = (poly, H) => poly.map(([x, y]) => ({ X: Math.round(x * SC), Y: Math.round((H - y) * SC) }));
+export const toPathH = (poly, H) => poly.map(([x, y]) => ({ X: Math.round(x * SC), Y: Math.round((H - y) * SC) }));
 const toRing = (path) => closeRing(path.map((q, i) => [i ? 'L' : 'M', q.X / SC, q.Y / SC]));
 
 function clip(type, subj, clp, fill = PF.pftNonZero) {
@@ -30,7 +30,7 @@ function clip(type, subj, clp, fill = PF.pftNonZero) {
   c.Execute(type, out, fill, fill);
   return out;
 }
-const union = (paths, fill = PF.pftNonZero) => clip(CT.ctUnion, paths, [], fill);
+export const union = (paths, fill = PF.pftNonZero) => clip(CT.ctUnion, paths, [], fill);
 const diff = (a, b) => (b && b.length ? clip(CT.ctDifference, a, b) : a);
 const inter = (a, b) => (a.length && b.length ? clip(CT.ctIntersection, a, b) : []);
 
@@ -208,11 +208,39 @@ export function applyPattern(model, o = {}) {
   const items = buildItems(rings, model.tol);
 
   const color = o.color || (model.layers[0] && model.layers[0].color) || '#000000';
+  const layers = [{ color, items }];
+
+  // 6) 무늬 사이 빈 곳을 두 번째 색으로 같은 두께만큼 채움 → 뚫린 곳 없는 2색 판
+  //    도형 자체의 구멍(눈·입)은 실루엣에 없으므로 그대로 비어 있다
+  let patPaths = merged;
+  if (o.fill && o.fillColor && o.fillColor !== color) {
+    const minW = Math.max(0.2, o.minW ?? 0.8);
+    const gapPaths = clean(diff(sil, merged), 0.05);
+    // 무늬가 촘촘한 곳의 채움 조각은 노즐보다 가늘어 출력이 안 된다 → 그런 조각은 무늬 색으로 넘긴다
+    const keep = [], thin = [];
+    for (const sh of treeShapes(gapPaths)) {
+      const one = [sh.outer, ...sh.holes];
+      (offset(one, -minW / 2).length ? keep : thin).push(...one);
+    }
+    info.thinFill = thin.length;
+    if (thin.length) patPaths = union([...merged, ...thin]);
+    if (keep.length) {
+      const gi = buildItems(clean(keep, 0.05).map(toRing), model.tol);
+      if (gi.length) {
+        layers[0] = { color, items: buildItems(patPaths.filter((p) => p.length >= 3).map(toRing), model.tol) };
+        layers.push({ color: o.fillColor, items: gi });
+        info.fill = true;
+        info.fillArea = Math.round(keep.reduce((t, q) => t + ClipperLib.Clipper.Area(q), 0) / (SC * SC));
+      }
+    }
+  }
+
+  const all = layers.flatMap((l) => l.items);
   const out = {
     ...model,
-    layers: [{ color, items }],
-    ringCount: items.length,
-    nodeCount: items.reduce((n, it) => n + it.ring.length, 0),
+    layers,
+    ringCount: all.length,
+    nodeCount: all.reduce((n, it) => n + it.ring.length, 0),
     moldPattern: true,
   };
   return { model: out, info };
@@ -248,6 +276,21 @@ const treeShapes = (paths) => {
   walk(tree, { holes: [] });
   return out;
 };
+
+/** 틀 면은 매끈해야 한다.
+ *  눈·입 같은 구멍과 가늘게 뻗은 돌기(별 뿔, 수염)를 없앤 바깥 윤곽만 남긴다.
+ *  열림 연산(안으로 r → 다시 밖으로 r)이라 굵은 몸통은 그대로고 가는 것만 사라진다.
+ *  성형 틀에서 이런 뾰족한 자리는 기둥·송곳처럼 솟아 본체를 찢는다. */
+export function smoothSil(sil, r) {
+  const outer = treeShapes(sil).map((s) => s.outer);
+  if (!outer.length) return sil;
+  const u = union(outer);
+  if (!(r > 0.01)) return u;
+  const er = clean(offset(u, -r), 0.2);
+  if (!er.length) return u;                       // 도형이 r 보다 얇으면 손대지 않음
+  const op = clean(offset(er, r), 0.5);
+  return op.length ? op : u;
+}
 
 /** 교집합에서 생기는 실오라기 조각·자기교차 정리 (삼각분할이 깨져 메시에 구멍이 생김) */
 function clean(paths, minArea = 0.02) {
@@ -374,19 +417,24 @@ function domeStretch(r0, H) {
 
 /**
  * 성형 틀 한 쌍.
- * o: { domeH, gap, flange, floor, pin, pinD, colorM, colorF, out, shiftX, gapX }
+ * o: { domeH, gap, flange, floor, smooth, colorM, colorF, out, shiftX, gapX }
  */
 export function buildPressMold(model, o = {}) {
   const H = model.height;
   const flange = Math.max(2, o.flange ?? 6);
   const floor = Math.max(0.8, o.floor ?? 2.5);
   const gap = Math.max(0.2, o.gap ?? 3.4);          // 본체 두께 + 여유
-  const pinD = Math.max(0, o.pinD ?? 4);
   const info = { warn: null };
 
   const rim = Math.max(0, o.rim ?? 3);              // 평평하게 남길 테두리 폭 — 두 장을 붙이는 자리
-  const sil = union(model.layers.flatMap((l) => l.items.map((it) => toPathH(it.poly, H))), PF.pftEvenOdd);
+  const raw = union(model.layers.flatMap((l) => l.items.map((it) => toPathH(it.poly, H))), PF.pftEvenOdd);
+  if (!raw.length) return { parts: [], info: { warn: 'empty' } };
+  // 틀 면은 매끈한 돔이어야 한다 — 구멍·가는 돌기를 없앤 바깥 윤곽만 쓴다
+  const smooth = o.smooth ?? true;
+  const sr = smooth ? Math.max(0.6, Math.min(1.5, (([a,b,c,d]) => Math.min(c - a, d - b))(bboxOf(raw)) * 0.03)) : 0;
+  const sil = smooth ? smoothSil(raw, sr) : raw;
   if (!sil.length) return { parts: [], info: { warn: 'empty' } };
+  info.smoothR = Math.round(sr * 100) / 100;
   // 돔은 테두리 안쪽만 올라간다 (테두리는 평평하게 남아 접착면이 됨)
   // 도형이 작아 테두리가 다 먹어 버리면 실패시키지 말고 들어가는 만큼 줄인다
   let useRim = rim, fp = rim > 0.01 ? clean(offset(sil, -rim), 0.5) : sil;
@@ -415,23 +463,15 @@ export function buildPressMold(model, o = {}) {
   if (info.stretch > 0.22) info.warn = 'tooHigh';
   else if (!rimClamped && rim > 0.01 && o.wall && rim > o.wall + 0.01) info.warn = 'rimOverPattern'; // 테두리에 무늬 구멍이 걸침
 
-  const plate = [rectPath(fx0 - flange, fy0 - flange, fx1 + flange, fy1 + flange)];
+  // 맞춤 표시: 판의 한 모서리를 비스듬히 잘라 둔다.
+  // 핀처럼 솟는 부분이 없고, 암틀을 뒤집었을 때 잘린 모서리끼리 겹치면 방향이 맞는다
+  const px0 = fx0 - flange, py0 = fy0 - flange, px1 = fx1 + flange, py1 = fy1 + flange;
+  const key = Math.max(2, Math.min(flange * 1.5, (px1 - px0) * 0.12, (py1 - py0) * 0.12, 10));
+  info.key = Math.round(key * 10) / 10;
+  const plate = [toPath([[px0 + key, py0], [px1, py0], [px1, py1], [px0, py1], [px0, py0 + key]])];
   const steps = Math.min(80, Math.max(6, Math.ceil(domeH / 0.15)));
   info.steps = steps;
 
-  // 정렬 핀 자리 (플랜지 네 귀퉁이). 한 개만 굵게 해서 한 방향으로만 맞물리게 한다
-  const pins = [];
-  if (pinD > 0.5) {
-    const m = flange / 2;
-    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sy], i) => {
-      const cx = sx < 0 ? fx0 - m : fx1 + m, cy = sy < 0 ? fy0 - m : fy1 + m;
-      const rr = (i === 0 ? pinD * 1.5 : pinD) / 2;
-      const c = [];
-      for (let k = 0; k < 24; k++) { const t = (k * Math.PI) / 12; c.push([cx + rr * Math.cos(t), cy + rr * Math.sin(t)]); }
-      pins.push(toPath(c));
-    });
-  }
-  const pinH = Math.min(8, Math.max(3, gap + 2.5));
   // 암틀은 뒤집어 덮으므로 좌우 대칭으로 만들어야 수틀과 맞는다 (비대칭 도형에서 중요)
   const midX = Math.round(((fx0 + fx1) / 2) * SC) * 2;
   const mirX = (paths) => paths.map((p) => p.map((q) => ({ X: midX - q.X, Y: q.Y })).reverse());
@@ -457,7 +497,6 @@ export function buildPressMold(model, o = {}) {
       if (!lay.length) break;
       G.push(extrude(lay, floor + t0, floor + t1));
     }
-    if (pins.length) G.push(extrude(pins, floor, floor + pinH));
     mk(G, '수틀 (볼록)', o.colorM || '#8fa6b8', floor + domeH);
   }
 
@@ -467,9 +506,8 @@ export function buildPressMold(model, o = {}) {
     const top = floor + domeH + gap;
     const fpM = mirX(fp);                                   // 뒤집어 덮을 것이므로 좌우 반전
     const silM = mirX(sil);
-    const holes = pins.length ? offset(mirX(pins), 0.3) : []; // 핀 구멍 = 핀 + 여유 0.3mm
-    const cut = (paths) => (holes.length ? clean(diff(paths, holes), 0.001) : paths);
-    const G = [extrude(cut(plate), 0, floor)];
+    const plateF = mirX(plate);                             // 맞춤 모서리도 같이 반전
+    const G = [extrude(plateF, 0, floor)];
     for (let k = 0; k < steps + 2; k++) {
       const h0 = ((domeH + gap) * k) / (steps + 2), h1 = ((domeH + gap) * (k + 1)) / (steps + 2);
       const hm = (h0 + h1) / 2;
@@ -480,9 +518,9 @@ export function buildPressMold(model, o = {}) {
       const cav = hm <= domeH
         ? offset(fpM, -domeInset(t, r0, domeH) + gap)
         : union([...offset(fpM, gap), ...offset(silM, gap)]);
-      const ring = clean(diff(plate, cav), 0.001);
+      const ring = clean(diff(plateF, cav), 0.001);
       if (!ring.length) { info.warn = info.warn || 'cavityOutOfPlate'; break; }
-      G.push(extrude(cut(ring), floor + h0, floor + h1));       // 핀 구멍은 전층을 관통해야 핀이 들어간다
+      G.push(extrude(ring, floor + h0, floor + h1));
     }
     const g = G.filter(Boolean);
     if (dx) g.forEach((x) => x.translate(dx, 0, 0));
@@ -525,7 +563,11 @@ export function pressProfile(model, o = {}) {
   const flange = Math.max(2, o.flange ?? 6);
   const thick = Math.max(0.4, o.thick ?? 3);
 
-  const sil = union(model.layers.flatMap((l) => l.items.map((it) => toPathH(it.poly, H))), PF.pftEvenOdd);
+  const raw = union(model.layers.flatMap((l) => l.items.map((it) => toPathH(it.poly, H))), PF.pftEvenOdd);
+  if (!raw.length) return null;
+  // 3D 와 같은 실루엣을 써야 미리보기가 어긋나지 않는다
+  const smooth = o.smooth ?? true;
+  const sil = smooth ? smoothSil(raw, Math.max(0.6, Math.min(1.5, (([a, b, c, d]) => Math.min(c - a, d - b))(bboxOf(raw)) * 0.03))) : raw;
   if (!sil.length) return null;
   let fp = rim > 0.01 ? clean(offset(sil, -rim), 0.5) : sil;
   for (const f of [0.6, 0.35, 0.15, 0]) { if (fp.length) break; fp = f ? clean(offset(sil, -rim * f), 0.5) : sil; }

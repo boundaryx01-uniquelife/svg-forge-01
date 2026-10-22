@@ -31,9 +31,9 @@ const el = {};
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
   'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'tdTitle', 'tdPrint', 'tdSw', 'tdEst', 'tdMoveRow', 'tdMove', 'tdHint', 'tdDel', 'edTextEdit', 'txtSw', 'txtSwEst', 'thinBtn', 'bucketBar', 'bucketBtn', 'bucketCol', 'tabPress', 'viewPress', 'pressCv', 'pressPlay', 'pressRst', 'pressPos', 'pressStage', 'pressInfo',
   'tabSim', 'viewSim', 'simCv', 'simHead', 'simPlay', 'simRst', 'simPos', 'simTime', 'simSpd', 'simCut', 'simEng', 'simTrv', 'simInfo',
-  'mpOn', 'mpOpts', 'mpKind', 'mpColor', 'mpW', 'mpPitch', 'mpWall', 'mpAngle', 'mpSpokes', 'mpSpokesRow', 'mpInfo',
-  'mdOn', 'mdOpts', 'mdKind', 'mdOut', 'mdColor', 'mdDome', 'mdGap', 'mdRim', 'mdPin', 'mdPair', 'mdDepth', 'mdFloor', 'mdDraft', 'mdClear', 'mdFlange', 'mdRibH', 'mdInfo', 'sampleRow',
-  'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
+  'mpOn', 'mpOpts', 'mpKind', 'mpColor', 'mpFill', 'mpFillColor', 'mpW', 'mpPitch', 'mpWall', 'mpAngle', 'mpSpokes', 'mpSpokesRow', 'mpInfo',
+  'mdOn', 'mdOpts', 'mdKind', 'mdOut', 'mdColor', 'mdDome', 'mdGap', 'mdRim', 'mdPair', 'mdDepth', 'mdFloor', 'mdDraft', 'mdClear', 'mdFlange', 'mdRibH', 'mdInfo', 'sampleRow',
+  'projNew', 'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear', 'edCut', 'edCutW', 'edText', 'edDrop', 'textDlg', 'tdText', 'tdSize', 'tdColor',
 ].forEach((id) => (el[id] = document.getElementById(id)));
 
@@ -653,6 +653,8 @@ async function compute() {
       angle: parseFloat(el.mpAngle.value) || 0,
       spokes: parseInt(el.mpSpokes.value, 10) || 12,
       color: el.mpColor.value,
+      fill: el.mpFill.checked,
+      fillColor: el.mpFillColor.value,
     });
     S.silModel = { ...m, layers: m.layers.map((l) => ({ ...l })) }; // 몰드는 무늬가 아니라 원래 실루엣 기준
     S.model = m = r.model;
@@ -660,7 +662,8 @@ async function compute() {
     if (r.info.noInner) msgs.push(T('도형이 벽 폭보다 얇아 무늬가 들어갈 자리가 없습니다. 벽 폭을 줄이거나 너비를 키우세요.'));
     else if (r.info.empty) msgs.push(T('무늬가 하나도 들어가지 않았습니다. 간격을 좁혀 보세요.'));
     if (msgs.length) warnings.push('⚠ ' + msgs.join(' '));
-    el.mpInfo.textContent = msgs.length ? '' : T('벽 {w}mm · 선 {l}mm · 조각 {n}개', { w: r.info.wall, l: r.info.lineWidth, n: m.ringCount });
+    el.mpInfo.textContent = msgs.length ? '' : T('벽 {w}mm · 선 {l}mm · 조각 {n}개', { w: r.info.wall, l: r.info.lineWidth, n: m.ringCount })
+      + (r.info.fill ? T(' · 구멍 {a}mm² 채움', { a: r.info.fillArea }) : '');
     el.mpInfo.style.color = msgs.length ? '#c92a2a' : '';
     if (msgs.length) el.mpInfo.textContent = msgs[0];
   } else { S.silModel = null; if (el.mpInfo) el.mpInfo.textContent = ''; }
@@ -2320,7 +2323,7 @@ function solidOpts() {
       flange: nv(el.mdFlange, 5, 1), ribH: Math.max(0, parseFloat(el.mdRibH.value) || 0),
       color: el.mdColor.value,
       kind: el.mdKind.value,
-      domeH: nv(el.mdDome, 10, 0.5), domeAuto: !el.mdDome.dataset.set, gap: nv(el.mdGap, 3.4, 0.2), pinD: Math.max(0, parseFloat(el.mdPin.value) || 0),
+      domeH: nv(el.mdDome, 10, 0.5), domeAuto: !el.mdDome.dataset.set, gap: nv(el.mdGap, 3.4, 0.2),
       rim: Math.max(0, parseFloat(el.mdRim.value) || 0), wall: nv(el.mpWall, 2, 0.4),
       pair: el.mdPair.value,
       sil: S.silModel,
@@ -2771,11 +2774,12 @@ window.addEventListener('resize', () => S.view === 'press' && pressDraw());
 // ---------- 몰드 · 패턴 ----------
 function updateMpUi() {
   el.mpOpts.classList.toggle('hide', !el.mpOn.checked);
+  document.body.classList.toggle('mpfill-on', el.mpOn.checked && el.mpFill.checked);
   const k = el.mpKind.value;
   el.mpSpokesRow.style.display = k === 'web' || k === 'spokes' || k === 'rings' ? '' : 'none';
   el.mpAngle.parentElement.style.opacity = k === 'rings' ? 0.5 : 1;
 }
-[el.mpOn, el.mpKind, el.mpColor].forEach((e) => e.addEventListener('change', () => (updateMpUi(), schedule(0))));
+[el.mpOn, el.mpKind, el.mpColor, el.mpFill, el.mpFillColor].forEach((e) => e.addEventListener('change', () => (updateMpUi(), schedule(0))));
 el.mpOn.addEventListener('change', () => autoMode('mpOn'));
 el.mdOn.addEventListener('change', () => autoMode('mdOn'));
 [el.mpW, el.mpPitch, el.mpWall, el.mpAngle, el.mpSpokes].forEach((e) => e.addEventListener('input', () => schedule()));
@@ -2808,7 +2812,7 @@ el.mdRim.addEventListener('input', () => (el.mdRim.dataset.set = '1'));
 el.mdDome.addEventListener('input', () => (el.mdDome.dataset.set = '1'));
 el.mpWall.addEventListener('input', () => updateMdUi());
 [el.mdOn, el.mdKind, el.mdOut, el.mdPair, el.mdColor].forEach((e) => e.addEventListener('change', () => (updateMdUi(), on3dChange(true), S.view === 'press' && refreshPress())));
-[el.mdDepth, el.mdFloor, el.mdDraft, el.mdClear, el.mdFlange, el.mdRibH, el.mdDome, el.mdGap, el.mdPin, el.mdRim].forEach((e) => e.addEventListener('input', () => (on3dChange(false), S.view === 'press' && refreshPress())));
+[el.mdDepth, el.mdFloor, el.mdDraft, el.mdClear, el.mdFlange, el.mdRibH, el.mdDome, el.mdGap, el.mdRim].forEach((e) => e.addEventListener('input', () => (on3dChange(false), S.view === 'press' && refreshPress())));
 el.thick.addEventListener('input', () => updateMdUi());
 el.ringOn.addEventListener('change', () => autoMode('ringOn'));
 updateMpUi();
@@ -3353,6 +3357,15 @@ async function openProjectFile(file) {
     setMsg([T('프로젝트 파일을 읽을 수 없습니다.')]);
   }
 }
+// 새 작업: 자동 저장본을 지우고 새로고침 — 남는 상태 없이 확실하게 첫 화면으로
+el.projNew.onclick = async () => {
+  const dirty = !!(S.model || S.img || (el.text.value || '').trim());
+  if (dirty && !confirm(T('지금 작업을 모두 비우고 첫 화면으로 갑니다.\n저장하지 않은 작업은 사라집니다.'))) return;
+  try {
+    await kvDel('last');
+  } catch (e) {}
+  location.reload();
+};
 el.projSave.onclick = saveProjectFile;
 el.projOpen.onclick = () => el.projFile.click();
 el.projFile.onchange = () => {
