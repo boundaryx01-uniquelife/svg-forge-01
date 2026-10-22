@@ -979,7 +979,10 @@ function updateEditBar() {
   }
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const [x, y] of it.poly) (x < x0 && (x0 = x), x > x1 && (x1 = x), y < y0 && (y0 = y), y > y1 && (y1 = y));
-  el.edInfo.innerHTML = `<i class="sw" style="background:${q.c}"></i>${T(it.hole ? '구멍' : '도형')} ${(x1 - x0).toFixed(1)} × ${(y1 - y0).toFixed(1)} mm`;
+  // 트레이싱하면 테두리·선이 한 덩어리로 이어지는 일이 많다. 일부만 바꾸려는데 전체가 바뀌는 오해를 줄이려 미리 알려 줌
+  const wide = !it.hole && x1 - x0 > m.width * 0.7 && y1 - y0 > m.height * 0.7;
+  el.edInfo.innerHTML = `<i class="sw" style="background:${q.c}"></i>${T(it.hole ? '구멍' : '도형')} ${(x1 - x0).toFixed(1)} × ${(y1 - y0).toFixed(1)} mm`
+    + (wide ? ` <b title="${T('이 색의 선들이 서로 붙어 있어 한 조각입니다. 일부만 바꾸려면 ✂ 끊기로 먼저 나누세요.')}" style="color:var(--warn,#b06000)">· ${T('그림 전체와 이어진 한 조각')}</b>` : '');
   if (document.activeElement !== el.edColor) el.edColor.value = /^#[0-9a-f]{6}$/i.test(q.c) ? q.c : '#000000';
   el.edHoles.disabled = el.edScope.value === 'shape' && !it.hole && !l.items.some((x) => x.hole && x.parent === q.i);
 }
@@ -2547,6 +2550,20 @@ function applyModeUi() {
   if (m !== 'laser' && S.view === 'sim') setView('2d');
   if (el.mdKind) updateMdUi();
 }
+/** 자유 모드에서 기능을 켜면 그에 맞는 모드로 자동 전환.
+ *  preset 의 change 핸들러는 다른 항목을 전부 되돌리므로 부르지 않고, 모드 표시만 바꾼다. */
+const MODE_OF = [['mpOn', 'mold'], ['mdOn', 'mold'], ['kcOn', 'keycap'], ['ringOn', 'keyring']];
+function autoMode(src) {
+  if (el.preset.value !== '') return false;       // 이미 어떤 모드면 건드리지 않음
+  const hit = MODE_OF.find(([k]) => k === src && el[k] && el[k].checked);
+  if (!hit) return false;
+  el.preset.value = hit[1];
+  showPresetRec();
+  const pr = PRESETS[hit[1]];
+  if (pr) S.flash = T(pr.hint);
+  return true;
+}
+
 function showPresetRec() {
   applyModeUi();
   const pr = PRESETS[el.preset.value];
@@ -2759,6 +2776,8 @@ function updateMpUi() {
   el.mpAngle.parentElement.style.opacity = k === 'rings' ? 0.5 : 1;
 }
 [el.mpOn, el.mpKind, el.mpColor].forEach((e) => e.addEventListener('change', () => (updateMpUi(), schedule(0))));
+el.mpOn.addEventListener('change', () => autoMode('mpOn'));
+el.mdOn.addEventListener('change', () => autoMode('mdOn'));
 [el.mpW, el.mpPitch, el.mpWall, el.mpAngle, el.mpSpokes].forEach((e) => e.addEventListener('input', () => schedule()));
 function updateMdUi() {
   el.mdOpts.classList.toggle('hide', !el.mdOn.checked);
@@ -2791,10 +2810,12 @@ el.mpWall.addEventListener('input', () => updateMdUi());
 [el.mdOn, el.mdKind, el.mdOut, el.mdPair, el.mdColor].forEach((e) => e.addEventListener('change', () => (updateMdUi(), on3dChange(true), S.view === 'press' && refreshPress())));
 [el.mdDepth, el.mdFloor, el.mdDraft, el.mdClear, el.mdFlange, el.mdRibH, el.mdDome, el.mdGap, el.mdPin, el.mdRim].forEach((e) => e.addEventListener('input', () => (on3dChange(false), S.view === 'press' && refreshPress())));
 el.thick.addEventListener('input', () => updateMdUi());
+el.ringOn.addEventListener('change', () => autoMode('ringOn'));
 updateMpUi();
 updateMdUi();
 el.kcOn.addEventListener('change', () => {
   if (!el.kcOn.checked) return;
+  autoMode('kcOn');
   const D = keycapDims(kcOpts());
   const w = parseFloat(el.width.value) || 50;
   if (w > D.topW - 0.8) {
@@ -3636,6 +3657,7 @@ el.btn3mf.onclick = async () => {
 
 window.__svgforge = S;
 window.__strokeOf = strokeOf; // 테스트용
+window.__edit = (e) => { S.edits.push(e); schedule(0); }; // 테스트용 — 편집을 바로 적용
 Object.defineProperty(S, 'cam', { get: () => (G3 && !G3.failed ? G3.camera.position.toArray() : null) }); // 테스트용
 Object.defineProperty(S, 'fov', { get: () => (G3 && !G3.failed ? G3.camera.fov : null) }); // 테스트용
 Object.defineProperty(S, 'tgt', { get: () => (G3 && !G3.failed ? G3.controls.target.toArray() : null) }); // 테스트용

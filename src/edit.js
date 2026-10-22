@@ -48,6 +48,18 @@ function fixOverlap(L, tol) {
   return { ...L, items: buildItems(rings, tol) };
 }
 
+/** 두 묶음을 '영역'으로 합쳐 링으로 돌려준다.
+ *  링만 모아 buildItems 로 중첩을 다시 계산하면, 다른 색 도형 위에 얹혀 있던
+ *  테두리가 그 도형의 구멍으로 뒤집힌다(색을 합쳤는데 구멍이 뚫리는 문제). */
+function unionRings(aItems, bItems) {
+  const c = new ClipperLib.Clipper();
+  if (aItems.length) c.AddPaths(toPaths(aItems), ClipperLib.PolyType.ptSubject, true);
+  if (bItems.length) c.AddPaths(toPaths(bItems), ClipperLib.PolyType.ptClip, true);
+  const out = new ClipperLib.Paths();
+  c.Execute(ClipperLib.ClipType.ctUnion, out, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  return out.filter((p) => p.length >= 3).map((p) => closeRing(p.map((q, i) => [i ? 'L' : 'M', q.X / SC, q.Y / SC])));
+}
+
 /** i번 도형 + 그 안의 직접 구멍들의 번호 */
 export function groupOf(items, i) {
   const g = [i];
@@ -260,7 +272,7 @@ export function applyEdits(model, edits, tol) {
       let L = model.layers.find((l) => l.color === e.c);
       if (!L) model.layers.push((L = { color: e.c, items: [] }));
       const li = model.layers.indexOf(L);
-      model.layers[li] = fixOverlap({ ...L, items: buildItems(L.items.map((it) => it.ring).concat(nr), tol) }, tol);
+      model.layers[li] = { ...L, items: buildItems(unionRings(L.items, buildItems(nr, tol)), tol) };
       knock(model, e.c, nr, tol);
       continue;
     }
@@ -300,7 +312,7 @@ export function applyEdits(model, edits, tol) {
         let T0 = model.layers.find((l) => l.color === e.to);
         if (!T0) model.layers.push((T0 = { color: e.to, items: [] }));
         const ti = model.layers.indexOf(T0);
-        model.layers[ti] = fixOverlap({ ...T0, items: buildItems(T0.items.map((x) => x.ring).concat(rs), tol) }, tol);
+        model.layers[ti] = { ...T0, items: buildItems(unionRings(T0.items, buildItems(rs, tol)), tol) };
         continue;
       }
     }
@@ -345,15 +357,14 @@ export function applyEdits(model, edits, tol) {
       for (const j of hs) rings = rings.concat(offsetRings([all[j]], -e.d));
     } else if (e.t === 'col') {
       if (e.to === e.c) continue;
-      const rs = picked.map((it) => it.ring);
       model.layers[li] = { ...L, items: buildItems(rings, tol) };
       let T = model.layers.find((l) => l.color === e.to);
       if (!T) {
         T = { color: e.to, items: [] };
         model.layers.push(T);
       }
-      T.items = buildItems(T.items.map((it) => it.ring).concat(rs), tol);
-      model.layers[model.layers.indexOf(T)] = fixOverlap(T, tol);
+      T.items = buildItems(unionRings(T.items, picked), tol);
+      model.layers[model.layers.indexOf(T)] = T;
       continue;
     } else if (e.t === 'mv') {
       if (!e.dx && !e.dy) continue;
