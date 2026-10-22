@@ -30,7 +30,7 @@ const el = {};
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
   'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'tdTitle', 'tdPrint', 'tdSw', 'tdEst', 'tdMoveRow', 'tdMove', 'tdHint', 'tdDel', 'edTextEdit', 'txtSw', 'txtSwEst', 'thinBtn', 'bucketBar', 'bucketBtn', 'bucketCol', 'tabSim', 'viewSim', 'simCv', 'simHead', 'simPlay', 'simRst', 'simPos', 'simTime', 'simSpd', 'simCut', 'simEng', 'simTrv', 'simInfo',
   'mpOn', 'mpOpts', 'mpKind', 'mpColor', 'mpW', 'mpPitch', 'mpWall', 'mpAngle', 'mpSpokes', 'mpSpokesRow', 'mpInfo',
-  'mdOn', 'mdOpts', 'mdOut', 'mdColor', 'mdDepth', 'mdFloor', 'mdDraft', 'mdClear', 'mdFlange', 'mdRibH', 'mdInfo', 'sampleRow',
+  'mdOn', 'mdOpts', 'mdKind', 'mdOut', 'mdColor', 'mdDome', 'mdGap', 'mdPin', 'mdPair', 'mdDepth', 'mdFloor', 'mdDraft', 'mdClear', 'mdFlange', 'mdRibH', 'mdInfo', 'sampleRow',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
   'tab2d', 'tab3d', 'view2d', 'view3d', 'badge3d', 'status', 'msg', 'v2Fill', 'v2Line', 'modeView2d', 'editbar', 'edInfo', 'edScope', 'edDel', 'edMinus', 'edPlus', 'edStep', 'edHoles', 'edColor', 'edClear', 'edCut', 'edCutW', 'edText', 'edDrop', 'textDlg', 'tdText', 'tdSize', 'tdColor',
 ].forEach((id) => (el[id] = document.getElementById(id)));
@@ -2314,6 +2314,9 @@ function solidOpts() {
       draft: Math.max(0, parseFloat(el.mdDraft.value) || 0), clearance: Math.max(0, parseFloat(el.mdClear.value) || 0),
       flange: nv(el.mdFlange, 5, 1), ribH: Math.max(0, parseFloat(el.mdRibH.value) || 0),
       color: el.mdColor.value,
+      kind: el.mdKind.value,
+      domeH: nv(el.mdDome, 10, 0.5), gap: nv(el.mdGap, 3.4, 0.2), pinD: Math.max(0, parseFloat(el.mdPin.value) || 0),
+      pair: el.mdPair.value,
       sil: S.silModel,
       pattern: { pattern: el.mpKind.value, width: nv(el.mpW, 1.2, 0.2), pitch: nv(el.mpPitch, 5, 0.5), angle: parseFloat(el.mpAngle.value) || 0, spokes: parseInt(el.mpSpokes.value, 10) || 12 },
     },
@@ -2352,11 +2355,16 @@ function rebuild3d() {
   el.badge3d.textContent = inf.size ? `${inf.size[0].toFixed(1)} × ${inf.size[1].toFixed(1)} × ${inf.size[2].toFixed(1)} mm · ${T('파트 {n}개', { n: geos.length })}` : '';
   if (el.mdInfo) {
     const mi = inf.mold;
-    const W = { cavityOutOfPlate: '캐비티가 판 밖으로 나갑니다. 판 폭을 늘리거나 구배·깊이를 줄이세요.', cavityTooBig: '캐비티가 판을 덮었습니다. 판 폭을 늘리세요.', noRib: '무늬가 캐비티 안에 들어가지 않았습니다. 무늬 높이를 0으로 두거나 간격을 좁히세요.', empty: '몰드를 만들 도형이 없습니다.' };
+    const W = { cavityOutOfPlate: '캐비티가 판 밖으로 나갑니다. 판 폭을 늘리거나 구배·깊이를 줄이세요.', cavityTooBig: '캐비티가 판을 덮었습니다. 판 폭을 늘리세요.', noRib: '무늬가 캐비티 안에 들어가지 않았습니다. 무늬 높이를 0으로 두거나 간격을 좁히세요.', empty: '틀을 만들 도형이 없습니다.', tooHigh: '돔이 너무 높아 누를 때 무늬가 찢어질 수 있습니다. 돔 높이를 줄이세요.' };
     if (!mi) el.mdInfo.textContent = '';
     else if (mi.warn) {
-      el.mdInfo.textContent = T(W[mi.warn] || mi.warn);
+      el.mdInfo.textContent = T(W[mi.warn] || mi.warn) + (mi.stretch != null ? T(' (늘어남 {s}%)', { s: (mi.stretch * 100).toFixed(0) }) : '');
       el.mdInfo.style.color = '#c92a2a';
+    } else if (mi.domeH != null) {
+      el.mdInfo.textContent = T('틀 {w} × {d} mm · 돔 {h}mm · 간격 {g}mm · 늘어남 {s}%', {
+        w: mi.size[0].toFixed(1), d: mi.size[1].toFixed(1), h: mi.domeH, g: mi.gap, s: (mi.stretch * 100).toFixed(0),
+      });
+      el.mdInfo.style.color = '';
     } else {
       el.mdInfo.textContent = T('몰드 {w} × {d} × {h} mm · 구배 {a}° · 여유 {c}mm', {
         w: mi.size[0].toFixed(1), d: mi.size[1].toFixed(1), h: mi.size[2].toFixed(1), a: mi.draft, c: mi.clearance,
@@ -2675,9 +2683,19 @@ function updateMpUi() {
 [el.mpW, el.mpPitch, el.mpWall, el.mpAngle, el.mpSpokes].forEach((e) => e.addEventListener('input', () => schedule()));
 function updateMdUi() {
   el.mdOpts.classList.toggle('hide', !el.mdOn.checked);
+  const press = el.mdKind.value === 'press';
+  document.body.classList.toggle('mold-press', press);
+  document.body.classList.toggle('mold-cast', !press);
+  // 간격 기본값은 본체 두께 + 0.4 (직접 건드린 적 없을 때만)
+  if (press && !el.mdGap.dataset.set) {
+    const t = parseFloat(el.thick.value) || 3;
+    el.mdGap.value = (Math.round((t + 0.4) * 10) / 10).toFixed(1);
+  }
 }
-[el.mdOn, el.mdOut, el.mdColor].forEach((e) => e.addEventListener('change', () => (updateMdUi(), on3dChange(true))));
-[el.mdDepth, el.mdFloor, el.mdDraft, el.mdClear, el.mdFlange, el.mdRibH].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
+el.mdGap.addEventListener('input', () => (el.mdGap.dataset.set = '1'));
+[el.mdOn, el.mdKind, el.mdOut, el.mdPair, el.mdColor].forEach((e) => e.addEventListener('change', () => (updateMdUi(), on3dChange(true))));
+[el.mdDepth, el.mdFloor, el.mdDraft, el.mdClear, el.mdFlange, el.mdRibH, el.mdDome, el.mdGap, el.mdPin].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
+el.thick.addEventListener('input', () => updateMdUi());
 updateMpUi();
 updateMdUi();
 el.kcOn.addEventListener('change', () => {

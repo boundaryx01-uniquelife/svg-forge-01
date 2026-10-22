@@ -5,7 +5,7 @@ import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildParts, beveledSolid } from './solid.js';
 import { buildKeycap } from './keycap.js';
-import { buildMold, patternFor } from './mold.js';
+import { buildMold, buildPressMold, patternFor } from './mold.js';
 
 /** 파트(도형+높이) → 지오메트리 */
 export function partGeometry(part) {
@@ -48,9 +48,19 @@ export function buildPartGeometries(model, opts) {
     }
   }
   if (md) {
-    const src = md.sil || model; // 몰드는 무늬가 아니라 원래 실루엣 기준
-    const ribs = md.ribH > 0.01 ? patternFor(src, md.pattern || {}) : [];
-    const r = buildMold(src, { ...md, ribs, shiftX: md.out === 'both' ? model.width + Math.max(6, md.flange * 2) : 0 });
+    const src = md.sil || model; // 틀은 무늬가 아니라 원래 실루엣 기준
+    const shiftX = md.out === 'both' ? model.width + Math.max(6, md.flange * 2) : 0;
+    let r;
+    if (md.kind === 'press') {
+      // 두 짝을 나란히: 본체 오른쪽에 수틀, 그 오른쪽에 암틀
+      const step = model.width + md.flange * 2 + 6;
+      r = buildPressMold(src, { ...md, out: md.pair, gapX: step });
+      if (shiftX) for (const p of r.parts) p.geom.translate(shiftX, 0, 0);
+      if (r.info.bbox && shiftX) r.info.bbox = [r.info.bbox[0] + shiftX, r.info.bbox[1], r.info.bbox[2] + shiftX, r.info.bbox[3]];
+    } else {
+      const ribs = md.ribH > 0.01 ? patternFor(src, md.pattern || {}) : [];
+      r = buildMold(src, { ...md, ribs, shiftX });
+    }
     for (const p of r.parts) out.push({ name: p.name, color: p.color, geometry: p.geom, z0: p.z0, z1: p.z1, role: p.role });
     info.mold = r.info;
     if (r.info.bbox) { // 카메라·치수가 몰드까지 포함하도록 범위를 넓힘

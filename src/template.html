@@ -110,6 +110,7 @@ body[data-mode=laser] .g-wall,body[data-mode=laser] .g-3d,body[data-mode=laser] 
 body[data-mode=keycap] .g-laser,body[data-mode=keycap] .g-base{display:none!important}
 body[data-mode=keyring] .g-laser,body[data-mode=keyring] .g-kc,body[data-mode=print3d] .g-laser,body[data-mode=print3d] .g-kc{display:none!important}
 .g-mold{display:none}
+.mold-press .g-cast,.mold-cast .g-press{display:none}
 body[data-mode=mold] .g-mold,body[data-mode=free] .g-mold{display:block}
 body[data-mode=mold] .g-laser,body[data-mode=mold] .g-kc,body[data-mode=mold] .g-base{display:none!important}
 #viewSim{background:#f4f1ea;display:flex;flex-direction:column}
@@ -584,21 +585,38 @@ dialog#prefs .row label{flex-basis:70px}
       <div class="row" id="mpSpokesRow"><label for="mpSpokes" title="거미줄·방사선에서 중심에서 뻗는 줄 수">줄 수</label>
         <input id="mpSpokes" class="mini" type="number" min="3" max="48" step="1" value="12" title="방사 줄 수"></div>
       <div id="mpInfo" class="note2" style="font-size:12px;color:var(--sub);margin:2px 0 4px"></div>
-      <label class="chk" title="같은 도형으로 음각 형틀을 함께 만듭니다. 석고·비누·초콜릿을 부어 굳히는 용도입니다."><input type="checkbox" id="mdOn"> 🧊 몰드도 같이 만들기</label>
+      <label class="chk" title="같은 도형으로 틀을 함께 만듭니다."><input type="checkbox" id="mdOn"> 🧊 틀도 같이 만들기</label>
       <div id="mdOpts" class="sub hide">
+        <div class="row"><label for="mdKind" style="flex-basis:44px">종류</label>
+          <select id="mdKind" class="grow" style="min-width:96px">
+            <option value="press" selected>성형 틀 (눌러 볼록하게)</option>
+            <option value="cast">주조 몰드 (부어서 굳힘)</option>
+          </select></div>
         <div class="row"><label for="mdOut" style="flex-basis:44px">출력</label>
           <select id="mdOut" class="grow" style="min-width:96px">
-            <option value="both" selected>나란히 (본체 + 몰드)</option>
-            <option value="mold">몰드만</option>
+            <option value="both" selected>나란히 (본체 + 틀)</option>
+            <option value="mold">틀만</option>
           </select>
-          <input id="mdColor" type="color" value="#9aa7b0" title="몰드 색"></div>
-        <div class="row"><label title="파낼 깊이 · 바닥에 남길 두께 (mm)">깊이·바닥</label>
+          <input id="mdColor" type="color" value="#9aa7b0" title="틀 색"></div>
+        <div class="g-press">
+          <div class="row"><label title="가운데가 볼록해지는 높이 (mm) · 두 짝 사이 간격 (mm) = 본체 두께 + 여유">돔 높이·간격</label>
+            <input id="mdDome" class="mini" type="number" min="0.5" max="60" step="0.5" value="10" title="돔 높이 (mm)">
+            <input id="mdGap" class="mini" type="number" min="0.2" max="20" step="0.1" value="3.4" title="두 짝 사이 간격 (mm) — 본체 두께보다 조금 크게"></div>
+          <div class="row"><label title="정렬 핀 지름 (mm, 0이면 없음) · 어느 짝을 낼지">정렬 핀</label>
+            <input id="mdPin" class="mini" type="number" min="0" max="12" step="0.5" value="4" title="정렬 핀 지름 (mm)">
+            <select id="mdPair" class="grow" style="min-width:86px">
+              <option value="both" selected>두 짝</option>
+              <option value="maleOnly">수틀만</option>
+              <option value="femaleOnly">암틀만</option>
+            </select></div>
+        </div>
+        <div class="row g-cast"><label title="파낼 깊이 · 바닥에 남길 두께 (mm)">깊이·바닥</label>
           <input id="mdDepth" class="mini" type="number" min="0.4" max="40" step="0.5" value="4" title="캐비티 깊이 (mm)">
           <input id="mdFloor" class="mini" type="number" min="0.6" max="20" step="0.2" value="2" title="바닥 두께 (mm)"></div>
-        <div class="row"><label title="주조물이 잘 빠지게 벽을 기울이는 각도(°) · 도형보다 넓힐 여유(mm). 여유는 재료마다 달라 시험 출력으로 맞춥니다">구배·여유</label>
+        <div class="row g-cast"><label title="주조물이 잘 빠지게 벽을 기울이는 각도(°) · 도형보다 넓힐 여유(mm). 여유는 재료마다 달라 시험 출력으로 맞춥니다">구배·여유</label>
           <input id="mdDraft" class="mini" type="number" min="0" max="20" step="1" value="5" title="빼기 구배 (°)">
           <input id="mdClear" class="mini" type="number" min="0" max="2" step="0.05" value="0.2" title="여유 (mm)"></div>
-        <div class="row"><label title="도형 둘레에 남길 판 폭 (mm) · 바닥에 새길 무늬 높이 (mm, 0이면 없음)">판 폭·무늬</label>
+        <div class="row"><label title="도형 둘레에 남길 판 폭 (mm) · 바닥에 새길 무늬 높이 (mm, 0이면 없음 — 성형 틀에서는 쓰지 않음)">판 폭·무늬</label>
           <input id="mdFlange" class="mini" type="number" min="1" max="40" step="1" value="5" title="판 테두리 폭 (mm)">
           <input id="mdRibH" class="mini" type="number" min="0" max="5" step="0.1" value="0.8" title="바닥 무늬 높이 (mm)"></div>
         <div id="mdInfo" class="note2" style="font-size:12px;color:var(--sub);margin:2px 0 4px"></div>

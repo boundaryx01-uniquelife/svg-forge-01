@@ -345,3 +345,125 @@ export function patternFor(model, o = {}) {
   });
   return inter(pp, sil);
 }
+
+/* ───────────────────────── 성형 틀 (눌러 볼록하게) ─────────────────────────
+ * 평평하게 출력한 본체를 데워서 틀 사이에 끼우고 눌러 돔 모양으로 바꾼다.
+ * (원본 영상 방식: 본체 PLA, 틀은 열에 강한 PETG)
+ *
+ *   수틀 ── 볼록한 돔 (구면). 본체를 이 위에 올림
+ *   암틀 ── 같은 돔을 '간격'만큼 넓힌 오목한 그릇. 뒤집어서 눌러 덮음
+ *   간격 = 본체 두께 + 여유. 안 주면 눌려 뭉개진다.
+ *
+ * 돔도 캐비티와 같은 방식(얇은 층 쌓기)으로 만든다.
+ */
+
+/** 구면 돔: 밑면 반지름 r0, 높이 H 일 때 높이 t 에서 안쪽으로 들어간 거리 */
+function domeInset(t, r0, H) {
+  if (H <= 0.001) return 0;
+  const R = (r0 * r0 + H * H) / (2 * H);      // 구 반지름
+  const q = R * R - (t - H + R) * (t - H + R);
+  return r0 - (q > 0 ? Math.sqrt(q) : 0);
+}
+
+/** 평평한 판이 돔이 되며 늘어나는 비율 (가장자리 기준) */
+function domeStretch(r0, H) {
+  if (H <= 0.001) return 0;
+  const R = (r0 * r0 + H * H) / (2 * H);
+  return (R * Math.asin(Math.min(1, r0 / R))) / r0 - 1;
+}
+
+/**
+ * 성형 틀 한 쌍.
+ * o: { domeH, gap, flange, floor, pin, pinD, colorM, colorF, out, shiftX, gapX }
+ */
+export function buildPressMold(model, o = {}) {
+  const H = model.height;
+  const flange = Math.max(2, o.flange ?? 6);
+  const floor = Math.max(0.8, o.floor ?? 2.5);
+  const gap = Math.max(0.2, o.gap ?? 3.4);          // 본체 두께 + 여유
+  const pinD = Math.max(0, o.pinD ?? 4);
+  const info = { warn: null };
+
+  const fp = union(model.layers.flatMap((l) => l.items.map((it) => toPathH(it.poly, H))), PF.pftEvenOdd);
+  if (!fp.length) return { parts: [], info: { warn: 'empty' } };
+  const [fx0, fy0, fx1, fy1] = bboxOf(fp);
+  const r0 = Math.min(fx1 - fx0, fy1 - fy0) / 2;    // 짧은 쪽 기준 (돔이 가장자리를 넘지 않게)
+  const domeH = Math.max(0.5, Math.min(o.domeH ?? Math.round(r0 * 0.45 * 2) / 2, r0 * 0.95));
+  info.domeH = domeH;
+  info.r0 = r0;
+  info.stretch = domeStretch(r0, domeH);
+  if (info.stretch > 0.22) info.warn = 'tooHigh';
+
+  const plate = [rectPath(fx0 - flange, fy0 - flange, fx1 + flange, fy1 + flange)];
+  const steps = Math.min(80, Math.max(6, Math.ceil(domeH / 0.15)));
+  info.steps = steps;
+
+  // 정렬 핀 자리 (플랜지 네 귀퉁이)
+  const pins = [];
+  if (pinD > 0.5) {
+    const m = flange / 2;
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const cx = sx < 0 ? fx0 - m : fx1 + m, cy = sy < 0 ? fy0 - m : fy1 + m;
+      const c = [];
+      for (let i = 0; i < 24; i++) { const t = (i * Math.PI) / 12; c.push([cx + (pinD / 2) * Math.cos(t), cy + (pinD / 2) * Math.sin(t)]); }
+      pins.push(toPath(c));
+    }
+  }
+  const pinH = Math.min(6, Math.max(2.5, gap + 2));
+
+  const parts = [];
+  const mk = (geos, name, color, z1) => {
+    const g2 = geos.filter(Boolean);
+    if (!g2.length) return;
+    let g = g2.length === 1 ? g2[0] : mergeGeometries(g2);
+    g2.forEach((x) => x !== g && x.dispose());
+    g.computeVertexNormals();
+    parts.push({ name, color, geom: g, z0: 0, z1, role: 'mold' });
+  };
+
+  const want = o.out || 'both';
+
+  // ── 수틀 (볼록) ──
+  if (want !== 'femaleOnly') {
+    const G = [extrude(plate, 0, floor)];
+    for (let k = 0; k < steps; k++) {
+      const t0 = (domeH * k) / steps, t1 = (domeH * (k + 1)) / steps;
+      const lay = clean(offset(fp, -domeInset((t0 + t1) / 2, r0, domeH)), 0.02);
+      if (!lay.length) break;
+      G.push(extrude(lay, floor + t0, floor + t1));
+    }
+    if (pins.length) G.push(extrude(pins, floor, floor + pinH));
+    mk(G, '수틀 (볼록)', o.colorM || '#8fa6b8', floor + domeH);
+  }
+
+  // ── 암틀 (오목) ──
+  if (want !== 'maleOnly') {
+    const dx = want === 'both' ? (o.gapX ?? 0) : 0;
+    const top = floor + domeH + gap;
+    const G = [extrude(plate, 0, floor)];
+    for (let k = 0; k < steps + 2; k++) {
+      const h0 = ((domeH + gap) * k) / (steps + 2), h1 = ((domeH + gap) * (k + 1)) / (steps + 2);
+      const hm = (h0 + h1) / 2;
+      const t = Math.max(0, Math.min(domeH, domeH + gap - hm));   // 대응하는 수틀 높이
+      const cav = offset(fp, -domeInset(t, r0, domeH) + gap);
+      const ring = clean(diff(plate, cav), 0.001);
+      if (!ring.length) { info.warn = info.warn || 'cavityOutOfPlate'; break; }
+      G.push(extrude(ring, floor + h0, floor + h1));
+    }
+    // 핀 구멍 (수틀 핀 + 여유 0.3mm) — 판 전체를 뚫음
+    if (pins.length) {
+      const holes = offset(pins, 0.3);
+      const solid = G.splice(0, 1); // 바닥판은 구멍을 내서 다시
+      solid[0] && solid[0].dispose();
+      G.unshift(extrude(clean(diff(plate, holes), 0.001), 0, floor));
+    }
+    const g = G.filter(Boolean);
+    if (dx) g.forEach((x) => x.translate(dx, 0, 0));
+    mk(g, '암틀 (오목)', o.colorF || '#b8a68f', top);
+  }
+
+  info.size = [fx1 - fx0 + flange * 2, fy1 - fy0 + flange * 2, floor + domeH + gap];
+  info.bbox = [fx0 - flange, fy0 - flange, fx1 + flange + (want === 'both' ? (o.gapX ?? 0) : 0), fy1 + flange];
+  info.gap = gap;
+  return { parts, info };
+}
