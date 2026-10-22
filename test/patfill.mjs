@@ -47,6 +47,24 @@ const body = rect(5, 5, 95, 95);
   check('몸통은 무늬 + 채움 그대로', B.덮임 > 90 && B['#1b1b1b'] > 20, `${B.덮임}% · 무늬 ${B['#1b1b1b']}%`);
   const red = r.model.layers.find((l) => l.color === '#e03131');
   check('빨강이 제 레이어로 남음', !!red, red ? `조각 ${red.items.length}개` : '없음');
+  // 구멍이었을 때처럼 둘레에 벽이 둘러져야 한다 (칠하면 테두리가 사라지던 문제)
+  const ring = (() => {
+    const poly = red.items[0].poly;                       // 실제 원반 위치·크기를 모델에서 읽는다
+    let cx = 0, cy = 0; for (const q of poly) (cx += q[0], cy += q[1]);
+    cx /= poly.length; cy /= poly.length;
+    let rr = 0; for (const q of poly) rr = Math.max(rr, Math.hypot(q[0] - cx, q[1] - cy));
+    const rs = rr + 1;                                    // 원반 바로 바깥 (벽 2mm 의 한가운데)
+    let on = 0, n = 0;
+    for (let k = 0; k < 72; k++) {
+      const t = (2 * Math.PI * k) / 72, x = cx + rs * Math.cos(t), y = cy + rs * Math.sin(t);
+      n++;
+      let ins = false; for (const it of r.model.layers[0].items) if (pip(it.poly, x, y)) ins = !ins;
+      if (ins) on++;
+    }
+    return Math.round((100 * on) / n);
+  })();
+  console.log(`칠한 눈 바로 바깥이 무늬 색으로 덮인 비율: ${ring}%`);
+  check('칠한 색 둘레에 벽이 둘러짐', ring > 85, `${ring}%`);
   // 벽 폭만 한 찌꺼기 덩어리가 박히면 안 된다 (경계에 남는 미세 구멍 → 그 둘레로 벽이 생김)
   const pat = r.model.layers[0];
   const lump = pat.items.filter((it) => {

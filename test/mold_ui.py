@@ -23,6 +23,11 @@ with sync_playwright() as p:
     r['거미줄'] = st()
     r['안내'] = pg.inner_text('#mpInfo')
 
+    # 🪣 채우기는 무늬를 켠 채로도 써야 한다 (끄지 않으면 칠할 수 없어 '잠긴' 것처럼 보임)
+    pg.click('#tab2d'); time.sleep(1.5)          # 몰드 모드는 3D 탭으로 열린다
+    r['무늬켠채_채우기바'] = pg.is_visible('#bucketBar')
+    r['무늬켠채_편집도구숨김'] = not pg.is_visible('#editbar')
+
     # 구멍 채우기 (두 번째 색)
     r['채움_기본켜짐'] = pg.is_checked('#mpFill')
     r['채움_색수'] = pg.evaluate("()=>window.__svgforge.model.layers.length")

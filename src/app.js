@@ -670,6 +670,8 @@ async function compute() {
     el.mpInfo.style.color = msgs.length ? '#c92a2a' : '';
     if (msgs.length) el.mpInfo.textContent = msgs[0];
   } else { S.silModel = null; if (el.mpInfo) el.mpInfo.textContent = ''; }
+  // 편집 도구 줄은 checkSel() 에서 먼저 정해지는데, 채우기 가능 여부는 여기서야 결정된다 → 다시 맞춘다
+  if (el.mpOn) updateEditBar();
   if (S.mode === 'text') {
     m.fromText = true;
     m.chars = layers.chars || [];
@@ -970,7 +972,7 @@ function updateEditBar() {
   const mp = el.mpOn && el.mpOn.checked; // 패턴을 씌운 뒤에는 도형 편집 대상이 달라져 혼란 → 도구를 숨김
   const on = S.mode === 'image' && S.view === '2d' && !!S.model && !mp;
   el.editbar.style.display = on ? '' : 'none';
-  el.bucketBar.style.display = !mp && S.view === '2d' && S.model && (S.mode === 'image' || S.mode === 'text') ? '' : 'none';
+  el.bucketBar.style.display = S.view === '2d' && S.model && (S.mode === 'image' || S.mode === 'text') && (!mp || !!S.silModel) ? '' : 'none';
   el.editbar.classList.toggle('nosel', !it);
   el.edTextEdit.classList.toggle('hide', !(it && addAtSel()));
   if (it && S.sels.length > 1) {
@@ -1351,8 +1353,12 @@ function setCut(on) {
 el.edScope.onchange = updateEditBar;
 const BUCKET_CUR = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><text x="0" y="20" font-size="18">🪣</text></svg>')}") 3 20, crosshair`;
 /** 페인트 통이 칠할 면 (미리 보여 주기용): null = 칠할 것 없음 */
+/** 채우기·집기는 '무늬를 씌우기 전 도형'을 대상으로 한다 (무늬를 켠 채로도 칠할 수 있게) */
+function editModel() {
+  return (el.mpOn && el.mpOn.checked && S.silModel) ? S.silModel : S.model;
+}
 function bucketTarget(P) {
-  const m = S.model;
+  const m = editModel();
   if (!m) return null;
   const to = el.bucketCol.value.toLowerCase();
   if (S.mode === 'image') {
@@ -1644,10 +1650,11 @@ el.view2d.addEventListener(
       e.preventDefault();
       const to = el.bucketCol.value.toLowerCase();
       if (S.mode === 'image') {
-        const h = hitItem(S.model, P.x, P.y);
+        const EM = editModel();
+        const h = hitItem(EM, P.x, P.y);
         if (!h) return;
         if (e.altKey) return (el.bucketCol.value = h.c);
-        const sh = S.model.editShift || [0, 0];
+        const sh = EM.editShift || [0, 0];
         S.edits.push({ t: 'fill', x: P.x + sh[0], y: P.y + sh[1], to, w0: curW() });
         S.editsKey = S.traceKey;
         clearSel();

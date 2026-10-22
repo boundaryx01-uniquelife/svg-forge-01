@@ -219,8 +219,13 @@ export function applyPattern(model, o = {}) {
   const innerClip = innerCore.length ? offset(sil, -(wall - overlap)) : [];
   if (!innerCore.length) info.noInner = true; // 벽만으로 꽉 참 (도형이 얇음)
 
-  // 3) 벽 띠 = 실루엣 − 안쪽
-  const band = innerCore.length ? diff(sil, innerCore) : sil;
+  // 3) 벽 띠 = 실루엣 − 안쪽.
+  //    칠해 둔 색 면 둘레에도 같은 폭으로 벽을 두른다 — 구멍이었을 때와 같은 테두리가 생기게
+  let band = innerCore.length ? diff(sil, innerCore) : sil;
+  if (keptAll.length && innerCore.length) {
+    const around = clean(diff(diff(offset(keptAll, wall), keptAll), bgPaths), 0.02);
+    if (around.length) band = union([...band, ...inter(around, sil)]);
+  }
 
   // 4) 패턴 → 안쪽 영역과 교집합
   let pat = [];
