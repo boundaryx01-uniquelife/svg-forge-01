@@ -8,7 +8,8 @@ import { createSim } from './sim.js';
 import { VERSION } from './version.js';
 import { enhanceColorInputs } from './tiles.js';
 import { keycapDims } from './keycap.js';
-import { applyPattern } from './mold.js';
+import { applyPattern, pressProfile } from './mold.js';
+import { drawPress, stageAt, STAGES } from './pressview.js';
 import { SAMPLES, sampleSvg } from './samples.js';
 import { potracePathsToRings } from './pathparse.js';
 import { toFillSvg, toLaserSvg, toDxf, laserModel } from './export.js';
@@ -28,7 +29,8 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'preset', 'advImage', 'bgRow', 'removeBg', 'keepRow', 'keepInner', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'tdTitle', 'tdPrint', 'tdSw', 'tdEst', 'tdMoveRow', 'tdMove', 'tdHint', 'tdDel', 'edTextEdit', 'txtSw', 'txtSwEst', 'thinBtn', 'bucketBar', 'bucketBtn', 'bucketCol', 'tabSim', 'viewSim', 'simCv', 'simHead', 'simPlay', 'simRst', 'simPos', 'simTime', 'simSpd', 'simCut', 'simEng', 'simTrv', 'simInfo',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'tdTitle', 'tdPrint', 'tdSw', 'tdEst', 'tdMoveRow', 'tdMove', 'tdHint', 'tdDel', 'edTextEdit', 'txtSw', 'txtSwEst', 'thinBtn', 'bucketBar', 'bucketBtn', 'bucketCol', 'tabPress', 'viewPress', 'pressCv', 'pressPlay', 'pressRst', 'pressPos', 'pressStage', 'pressInfo',
+  'tabSim', 'viewSim', 'simCv', 'simHead', 'simPlay', 'simRst', 'simPos', 'simTime', 'simSpd', 'simCut', 'simEng', 'simTrv', 'simInfo',
   'mpOn', 'mpOpts', 'mpKind', 'mpColor', 'mpW', 'mpPitch', 'mpWall', 'mpAngle', 'mpSpokes', 'mpSpokesRow', 'mpInfo',
   'mdOn', 'mdOpts', 'mdKind', 'mdOut', 'mdColor', 'mdDome', 'mdGap', 'mdRim', 'mdPin', 'mdPair', 'mdDepth', 'mdFloor', 'mdDraft', 'mdClear', 'mdFlange', 'mdRibH', 'mdInfo', 'sampleRow',
   'projOpen', 'projSave', 'projFile', 'langSel', 'fontDefault', 'fontRemove',
@@ -2428,11 +2430,15 @@ function setView(v) {
   el.tab2d.classList.toggle('on', v === '2d');
   el.tab3d.classList.toggle('on', v === '3d');
   el.tabSim.classList.toggle('on', v === 'sim');
+  el.tabPress.classList.toggle('on', v === 'press');
   el.view2d.classList.toggle('hide', v !== '2d');
   el.view3d.classList.toggle('hide', v !== '3d');
   el.viewSim.classList.toggle('hide', v !== 'sim');
+  el.viewPress.classList.toggle('hide', v !== 'press');
   if (v === 'sim') requestAnimationFrame(refreshSim);
   else if (SIM) SIM.stop();
+  if (v === 'press') requestAnimationFrame(refreshPress);
+  else pressStop();
   el.modeView2d.classList.toggle('hide', v !== '2d');
   if (v === '3d') requestAnimationFrame(rebuild3d);
   updateEditBar();
@@ -2465,6 +2471,7 @@ el.modeText.onclick = () => setMode('text');
 el.tab2d.onclick = () => setView('2d');
 el.tab3d.onclick = () => setView('3d');
 el.tabSim.onclick = () => setView('sim');
+el.tabPress.onclick = () => setView('press');
 el.v2Fill.onclick = () => {
   S.v2mode = 'fill';
   el.v2Fill.classList.add('on');
@@ -2538,6 +2545,7 @@ function applyModeUi() {
   document.body.dataset.mode = m;
   if (m === 'laser' && S.view === '3d') setView('2d');
   if (m !== 'laser' && S.view === 'sim') setView('2d');
+  if (S.view === 'press' && !(m === 'mold' && el.mdKind.value === 'press')) setView('2d');
 }
 function showPresetRec() {
   applyModeUi();
@@ -2674,6 +2682,75 @@ function buildSampleChips() {
 }
 buildSampleChips();
 
+// ---------- 성형 미리보기 ----------
+const PV = { t: 0, play: false, raf: 0, prof: null, last: 0 };
+function pressStop() {
+  PV.play = false;
+  if (PV.raf) cancelAnimationFrame(PV.raf), (PV.raf = 0);
+  if (el.pressPlay) el.pressPlay.textContent = T('▶ 재생');
+}
+function pressSizeCanvas() {
+  const r = el.viewPress.getBoundingClientRect();
+  const d = Math.min(2, window.devicePixelRatio || 1);
+  const w = Math.max(300, r.width), h = Math.max(220, r.height - 42);
+  if (el.pressCv.width !== Math.round(w * d) || el.pressCv.height !== Math.round(h * d)) {
+    el.pressCv.width = Math.round(w * d);
+    el.pressCv.height = Math.round(h * d);
+    el.pressCv.style.width = w + 'px';
+    el.pressCv.style.height = h + 'px';
+  }
+}
+function pressDraw() {
+  if (!PV.prof) return;
+  pressSizeCanvas();
+  drawPress(el.pressCv, PV.prof, PV.t);
+  const i = stageAt(PV.t);
+  el.pressStage.textContent = STAGES[i].name;
+  el.pressPos.value = Math.round(PV.t * 1000);
+}
+function pressTick(now) {
+  if (!PV.play) return;
+  const dt = Math.min(0.05, (now - PV.last) / 1000);
+  PV.last = now;
+  PV.t += dt / 9; // 전체 9초
+  if (PV.t >= 1) (PV.t = 1), pressStop();
+  pressDraw();
+  if (PV.play) PV.raf = requestAnimationFrame(pressTick);
+}
+/** 모델·설정이 바뀌면 단면을 다시 계산 */
+function refreshPress() {
+  const m = S.silModel || S.model;
+  if (!m || !m.layers || !m.layers.length) {
+    PV.prof = null;
+    el.pressInfo.textContent = T('그림을 먼저 불러오세요.');
+    pressSizeCanvas();
+    el.pressCv.getContext('2d').clearRect(0, 0, el.pressCv.width, el.pressCv.height);
+    return;
+  }
+  const so = solidOpts();
+  PV.prof = pressProfile(m, { ...so.mold, thick: so.thickness });
+  if (!PV.prof) {
+    el.pressInfo.textContent = T('단면을 만들 수 없습니다. 테두리를 줄이거나 너비를 키우세요.');
+    return;
+  }
+  const p = PV.prof;
+  el.pressInfo.textContent = T('돔 {h}mm · 간격 {g}mm · 테두리 {r}mm · 본체 두께 {t}mm · 늘어남 {s}%', {
+    h: p.domeH, g: p.gap, r: p.rim, t: p.thick, s: (p.stretch * 100).toFixed(0),
+  });
+  pressDraw();
+}
+el.pressPlay.onclick = () => {
+  if (PV.play) return pressStop();
+  if (PV.t >= 0.999) PV.t = 0;
+  PV.play = true;
+  el.pressPlay.textContent = T('⏸ 멈춤');
+  PV.last = performance.now();
+  PV.raf = requestAnimationFrame(pressTick);
+};
+el.pressRst.onclick = () => (pressStop(), (PV.t = 0), pressDraw());
+el.pressPos.addEventListener('input', () => (pressStop(), (PV.t = parseInt(el.pressPos.value, 10) / 1000), pressDraw()));
+window.addEventListener('resize', () => S.view === 'press' && pressDraw());
+
 // ---------- 몰드 · 패턴 ----------
 function updateMpUi() {
   el.mpOpts.classList.toggle('hide', !el.mpOn.checked);
@@ -2707,8 +2784,8 @@ el.mdGap.addEventListener('input', () => (el.mdGap.dataset.set = '1'));
 el.mdRim.addEventListener('input', () => (el.mdRim.dataset.set = '1'));
 el.mdDome.addEventListener('input', () => (el.mdDome.dataset.set = '1'));
 el.mpWall.addEventListener('input', () => updateMdUi());
-[el.mdOn, el.mdKind, el.mdOut, el.mdPair, el.mdColor].forEach((e) => e.addEventListener('change', () => (updateMdUi(), on3dChange(true))));
-[el.mdDepth, el.mdFloor, el.mdDraft, el.mdClear, el.mdFlange, el.mdRibH, el.mdDome, el.mdGap, el.mdPin, el.mdRim].forEach((e) => e.addEventListener('input', () => on3dChange(false)));
+[el.mdOn, el.mdKind, el.mdOut, el.mdPair, el.mdColor].forEach((e) => e.addEventListener('change', () => (updateMdUi(), on3dChange(true), S.view === 'press' && refreshPress())));
+[el.mdDepth, el.mdFloor, el.mdDraft, el.mdClear, el.mdFlange, el.mdRibH, el.mdDome, el.mdGap, el.mdPin, el.mdRim].forEach((e) => e.addEventListener('input', () => (on3dChange(false), S.view === 'press' && refreshPress())));
 el.thick.addEventListener('input', () => updateMdUi());
 updateMpUi();
 updateMdUi();

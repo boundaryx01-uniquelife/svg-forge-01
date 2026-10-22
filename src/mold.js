@@ -494,3 +494,87 @@ export function buildPressMold(model, o = {}) {
   info.gap = gap;
   return { parts, info };
 }
+
+/* ───────────────────────── 성형 과정 단면 (미리보기용) ─────────────────────────
+ * 3D 메시를 자르지 않고, 3D를 만들 때와 같은 '층별 오프셋' 계산을 2D 로만 해서
+ * 가운데를 자른 단면 윤곽을 얻는다. 가볍고 결과가 3D와 어긋나지 않는다.
+ */
+
+/** 높이 t 에서의 돔 안쪽 거리 → 역으로, 안쪽 거리 d 에서의 높이 */
+const crossAtY = (paths, y) => {
+  const Y = Math.round(y * SC), xs = [];
+  for (const p of paths) {
+    for (let i = 0; i < p.length; i++) {
+      const a = p[i], b = p[(i + 1) % p.length];
+      if ((a.Y - Y) * (b.Y - Y) < 0) xs.push((a.X + ((Y - a.Y) / (b.Y - a.Y)) * (b.X - a.X)) / SC);
+    }
+  }
+  xs.sort((m, n) => m - n);
+  return xs;
+};
+
+/**
+ * 성형 틀 단면. 반환 좌표는 mm, z 는 수틀 바닥(0) 기준.
+ * o: buildPressMold 와 같은 값 + { thick: 본체 두께 }
+ */
+export function pressProfile(model, o = {}) {
+  const H = model.height;
+  const rim = Math.max(0, o.rim ?? 3);
+  const gap = Math.max(0.2, o.gap ?? 3.4);
+  const floor = Math.max(0.8, o.floor ?? 2.5);
+  const flange = Math.max(2, o.flange ?? 6);
+  const thick = Math.max(0.4, o.thick ?? 3);
+
+  const sil = union(model.layers.flatMap((l) => l.items.map((it) => toPathH(it.poly, H))), PF.pftEvenOdd);
+  if (!sil.length) return null;
+  let fp = rim > 0.01 ? clean(offset(sil, -rim), 0.5) : sil;
+  for (const f of [0.6, 0.35, 0.15, 0]) { if (fp.length) break; fp = f ? clean(offset(sil, -rim * f), 0.5) : sil; }
+  if (!fp.length) return null;
+
+  const [sx0, , sx1] = bboxOf(sil);
+  const [dx0, dy0, dx1, dy1] = bboxOf(fp);
+  const r0 = Math.min(dx1 - dx0, dy1 - dy0) / 2;
+  let domeH = Math.max(0.5, Math.min(o.domeH ?? r0 * 0.45, r0 * 0.95));
+  if (o.domeAuto) while (domeH > 0.6 && domeStretch(r0, domeH) > 0.18) domeH = Math.round((domeH - 0.5) * 2) / 2;
+
+  const yCut = (dy0 + dy1) / 2;                 // 돔 한가운데를 가로로 자름
+  const plateX = [sx0 - flange, sx1 + flange];
+  // 균일 격자에 '그 x 에서 수틀 윗면 높이'를 채운다 (층을 올리며 덮이는 구간을 갱신)
+  const M = 280;
+  const xs = [], maleZ = [];
+  for (let i = 0; i <= M; i++) { xs.push(plateX[0] + ((plateX[1] - plateX[0]) * i) / M); maleZ.push(floor); }
+  const mark = (paths, z) => {
+    const c = crossAtY(paths, yCut);
+    for (let k = 0; k + 1 < c.length; k += 2) {
+      for (let i = 0; i <= M; i++) if (xs[i] >= c[k] && xs[i] <= c[k + 1] && maleZ[i] < z) maleZ[i] = z;
+    }
+  };
+  const N = 90;
+  for (let k = 0; k <= N; k++) {
+    const t = (domeH * k) / N;
+    const d = domeInset(t, r0, domeH);
+    const lay = d > 0.001 ? clean(offset(fp, -d), 0.2) : fp;
+    if (!lay.length) break;
+    mark(lay, floor + t);
+  }
+  // 층으로 쌓아 생긴 계단을 살짝 고르게 (미리보기 표시용)
+  for (let pass = 0; pass < 2; pass++) {
+    const c = maleZ.slice();
+    for (let i = 2; i < M - 1; i++) maleZ[i] = (c[i - 2] + c[i - 1] * 2 + c[i] * 3 + c[i + 1] * 2 + c[i + 2]) / 9;
+  }
+  // 암틀 안쪽면 = 수틀 면을 바깥·위로 간격만큼 (가로로도 간격만큼 퍼지게 최댓값)
+  const w = Math.max(1, Math.round((gap / (plateX[1] - plateX[0])) * M));
+  const femaleZ = maleZ.map((_, i) => {
+    let v = floor;
+    for (let j = Math.max(0, i - w); j <= Math.min(M, i + w); j++) v = Math.max(v, maleZ[j]);
+    return v + gap;
+  });
+  const silEnds = crossAtY(sil, yCut);
+  const silX = silEnds.length ? [silEnds[0], silEnds[silEnds.length - 1]] : [sx0, sx1];
+
+  return {
+    floor, domeH, gap, rim, thick, flange, r0,
+    stretch: domeStretch(r0, domeH),
+    silX, plateX, xs, maleZ, femaleZ,
+  };
+}

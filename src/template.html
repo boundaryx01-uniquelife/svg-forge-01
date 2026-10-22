@@ -105,6 +105,10 @@ header{border-top:4px solid var(--pri)}
 .panel h2{color:var(--pri);border-left:3px solid var(--pri);padding-left:6px}
 body.kc-on .g-base{display:none!important}
 .g-simtab{display:none}
+.g-presstab{display:none}
+body[data-mode=mold].mold-press .g-presstab{display:inline-block}
+#viewPress{background:#f7f9fb;display:flex;flex-direction:column}
+#viewPress canvas{flex:1;min-height:0;width:100%;display:block}
 body[data-mode=laser] .g-simtab{display:inline-block}
 body[data-mode=laser] .g-wall,body[data-mode=laser] .g-3d,body[data-mode=laser] .g-base,body[data-mode=laser] .g-kc{display:none!important}
 body[data-mode=keycap] .g-laser,body[data-mode=keycap] .g-base{display:none!important}
@@ -416,7 +420,7 @@ dialog#prefs .row label{flex-basis:70px}
 
   <section class="stage">
     <div class="stagebar">
-      <div class="tabs"><button id="tab2d" class="on">2D</button><button id="tab3d" class="g-3d">3D</button><button id="tabSim" class="g-simtab">▶ 작업 미리보기</button></div>
+      <div class="tabs"><button id="tab2d" class="on">2D</button><button id="tab3d" class="g-3d">3D</button><button id="tabSim" class="g-simtab">▶ 작업 미리보기</button><button id="tabPress" class="g-presstab">▶ 성형 미리보기</button></div>
       <div id="modeView2d" class="tabs">
         <button id="v2Fill" class="on">채움</button><button id="v2Line">윤곽선</button>
       </div>
@@ -446,6 +450,11 @@ dialog#prefs .row label{flex-basis:70px}
           <label title="새김 속도 (mm/s)">새김 <input id="simEng" class="mini" type="number" min="1" max="1000" value="150"></label>
           <span id="simInfo" class="out" style="color:var(--sub)"></span>
           <label class="chk" style="margin:0" title="레이저가 꺼진 채 이동하는 경로 보이기"><input type="checkbox" id="simTrv"> 이동선</label></div></div>
+      <div class="view hide" id="viewPress"><canvas id="pressCv"></canvas>
+        <div class="simbar"><button class="btn small" id="pressPlay">▶ 재생</button><button class="btn small" id="pressRst" title="처음으로">⏮</button>
+          <input id="pressPos" type="range" min="0" max="1000" value="0" style="flex:1 1 160px" title="진행 위치 (끌어서 이동)">
+          <span id="pressStage" class="out" style="min-width:150px"></span>
+          <span id="pressInfo" class="out" style="color:var(--sub)"></span></div></div>
       <div class="view hide" id="view3d"><div class="badge3d" id="badge3d"></div><div id="cube" title="면을 누르면 그 방향에서 봅니다"></div><div id="dimLabels"></div></div>
       <div class="viewtools">
         <button class="btn small" id="undoBtn" disabled title="실행 취소 (Ctrl+Z)" aria-label="실행 취소">↶</button>
