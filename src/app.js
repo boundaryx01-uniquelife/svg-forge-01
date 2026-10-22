@@ -2528,7 +2528,7 @@ const PRESETS = {
   keyring: { base: true, border: true, ring: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판·테두리·고리를 켰습니다. 위쪽 저장에서 노란 테두리 버튼(3MF는 색 나눔, STL은 한 덩어리)을 누르세요.' },
   print3d: { base: false, border: false, ring: false, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '받침판 없이 도형만 만듭니다. 노란 테두리 버튼(3MF 또는 STL)으로 저장하세요.' },
   laser: { base: false, border: false, ring: false, view3d: false, rec: ['btnLaser', 'btnDxf'], hint: '레이저 가공 모드: 윤곽선만 저장합니다. 색마다 절단·새김을 정하고 ▶ 작업 미리보기로 순서와 시간을 확인하세요. (RDWorks는 DXF · 레이저, LightBurn은 둘 다)' },
-  mold: { base: false, border: false, ring: false, mp: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '몰드·패턴 모드입니다. 그림의 바깥 둘레만 벽으로 남기고 안쪽을 무늬로 채웁니다. 오른쪽에서 무늬 종류·선 폭·간격을 바꾸세요. 선 폭은 0.8mm 이상이어야 출력됩니다.' },
+  mold: { base: false, border: false, ring: false, mp: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '몰드·패턴 모드입니다. 그림의 바깥 둘레만 벽으로 남기고 안쪽을 무늬로 채웁니다. 선 폭은 0.8mm 이상이어야 출력됩니다. 성형 틀은 암틀을 좌우로 뒤집어 덮습니다 — 굵은 핀이 있는 쪽이 맞물리는 방향입니다.' },
   keycap: { base: false, border: false, ring: false, kc: true, view3d: true, rec: ['btn3mf', 'btnStl'], hint: '키캡(MX) 모드입니다. 글자·그림이 윗면에 올라갑니다. 3D 출력의 키캡 항목에서 크기·글자 방식을 바꾸세요. 스템 공차는 시험 출력으로 맞추세요.' },
 };
 function applyModeUi() {

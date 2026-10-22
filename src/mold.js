@@ -398,18 +398,22 @@ export function buildPressMold(model, o = {}) {
   const steps = Math.min(80, Math.max(6, Math.ceil(domeH / 0.15)));
   info.steps = steps;
 
-  // 정렬 핀 자리 (플랜지 네 귀퉁이)
+  // 정렬 핀 자리 (플랜지 네 귀퉁이). 한 개만 굵게 해서 한 방향으로만 맞물리게 한다
   const pins = [];
   if (pinD > 0.5) {
     const m = flange / 2;
-    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sy], i) => {
       const cx = sx < 0 ? fx0 - m : fx1 + m, cy = sy < 0 ? fy0 - m : fy1 + m;
+      const rr = (i === 0 ? pinD * 1.5 : pinD) / 2;
       const c = [];
-      for (let i = 0; i < 24; i++) { const t = (i * Math.PI) / 12; c.push([cx + (pinD / 2) * Math.cos(t), cy + (pinD / 2) * Math.sin(t)]); }
+      for (let k = 0; k < 24; k++) { const t = (k * Math.PI) / 12; c.push([cx + rr * Math.cos(t), cy + rr * Math.sin(t)]); }
       pins.push(toPath(c));
-    }
+    });
   }
-  const pinH = Math.min(6, Math.max(2.5, gap + 2));
+  const pinH = Math.min(8, Math.max(3, gap + 2.5));
+  // 암틀은 뒤집어 덮으므로 좌우 대칭으로 만들어야 수틀과 맞는다 (비대칭 도형에서 중요)
+  const midX = Math.round(((fx0 + fx1) / 2) * SC) * 2;
+  const mirX = (paths) => paths.map((p) => p.map((q) => ({ X: midX - q.X, Y: q.Y })).reverse());
 
   const parts = [];
   const mk = (geos, name, color, z1) => {
@@ -440,22 +444,20 @@ export function buildPressMold(model, o = {}) {
   if (want !== 'maleOnly') {
     const dx = want === 'both' ? (o.gapX ?? 0) : 0;
     const top = floor + domeH + gap;
-    const G = [extrude(plate, 0, floor)];
+    const fpM = mirX(fp);                                   // 뒤집어 덮을 것이므로 좌우 반전
+    const holes = pins.length ? offset(mirX(pins), 0.3) : []; // 핀 구멍 = 핀 + 여유 0.3mm
+    const cut = (paths) => (holes.length ? clean(diff(paths, holes), 0.001) : paths);
+    const G = [extrude(cut(plate), 0, floor)];
     for (let k = 0; k < steps + 2; k++) {
       const h0 = ((domeH + gap) * k) / (steps + 2), h1 = ((domeH + gap) * (k + 1)) / (steps + 2);
       const hm = (h0 + h1) / 2;
-      const t = Math.max(0, Math.min(domeH, domeH + gap - hm));   // 대응하는 수틀 높이
-      const cav = offset(fp, -domeInset(t, r0, domeH) + gap);
+      // 뒤집어 덮으면 암틀 캐비티 높이 h 가 수틀 높이 (domeH - h) 와 맞닿는다.
+      // h 가 domeH 를 넘는 구간(윗 gap 만큼)은 곧은 벽 — 가장자리에서 본체 두께를 받아 준다.
+      const t = Math.max(0, domeH - hm);
+      const cav = offset(fpM, -domeInset(t, r0, domeH) + gap);
       const ring = clean(diff(plate, cav), 0.001);
       if (!ring.length) { info.warn = info.warn || 'cavityOutOfPlate'; break; }
-      G.push(extrude(ring, floor + h0, floor + h1));
-    }
-    // 핀 구멍 (수틀 핀 + 여유 0.3mm) — 판 전체를 뚫음
-    if (pins.length) {
-      const holes = offset(pins, 0.3);
-      const solid = G.splice(0, 1); // 바닥판은 구멍을 내서 다시
-      solid[0] && solid[0].dispose();
-      G.unshift(extrude(clean(diff(plate, holes), 0.001), 0, floor));
+      G.push(extrude(cut(ring), floor + h0, floor + h1));       // 핀 구멍은 전층을 관통해야 핀이 들어간다
     }
     const g = G.filter(Boolean);
     if (dx) g.forEach((x) => x.translate(dx, 0, 0));
