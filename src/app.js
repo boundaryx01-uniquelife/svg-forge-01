@@ -434,6 +434,7 @@ async function runTrace(imgd, p) {
     });
     const layers = res.layers;
     layers.stats = res.stats;
+    layers.bgColor = res.bgColor || null;
     return layers;
   } catch (e) {
     if (e.message === 'cancelled') throw e;
@@ -609,6 +610,7 @@ async function compute() {
     if (Math.abs(w - width) > 0.005 && w >= 1) el.width.value = w;
     S.txtWidthIn = Math.min(1000, Math.max(1, parseFloat(el.width.value) || 50));
   } else S.model = makeModel(mlayers, width, tol, refW);
+  S.bgColor = (layers && layers.bgColor) || null;   // 배경으로 지워진 색 — 안쪽에 같은 색 면이 남으면 그건 뚫린 자리
   let m = S.model;
   if (S.mode === 'text' && m.layers.length) {
     // 획 폭 맞추기 (3D 출력용): 폰트의 지금 획 폭을 재서 정한 폭이 되도록 굵게·가늘게
@@ -655,6 +657,7 @@ async function compute() {
       color: el.mpColor.value,
       fill: el.mpFill.checked,
       fillColor: el.mpFillColor.value,
+      bgColor: S.bgColor,
     });
     S.silModel = { ...m, layers: m.layers.map((l) => ({ ...l })) }; // 몰드는 무늬가 아니라 원래 실루엣 기준
     S.model = m = r.model;

@@ -176,12 +176,25 @@ export function applyPattern(model, o = {}) {
   const overlap = Math.max(0, o.overlap ?? 0.25);
   const info = { wall, lineWidth: lw, empty: false, noInner: false };
 
-  // 1) 실루엣 = 모든 색 레이어의 합집합 (구멍은 EvenOdd 로 살림)
-  const sil = union(
-    model.layers.flatMap((l) => l.items.map((it) => toPath(it.poly))),
-    PF.pftEvenOdd,
-  );
+  // 1) 실루엣 = 색 레이어들의 합집합.
+  //    레이어를 한꺼번에 EvenOdd 로 합치면 색끼리 겹치는 자리가 서로 지워져 누더기가 된다
+  //    (채우기로 구멍을 메운 뒤 무늬가 깨지던 원인). 레이어마다 EvenOdd 로 먼저 모으고 NonZero 로 합친다.
+  //    배경색과 같은 색의 '안쪽 면'(유령 눈 같은 것)은 원래 뚫린 자리이므로 실루엣에서 뺀다.
+  const bg = o.bgColor && o.bgColor.toLowerCase();
+  const perLayer = [], bgPaths = [];
+  for (const l of model.layers) {
+    if (!l.items.length) continue;
+    const one = union(l.items.map((it) => toPath(it.poly)), PF.pftEvenOdd);
+    if (bg && l.color && l.color.toLowerCase() === bg) bgPaths.push(...one);
+    else perLayer.push(...one);
+  }
+  let sil = union(perLayer);
+  if (bgPaths.length) sil = diff(sil, bgPaths);
+  // 눈금 하나짜리 찌꺼기 구멍(채우기 뒤 경계에 남는 것)을 지운다.
+  // 그냥 두면 그 둘레로 벽(= 실루엣 − 안쪽)이 생겨 벽 폭만 한 덩어리가 박힌다
+  sil = clean(sil, 0.05);
   if (!sil.length) return { model, info: { ...info, empty: true } };
+  info.bgHoles = bgPaths.length;
 
   // 2) 안쪽 영역 = 실루엣을 벽 두께만큼 안으로
   const innerCore = offset(sil, -wall);

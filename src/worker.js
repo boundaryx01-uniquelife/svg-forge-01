@@ -6,7 +6,7 @@ self.onmessage = (e) => {
   try {
     const t0 = performance.now();
     const layers = traceImage({ width, height, data: new Uint8ClampedArray(buffer) }, opts);
-    self.postMessage({ id, ok: true, layers: layers.map((l) => ({ color: l.color, rings: l.rings })), stats: layers.stats || {}, ms: performance.now() - t0 });
+    self.postMessage({ id, ok: true, layers: layers.map((l) => ({ color: l.color, rings: l.rings })), stats: layers.stats || {}, bgColor: layers.bgColor || null, ms: performance.now() - t0 });
   } catch (err) {
     self.postMessage({ id, ok: false, error: String((err && err.message) || err) });
   }

@@ -281,6 +281,7 @@ export function traceImage(imgd, opts) {
   }
   cleanLabels(label, w, h, Math.max(1, minArea));
   const drop = new Set();
+  let bgHex = null;
   if (removeBg) {
     const corners = [0, w - 1, (h - 1) * w, (h - 1) * w + (w - 1)];
     const votes = new Map();
@@ -289,6 +290,7 @@ export function traceImage(imgd, opts) {
     for (const [k, v] of votes) if (v > bv) { bv = v; best = k; }
     if (best >= 0 && bv >= 2) {
       drop.add(best);
+      bgHex = hex(pal[best].r, pal[best].g, pal[best].b);
       // 가장자리와 이어진 배경만 제거: 내부에 갇힌 같은 색(예: 흰 면)은 새 라벨(같은 색)로 살린다
       if (keepInner) {
       const reach = new Uint8Array(N);
@@ -340,6 +342,7 @@ export function traceImage(imgd, opts) {
   }
   stats.chains = usedIdx.size;
   layers.stats = stats;
+  layers.bgColor = bgHex;      // 바깥 배경으로 지워진 색 — 안쪽에 같은 색 면이 남아 있으면 그건 '구멍' 자리다
   return layers;
 }
 
