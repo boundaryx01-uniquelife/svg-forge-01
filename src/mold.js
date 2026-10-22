@@ -181,20 +181,37 @@ export function applyPattern(model, o = {}) {
   //    (채우기로 구멍을 메운 뒤 무늬가 깨지던 원인). 레이어마다 EvenOdd 로 먼저 모으고 NonZero 로 합친다.
   //    배경색과 같은 색의 '안쪽 면'(유령 눈 같은 것)은 원래 뚫린 자리이므로 실루엣에서 뺀다.
   const bg = o.bgColor && o.bgColor.toLowerCase();
-  const perLayer = [], bgPaths = [];
+  const areaOf = (ps) => Math.abs(ps.reduce((t, q) => t + ClipperLib.Clipper.Area(q), 0)) / (SC * SC);
+  const regions = [], bgPaths = [];
   for (const l of model.layers) {
     if (!l.items.length) continue;
     const one = union(l.items.map((it) => toPath(it.poly)), PF.pftEvenOdd);
     if (bg && l.color && l.color.toLowerCase() === bg) bgPaths.push(...one);
-    else perLayer.push(...one);
+    else if (one.length) regions.push({ color: l.color, paths: one, area: areaOf(one) });
   }
-  let sil = union(perLayer);
+  let sil = union(regions.flatMap((r) => r.paths));
   if (bgPaths.length) sil = diff(sil, bgPaths);
   // 눈금 하나짜리 찌꺼기 구멍(채우기 뒤 경계에 남는 것)을 지운다.
   // 그냥 두면 그 둘레로 벽(= 실루엣 − 안쪽)이 생겨 벽 폭만 한 덩어리가 박힌다
   sil = clean(sil, 0.05);
   if (!sil.length) return { model, info: { ...info, empty: true } };
   info.bgHoles = bgPaths.length;
+
+  // 1-2) 칠해 둔 다른 색은 그대로 남긴다.
+  //      가장 넓은 색이 '바탕'(무늬가 깔리는 곳)이고, 나머지 색 면은 무늬에 먹히지 않고 제 색으로 남는다.
+  //      트레이싱 가장자리에 생기는 실오라기 색(안티에일리어싱)은 바탕에 합친다.
+  regions.sort((a, b) => b.area - a.area);
+  const minW0 = Math.max(0.2, o.minW ?? 0.8);
+  const kept = [];
+  for (const r of regions.slice(1)) {
+    // 노즐보다 가는 색 면은 제 색으로 뽑을 수 없다 → 바탕에 합쳐 무늬를 깐다
+    // (트레이싱 가장자리에 생기는 실오라기 색이 여기 걸린다)
+    if (!offset(r.paths, -minW0 / 2).length) continue;
+    const own = clean(diff(bgPaths.length ? diff(r.paths, bgPaths) : r.paths, kept.flatMap((k) => k.paths)), 0.05);
+    if (own.length) kept.push({ color: r.color, paths: own });
+  }
+  const keptAll = kept.flatMap((k) => k.paths);
+  info.kept = kept.length;
 
   // 2) 안쪽 영역 = 실루엣을 벽 두께만큼 안으로
   const innerCore = offset(sil, -wall);
@@ -211,24 +228,30 @@ export function applyPattern(model, o = {}) {
     const pp = patternPaths(o.pattern || 'web', bboxOf(sil), {
       width: lw, pitch: o.pitch, angle: o.angle, spokes: o.spokes, center: o.center,
     });
-    pat = inter(pp, innerClip);
+    // 칠해 둔 색 면 위에는 무늬를 깔지 않는다
+    pat = inter(pp, keptAll.length ? clean(diff(innerClip, keptAll), 0.02) : innerClip);
     if (!pat.length) info.empty = true;
   }
 
-  // 5) 벽 ∪ 패턴
-  const merged = union([...band, ...pat]);
+  // 5) 벽 ∪ 패턴 (칠해 둔 색 면은 비워 둠 — 색이 겹치면 3D에서 두 번 쌓인다)
+  let merged = union([...band, ...pat]);
+  if (keptAll.length) merged = clean(diff(merged, keptAll), 0.02);
   const rings = merged.filter((p) => p.length >= 3).map(toRing);
   const items = buildItems(rings, model.tol);
 
   const color = o.color || (model.layers[0] && model.layers[0].color) || '#000000';
   const layers = [{ color, items }];
+  for (const k of kept) {
+    const ki = buildItems(k.paths.map(toRing), model.tol);
+    if (ki.length) layers.push({ color: k.color, items: ki });
+  }
 
   // 6) 무늬 사이 빈 곳을 두 번째 색으로 같은 두께만큼 채움 → 뚫린 곳 없는 2색 판
   //    도형 자체의 구멍(눈·입)은 실루엣에 없으므로 그대로 비어 있다
   let patPaths = merged;
   if (o.fill && o.fillColor && o.fillColor !== color) {
     const minW = Math.max(0.2, o.minW ?? 0.8);
-    const gapPaths = clean(diff(sil, merged), 0.05);
+    const gapPaths = clean(diff(diff(sil, merged), keptAll), 0.05);
     // 무늬가 촘촘한 곳의 채움 조각은 노즐보다 가늘어 출력이 안 된다 → 그런 조각은 무늬 색으로 넘긴다
     const keep = [], thin = [];
     for (const sh of treeShapes(gapPaths)) {
@@ -241,7 +264,9 @@ export function applyPattern(model, o = {}) {
       const gi = buildItems(clean(keep, 0.05).map(toRing), model.tol);
       if (gi.length) {
         layers[0] = { color, items: buildItems(patPaths.filter((p) => p.length >= 3).map(toRing), model.tol) };
-        layers.push({ color: o.fillColor, items: gi });
+        const same = layers.find((l) => l !== layers[0] && l.color === o.fillColor);
+        if (same) same.items = buildItems(same.items.map((x) => x.ring).concat(gi.map((x) => x.ring)), model.tol);
+        else layers.push({ color: o.fillColor, items: gi });
         info.fill = true;
         info.fillArea = Math.round(keep.reduce((t, q) => t + ClipperLib.Clipper.Area(q), 0) / (SC * SC));
       }

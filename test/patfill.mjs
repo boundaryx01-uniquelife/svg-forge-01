@@ -31,18 +31,22 @@ const body = rect(5, 5, 95, 95);
   check('구멍 안은 거의 비어 있음', L.덮임 < 15, `${L.덮임}%`);
 }
 
-// ── 2. 채우기로 메운 구멍은 몸통과 똑같이 무늬가 들어간다 ──
+// ── 2. 채우기로 칠한 색은 무늬에 먹히지 않고 제 색으로 남는다 ──
 {
   const m = makeModel([
     { color: '#000000', rings: [body, circle(30, 30, 8), circle(70, 30, 8)] },
-    { color: '#1b1b1b', rings: [circle(30, 30, 8)] },            // 채우기가 만든 원반
+    { color: '#e03131', rings: [circle(30, 30, 8)] },            // 눈을 빨강으로 채움
   ], 100, 0.05);
   const r = applyPattern(m, P);
   const L = cover(r.model, 30, 30, 6), R = cover(r.model, 70, 30, 6), B = cover(r.model, 50, 60, 6);
-  console.log('채운 눈 —  왼눈:', JSON.stringify(L), ' 오른눈:', JSON.stringify(R), ' 몸통:', JSON.stringify(B));
-  check('채운 눈이 몸통처럼 꽉 참', L.덮임 > 90, `${L.덮임}%`);
-  check('채운 눈의 무늬 비율이 몸통과 비슷', Math.abs(L['#1b1b1b'] - B['#1b1b1b']) < 18, `${L['#1b1b1b']}% vs ${B['#1b1b1b']}%`);
+  console.log('빨강 눈 —  왼눈:', JSON.stringify(L), ' 오른눈:', JSON.stringify(R), ' 몸통:', JSON.stringify(B));
+  check('칠한 눈이 빨강으로 꽉 참', L['#e03131'] > 90, `빨강 ${L['#e03131'] || 0}%`);
+  check('칠한 눈 위에 무늬가 겹치지 않음', (L['#1b1b1b'] || 0) < 8, `무늬 ${L['#1b1b1b'] || 0}%`);
+  check('칠한 눈에 채움색이 끼어들지 않음', (L['#e8e2d0'] || 0) < 8, `채움 ${L['#e8e2d0'] || 0}%`);
   check('안 채운 눈은 그대로 비어 있음', R.덮임 < 15, `${R.덮임}%`);
+  check('몸통은 무늬 + 채움 그대로', B.덮임 > 90 && B['#1b1b1b'] > 20, `${B.덮임}% · 무늬 ${B['#1b1b1b']}%`);
+  const red = r.model.layers.find((l) => l.color === '#e03131');
+  check('빨강이 제 레이어로 남음', !!red, red ? `조각 ${red.items.length}개` : '없음');
   // 벽 폭만 한 찌꺼기 덩어리가 박히면 안 된다 (경계에 남는 미세 구멍 → 그 둘레로 벽이 생김)
   const pat = r.model.layers[0];
   const lump = pat.items.filter((it) => {
@@ -51,7 +55,19 @@ const body = rect(5, 5, 95, 95);
     for (const q of it.poly) (x0 = Math.min(x0, q[0]), x1 = Math.max(x1, q[0]), y0 = Math.min(y0, q[1]), y1 = Math.max(y1, q[1]));
     return Math.hypot((x0 + x1) / 2 - 30, (y0 + y1) / 2 - 30) < 10 && x1 - x0 < 6 && y1 - y0 < 6;
   }).length;
-  check('채운 자리에 찌꺼기 덩어리가 없음', lump === 0, `${lump}개`);
+  check('칠한 자리에 찌꺼기 덩어리가 없음', lump === 0, `${lump}개`);
+}
+
+// ── 2-1. 가장자리 실오라기 색(안티에일리어싱)은 바탕에 합쳐 무늬를 깐다 ──
+{
+  const m = makeModel([
+    { color: '#000000', rings: [body, circle(30, 30, 8), circle(70, 30, 8)] },
+    { color: '#888888', rings: [rect(5, 5, 95, 5.4)] },          // 0.4mm — 안티에일리어싱 수준
+  ], 100, 0.05);
+  const r = applyPattern(m, P);
+  const grey = r.model.layers.find((l) => l.color === '#888888');
+  console.log('실오라기 색 — 남은 레이어:', r.model.layers.map((l) => l.color).join(', '));
+  check('작은 색 조각은 바탕에 합쳐짐', !grey, grey ? '남음' : '합쳐짐');
 }
 
 // ── 3. 배경색과 같은 '안쪽 면'은 구멍으로 본다 (색 수를 늘리면 눈이 흰 면이 된다) ──
