@@ -107,6 +107,22 @@ with sync_playwright() as p:
     dl3.value.save_as('/tmp/claude-0/press_set.stl')
     r['성형STL_KB'] = round(os.path.getsize('/tmp/claude-0/press_set.stl') / 1024)
 
+    # ── 성형 미리보기 탭이 보이는 조건 ──
+    pg.select_option('#preset', 'mold'); time.sleep(3)
+    r['탭_몰드모드'] = pg.is_visible('#tabPress')
+    pg.select_option('#mdKind', 'cast'); time.sleep(2)
+    r['탭_주조면숨김'] = not pg.is_visible('#tabPress')
+    pg.select_option('#mdKind', 'press'); time.sleep(2.5)
+    pg.click('#tabPress'); time.sleep(2.5)
+    r['미리보기_안내'] = pg.inner_text('#pressInfo')[:40]
+    r['미리보기_단계'] = pg.inner_text('#pressStage')
+    pg.fill('#pressPos', '950'); pg.dispatch_event('#pressPos', 'input'); time.sleep(1)
+    r['마지막단계'] = pg.inner_text('#pressStage')
+    # 다른 모드로 가면 탭이 숨고 성형 뷰에서 빠져나와야
+    pg.select_option('#preset', 'keycap'); time.sleep(3)
+    r['탭_키캡숨김'] = not pg.is_visible('#tabPress')
+    r['성형뷰_닫힘'] = pg.evaluate("()=>document.querySelector('#viewPress').classList.contains('hide')")
+
     r['errors'] = errs
     print(json.dumps(r, ensure_ascii=False, indent=1))
     b.close()

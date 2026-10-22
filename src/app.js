@@ -2545,7 +2545,7 @@ function applyModeUi() {
   document.body.dataset.mode = m;
   if (m === 'laser' && S.view === '3d') setView('2d');
   if (m !== 'laser' && S.view === 'sim') setView('2d');
-  if (S.view === 'press' && !(m === 'mold' && el.mdKind.value === 'press')) setView('2d');
+  if (el.mdKind) updateMdUi();
 }
 function showPresetRec() {
   applyModeUi();
@@ -2765,6 +2765,10 @@ function updateMdUi() {
   const press = el.mdKind.value === 'press';
   document.body.classList.toggle('mold-press', press);
   document.body.classList.toggle('mold-cast', !press);
+  // 성형 미리보기 탭: 성형 틀을 쓸 수 있는 상태면 어느 모드에서든 보이게
+  const tabOn = press && (el.preset.value === 'mold' || (el.preset.value === '' && el.mdOn.checked && el.mpOn.checked));
+  document.body.classList.toggle('presstab-on', tabOn);
+  if (!tabOn && S.view === 'press') setView('2d');
   // 기본값 따라가기 (직접 건드린 적 없을 때만): 간격 = 본체 두께 + 0.4, 테두리 = 무늬 벽 폭
   if (press && !el.mdGap.dataset.set) {
     const t = parseFloat(el.thick.value) || 3;
