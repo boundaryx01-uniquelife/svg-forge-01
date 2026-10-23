@@ -28,6 +28,17 @@ with sync_playwright() as p:
     r['무늬켠채_채우기바'] = pg.is_visible('#bucketBar')
     r['무늬켠채_편집도구숨김'] = not pg.is_visible('#editbar')
 
+    # 색을 먼저 고르고 🪣 를 누르면 꺼져 '잠긴' 것처럼 되던 문제 (툴팁이 안내하는 순서)
+    on = lambda: pg.evaluate("()=>window.__svgforge.bucket")
+    pg.evaluate("()=>{const e=document.querySelector('#bucketCol');e.value='#e53935';e.dispatchEvent(new Event('change'))}")
+    time.sleep(0.6)
+    r['색고른뒤_켜짐'] = on()
+    pg.click('#bucketBtn'); time.sleep(0.6)
+    r['그다음_버튼눌러도_켜짐'] = on()          # 꺼지면 안 된다
+    pg.click('#bucketBtn'); time.sleep(0.6)
+    r['한번더_누르면_꺼짐'] = not on()          # 평범한 토글로 돌아와야
+    pg.click('#bucketBtn'); time.sleep(0.6)
+
     # 구멍 채우기 (두 번째 색)
     r['채움_기본켜짐'] = pg.is_checked('#mpFill')
     r['채움_색수'] = pg.evaluate("()=>window.__svgforge.model.layers.length")

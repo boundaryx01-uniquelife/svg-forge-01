@@ -628,6 +628,21 @@ async function compute() {
     el.txtSwEst.textContent = T('지금 획: 보통 {a} · 가장 가는 곳 {b}mm', { a: now.typ.toFixed(2), b: now.min.toFixed(2) });
     el.txtSwEst.style.color = now.min < 0.8 ? '#c92a2a' : '';
   }
+  // 몰드 무늬가 깔릴 '바탕색' — 편집하기 전(트레이싱 그대로)에서 가장 넓은 색.
+  // 편집 뒤에 재면 칠하다가 넓이 순위가 뒤집혀 바탕이 바뀐다 (칠한 색이 무늬에 먹히던 원인)
+  {
+    let best = null, ba = -1;
+    for (const l of m.layers) {
+      let a = 0;
+      for (const it of l.items) {
+        let s2 = 0;
+        for (let i = 0, j = it.poly.length - 1; i < it.poly.length; j = i++) s2 += (it.poly[j][0] - it.poly[i][0]) * (it.poly[j][1] + it.poly[i][1]);
+        a += (it.hole ? -1 : 1) * Math.abs(s2) / 2;
+      }
+      if (a > ba) (ba = a), (best = l.color);
+    }
+    S.moldBase = best;
+  }
   if (S.mode === 'image' && S.edits.length) applyEdits(m, S.edits, tol);
   if (S.reselect && S.selPts && S.selPts.length && S.mode === 'image') {
     const sh = m.editShift || [0, 0];
@@ -658,6 +673,7 @@ async function compute() {
       fill: el.mpFill.checked,
       fillColor: el.mpFillColor.value,
       bgColor: S.bgColor,
+      baseColor: S.moldBase,
     });
     S.silModel = { ...m, layers: m.layers.map((l) => ({ ...l })) }; // 몰드는 무늬가 아니라 원래 실루엣 기준
     S.model = m = r.model;
@@ -1403,13 +1419,19 @@ function bucketHover(e) {
 }
 function setBucket(on) {
   S.bucket = !!on;
+  if (!on) S.bucketAuto = false;
   if (on) (setCut(false), setDrop(false), S.placeText && setPlace(false));
   el.bucketBtn.classList.toggle('on', S.bucket);
   el.view2d.style.cursor = S.bucket ? BUCKET_CUR : '';
   if (!S.bucket) el.view2d.querySelectorAll('path.bkhover').forEach((n) => n.remove());
 }
-el.bucketBtn.onclick = () => setBucket(!S.bucket);
-el.bucketCol.addEventListener('change', () => setBucket(true));
+// 색 칸을 건드리면 채우기가 켜진다. 그 직후 🪣 를 누르는 건 '켜려는 것'이지 끄려는 게 아니다
+// (툴팁이 "색을 고르고 켠 뒤" 라고 안내하므로 안내대로 하면 꺼져 버렸다)
+el.bucketBtn.onclick = () => {
+  if (S.bucket && S.bucketAuto) return void (S.bucketAuto = false);
+  setBucket(!S.bucket);
+};
+el.bucketCol.addEventListener('change', () => (setBucket(true), (S.bucketAuto = true)));
 el.thinBtn.onclick = () => {
   S.showThin = S.showThin === false;
   render2d();
@@ -1655,6 +1677,7 @@ el.view2d.addEventListener(
         if (!h) return;
         if (e.altKey) return (el.bucketCol.value = h.c);
         const sh = EM.editShift || [0, 0];
+        S.bucketAuto = false;          // 한 번 칠했으면 🪣 버튼은 평범한 켜기/끄기로
         S.edits.push({ t: 'fill', x: P.x + sh[0], y: P.y + sh[1], to, w0: curW() });
         S.editsKey = S.traceKey;
         clearSel();

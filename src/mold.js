@@ -202,15 +202,23 @@ export function applyPattern(model, o = {}) {
   //      트레이싱 가장자리에 생기는 실오라기 색(안티에일리어싱)은 바탕에 합친다.
   regions.sort((a, b) => b.area - a.area);
   const minW0 = Math.max(0.2, o.minW ?? 0.8);
+  // 바탕은 '트레이싱했을 때 가장 넓던 색'으로 고정한다.
+  // 넓이로 매번 다시 뽑으면, 칠하다가 넓이 순위가 뒤집히는 순간 바탕과 칠한 색이 서로 자리를 바꿔
+  // 칠한 색이 무늬에 먹히고 원래 몸통이 통짜 면이 된다 (칠하면 테두리가 사라지던 원인).
+  const want = (o.baseColor || '').toLowerCase();
+  let baseIdx = want ? regions.findIndex((r) => (r.color || '').toLowerCase() === want) : -1;
+  if (baseIdx < 0) baseIdx = 0;                 // 그 색을 통째로 칠해 없앴으면 가장 넓은 색으로
+  info.base = regions[baseIdx] && regions[baseIdx].color;
   const kept = [];
-  for (const r of regions.slice(1)) {
+  for (let i = 0; i < regions.length; i++) {
+    if (i === baseIdx) continue;
+    const r = regions[i];
     // 노즐보다 가는 색 면은 제 색으로 뽑을 수 없다 → 바탕에 합쳐 무늬를 깐다
     // (트레이싱 가장자리에 생기는 실오라기 색이 여기 걸린다)
     if (!offset(r.paths, -minW0 / 2).length) continue;
     const own = clean(diff(bgPaths.length ? diff(r.paths, bgPaths) : r.paths, kept.flatMap((k) => k.paths)), 0.05);
     if (own.length) kept.push({ color: r.color, paths: own });
   }
-  const keptAll = kept.flatMap((k) => k.paths);
   info.kept = kept.length;
 
   // 2) 안쪽 영역 = 실루엣을 벽 두께만큼 안으로
@@ -222,10 +230,22 @@ export function applyPattern(model, o = {}) {
   // 3) 벽 띠 = 실루엣 − 안쪽.
   //    칠해 둔 색 면 둘레에도 같은 폭으로 벽을 두른다 — 구멍이었을 때와 같은 테두리가 생기게
   let band = innerCore.length ? diff(sil, innerCore) : sil;
-  if (keptAll.length && innerCore.length) {
-    const around = clean(diff(diff(offset(keptAll, wall), keptAll), bgPaths), 0.02);
-    if (around.length) band = union([...band, ...inter(around, sil)]);
+  // 색마다 '제 면 바로 바깥'에 따로 둘러야 한다. 모든 색 면의 합집합 바깥에만 두르면
+  // A 색 면 안에 든 B 색 면은 합집합 안쪽이라 테두리가 아예 생기지 않는다.
+  let around = [];
+  if (kept.length && innerCore.length) {
+    for (const k of kept) {
+      const a = diff(offset(k.paths, wall), k.paths);
+      if (a.length) around.push(...a);
+    }
+    around = around.length ? clean(inter(bgPaths.length ? diff(around, bgPaths) : around, sil), 0.02) : [];
+    if (around.length) band = union([...band, ...around]);
   }
+  // 다른 색의 테두리가 지나가는 자리는 그 색 면에서 덜어낸다 (겹치면 3D에서 두 번 쌓인다)
+  if (around.length) {
+    for (const k of kept) k.paths = clean(diff(k.paths, around), 0.02);
+  }
+  const keptAll = kept.filter((k) => k.paths.length).flatMap((k) => k.paths);
 
   // 4) 패턴 → 안쪽 영역과 교집합
   let pat = [];
@@ -246,7 +266,7 @@ export function applyPattern(model, o = {}) {
 
   const color = o.color || (model.layers[0] && model.layers[0].color) || '#000000';
   const layers = [{ color, items }];
-  for (const k of kept) {
+  for (const k of kept.filter((x) => x.paths.length)) {
     const ki = buildItems(k.paths.map(toRing), model.tol);
     if (ki.length) layers.push({ color: k.color, items: ki });
   }

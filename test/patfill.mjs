@@ -116,5 +116,56 @@ const body = rect(5, 5, 95, 95);
   }
 }
 
+// ── 5. 바탕(무늬 깔리는 색)은 칠하다가 넓이 순위가 뒤집혀도 바뀌면 안 된다 ──
+{
+  // 검정 몸통 위에 '몸통 남은 넓이보다 큰' 파랑을 칠한 상황
+  const m = makeModel([
+    { color: '#000000', rings: [rect(5, 5, 95, 95)] },
+    { color: '#29b6f6', rings: [rect(5, 5, 95, 60)] },          // 4500 > 남은 검정 3500
+  ], 100, 0.05);
+  const noBase = applyPattern(m, P);                              // 예전 동작 (넓이로 매번 다시 뽑음)
+  const fixed = applyPattern(m, { ...P, baseColor: '#000000' });  // 트레이싱 바탕색 고정
+  const blueOf = (r) => r.model.layers.find((l) => l.color === '#29b6f6');
+  console.log(`바탕 고정 — 안 넘기면 바탕 ${noBase.info.base} / 넘기면 ${fixed.info.base}`);
+  check('바탕이 트레이싱 때 색으로 고정됨', fixed.info.base === '#000000', `${fixed.info.base}`);
+  check('칠한 파랑이 사라지지 않음', !!blueOf(fixed), blueOf(fixed) ? `조각 ${blueOf(fixed).items.length}개` : '없음');
+  const up = cover(fixed.model, 50, 30, 8), lo = cover(fixed.model, 50, 80, 8);
+  console.log(`  칠한 파랑 쪽: ${JSON.stringify(up)} · 남은 몸통 쪽: ${JSON.stringify(lo)}`);
+  check('칠한 쪽은 파랑 그대로', (up['#29b6f6'] || 0) > 90, `${up['#29b6f6'] || 0}%`);
+  check('남은 몸통 쪽에 무늬가 깔림', (lo['#1b1b1b'] || 0) > 15 && (lo['#e8e2d0'] || 0) > 15, `무늬 ${lo['#1b1b1b'] || 0}% 채움 ${lo['#e8e2d0'] || 0}%`);
+  // 그 색을 통째로 칠해 없앴으면 가장 넓은 색으로 떨어져야 한다 (빈 화면이 되면 안 됨)
+  const gone = applyPattern(makeModel([{ color: '#29b6f6', rings: [rect(5, 5, 95, 95)] }], 100, 0.05), { ...P, baseColor: '#000000' });
+  check('바탕색이 없어지면 가장 넓은 색으로', gone.info.base === '#29b6f6', `${gone.info.base}`);
+}
+
+// ── 6. 색 면 안에 든 색 면에도 테두리가 생겨야 한다 ──
+{
+  const m = makeModel([
+    { color: '#000000', rings: [rect(5, 5, 95, 95)] },
+    // 큰 색 면에 구멍이 있고, 그 구멍을 다른 색으로 칠한 모양 (레이어끼리 겹치지 않음)
+    { color: '#dc1e1e', rings: [rect(20, 20, 80, 80), circle(50, 50, 10)] },
+    { color: '#e53935', rings: [circle(50, 50, 10)] },
+  ], 100, 0.05);
+  const r = applyPattern(m, { ...P, baseColor: '#000000' });
+  const inner = r.model.layers.find((l) => l.color === '#e53935');
+  const poly = inner.items[0].poly;
+  let cx = 0, cy = 0; for (const q of poly) (cx += q[0], cy += q[1]);
+  cx /= poly.length; cy /= poly.length;
+  let rr = 0; for (const q of poly) rr = Math.max(rr, Math.hypot(q[0] - cx, q[1] - cy));
+  const ringAt = (d) => {
+    let on = 0;
+    for (let k = 0; k < 72; k++) {
+      const t = (2 * Math.PI * k) / 72, x = cx + (rr + d) * Math.cos(t), y = cy + (rr + d) * Math.sin(t);
+      let ins = false; for (const it of r.model.layers[0].items) if (pip(it.poly, x, y)) ins = !ins;
+      if (ins) on++;
+    }
+    return Math.round((100 * on) / 72);
+  };
+  console.log(`색 면 안의 색 면 — 바깥 0.5mm ${ringAt(0.5)}% · 1mm ${ringAt(1)}% 가 무늬 색`);
+  check('안쪽 색 면에도 테두리가 생김', ringAt(0.5) > 85 && ringAt(1) > 85, `${ringAt(0.5)}% / ${ringAt(1)}%`);
+  const red = r.model.layers.find((l) => l.color === '#dc1e1e');
+  check('바깥 색 면도 남음', !!red, red ? `조각 ${red.items.length}개` : '없음');
+}
+
 console.log(bad ? `\n실패 ${bad}건` : '\n전부 통과');
 process.exit(bad ? 1 : 0);
