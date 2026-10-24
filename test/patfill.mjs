@@ -1,6 +1,6 @@
 // 몰드·패턴 실루엣: 여러 색 레이어 · 채운 구멍 · 배경색 안쪽 면
 import { applyPattern } from '../src/mold.js';
-import { makeModel } from '../src/geom.js';
+import { makeModel, buildItems } from '../src/geom.js';
 
 const circle = (cx, cy, r, n = 64) => { const o = []; for (let i = 0; i < n; i++) { const t = (2 * Math.PI * i) / n; o.push([i ? 'L' : 'M', cx + r * Math.cos(t), cy + r * Math.sin(t)]); } o.push(['L', cx + r, cy]); return o; };
 const rect = (a, b, c, d) => [['M', a, b], ['L', c, b], ['L', c, d], ['L', a, d], ['L', a, b]];
@@ -165,6 +165,25 @@ const body = rect(5, 5, 95, 95);
   check('안쪽 색 면에도 테두리가 생김', ringAt(0.5) > 85 && ringAt(1) > 85, `${ringAt(0.5)}% / ${ringAt(1)}%`);
   const red = r.model.layers.find((l) => l.color === '#dc1e1e');
   check('바깥 색 면도 남음', !!red, red ? `조각 ${red.items.length}개` : '없음');
+}
+
+// ── 7. 바탕색과 같은 색으로 칠한 자리도 남아야 한다 (칠한 영역을 기억) ──
+{
+  const m = makeModel([{ color: '#000000', rings: [rect(5, 5, 95, 95), circle(30, 30, 8), circle(70, 30, 8)] }], 100, 0.05);
+  // 왼쪽 눈을 '바탕색과 같은' 검정으로 칠한 상태 — 기하만 보면 몸통과 구분이 안 된다
+  m.layers = [{ color: '#000000', items: buildItems([rect(5, 5, 95, 95), circle(70, 30, 8)], m.tol) }];
+  m.painted = [{ color: '#000000', polys: buildItems([circle(30, 30, 8)], m.tol).map((x) => x.poly) }];
+  const r = applyPattern(m, { ...P, baseColor: '#000000' });
+  const L = cover(r.model, 30, 30, 6), R = cover(r.model, 70, 30, 6), B = cover(r.model, 50, 70, 6);
+  console.log(`바탕색으로 칠한 눈: ${JSON.stringify(L)} · 안 칠한 눈: ${JSON.stringify(R)} · 몸통: ${JSON.stringify(B)}`);
+  check('바탕색으로 칠해도 제 영역으로 남음', (L['#000000'] || 0) > 90, `검정 ${L['#000000'] || 0}%`);
+  check('그 위에 무늬가 덮이지 않음', (L['#1b1b1b'] || 0) < 8, `무늬 ${L['#1b1b1b'] || 0}%`);
+  check('안 칠한 눈은 그대로 구멍', R.덮임 < 15, `${R.덮임}%`);
+  check('몸통은 무늬 그대로', (B['#1b1b1b'] || 0) > 20, `무늬 ${B['#1b1b1b'] || 0}%`);
+  // 칠한 기록이 낡았으면(그 색이 이제 없으면) 조용히 버려야 한다
+  const stale = applyPattern({ ...m, painted: [{ color: '#ff00ff', polys: m.painted[0].polys }] }, { ...P, baseColor: '#000000' });
+  const S2 = cover(stale.model, 30, 30, 6);
+  check('낡은 칠 기록은 버려짐', (S2['#ff00ff'] || 0) === 0, `${S2['#ff00ff'] || 0}%`);
 }
 
 console.log(bad ? `\n실패 ${bad}건` : '\n전부 통과');

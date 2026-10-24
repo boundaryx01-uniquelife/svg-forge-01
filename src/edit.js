@@ -48,6 +48,15 @@ function fixOverlap(L, tol) {
   return { ...L, items: buildItems(rings, tol) };
 }
 
+/** 사용자가 직접 칠한 자리를 '영역'으로 기억해 둔다.
+ *  색만으로는 모자란다 — 바탕색과 같은 색으로 칠하면 몸통에 합쳐져 구분할 수 없고,
+ *  몰드·패턴에서 그 자리가 무늬에 덮여 사라진다. */
+function markPainted(model, color, rings, tol) {
+  const its = buildItems(rings, tol);
+  if (!its.length) return;
+  (model.painted || (model.painted = [])).push({ color, polys: its.map((x) => x.poly) });
+}
+
 /** 구멍 안의 빈 곳 = 그 구멍 − (모든 색의 칠해진 면). 구멍 속에 떠 있는 다른 도형은 남긴다 */
 function emptyInside(model, it) {
   const filled = new ClipperLib.Paths();
@@ -313,6 +322,7 @@ export function applyEdits(model, edits, tol) {
       } else {
         const rs = emptyInside(model, it);
         if (!rs.length) continue;
+        markPainted(model, e.to, rs, tol);
         let T0 = model.layers.find((l) => l.color === e.to);
         if (!T0) model.layers.push((T0 = { color: e.to, items: [] }));
         const ti = model.layers.indexOf(T0);
@@ -371,6 +381,8 @@ export function applyEdits(model, edits, tol) {
       // 고른 구멍은 원래 색에 그대로 남긴다 (빼면 원래 색이 그 구멍을 메워 두 색이 겹친다)
       if (holeSet.size) rings = all.filter((_, j) => !selSet.has(j) || holeSet.has(j)).map((it) => it.ring);
       const move = sel.filter((j) => !holeSet.has(j)).map((j) => all[j]);
+      if (move.length) markPainted(model, e.to, move.map((it) => it.ring), tol);
+      if (fillRings.length) markPainted(model, e.to, fillRings, tol);
       model.layers[li] = { ...L, items: buildItems(rings, tol) };
       let T = model.layers.find((l) => l.color === e.to);
       if (!T) {

@@ -219,6 +219,18 @@ export function applyPattern(model, o = {}) {
     const own = clean(diff(bgPaths.length ? diff(r.paths, bgPaths) : r.paths, kept.flatMap((k) => k.paths)), 0.05);
     if (own.length) kept.push({ color: r.color, paths: own });
   }
+  // 바탕색과 '같은 색'으로 칠한 자리도 제 영역으로 남긴다.
+  // 색만 보면 몸통과 구분이 안 돼 무늬에 덮여 사라진다 (유령 눈을 까망으로 칠하면 눈이 없어지던 원인).
+  const baseKey = ((regions[baseIdx] && regions[baseIdx].color) || '').toLowerCase();
+  for (const pt of model.painted || []) {
+    if (!pt.polys || !pt.polys.length) continue;
+    if ((pt.color || '').toLowerCase() !== baseKey) continue;     // 다른 색은 이미 위에서 남겼다
+    let own = inter(union(pt.polys.map((q) => toPath(q)), PF.pftEvenOdd), regions[baseIdx].paths);
+    if (bgPaths.length) own = diff(own, bgPaths);
+    own = clean(diff(own, kept.flatMap((k) => k.paths)), 0.05);
+    if (!own.length || !offset(own, -minW0 / 2).length) continue; // 노즐보다 가늘면 바탕에 둔다
+    kept.push({ color: regions[baseIdx].color, paths: own });
+  }
   info.kept = kept.length;
 
   // 2) 안쪽 영역 = 실루엣을 벽 두께만큼 안으로
