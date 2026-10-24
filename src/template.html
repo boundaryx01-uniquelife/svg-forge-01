@@ -151,6 +151,15 @@ button.swbtn:disabled{opacity:.5;cursor:default}
 .bucketbar button.swbtn{width:26px;height:22px}
 #bucketBtn.on{background:var(--pri);color:#fff;border-color:var(--pri)}
 .appver{font-size:11px;font-weight:500;color:var(--sub);margin-left:2px;letter-spacing:0}
+.verbtn{cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}
+.verbtn:hover{color:var(--pri)}
+#hist .histbody{max-height:min(62vh,520px);overflow:auto;font-size:13px;line-height:1.65;padding-right:4px}
+#hist .histbody h4{margin:14px 0 4px;font-size:13.5px;color:var(--pri)}
+#hist .histbody h4:first-child{margin-top:0}
+#hist .histbody ul{margin:0 0 6px;padding-left:18px}
+#hist .histbody li{margin:1px 0}
+#hist .histbody code{background:#f1f3f6;border-radius:3px;padding:0 3px;font-size:12px}
+#hist .histnote{font-size:12px;color:var(--sub);margin:8px 0 2px}
 .tilepop{position:fixed;z-index:10000;display:grid;grid-template-columns:repeat(5,30px);gap:4px;padding:8px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.22)}
 .tilepop .tilelbl{grid-column:1/-1;font-size:11px;color:var(--sub);margin-top:2px}
 .tilepop .tile{width:30px;height:30px;border:1px solid rgba(0,0,0,.25);border-radius:6px;padding:0;cursor:pointer}
@@ -265,7 +274,7 @@ dialog#prefs .row label{flex-basis:70px}
 </head>
 <body>
 <header>
-  <h1>SVG Forge <small id="appVer" class="appver"></small></h1>
+  <h1>SVG Forge <small id="appVer" class="appver verbtn" tabindex="0" role="button" title="변경 이력 보기"></small></h1>
   <span class="lbl">입력</span>
   <div class="tabs" id="modeTabs">
     <button id="modeImage" class="on">이미지</button>
@@ -700,6 +709,14 @@ dialog#prefs .row label{flex-basis:70px}
       <li>3D 프로그램·디자인 도구 → SVG / 레이저 가공 → DXF · 레이저 (RDWorks) 또는 SVG · 레이저 (LightBurn)</li>
       <li>3D 프린트 → 3MF(색·받침판·고리가 각각 파트) 또는 STL(한 덩어리)</li>
     </ul>
+    <div class="row" style="justify-content:flex-end"><button class="btn pri" value="ok">닫기</button></div>
+  </form>
+</dialog>
+<dialog id="hist">
+  <form method="dialog">
+    <h3>변경 이력 <small class="appver" id="histVer"></small></h3>
+    <div class="histbody"><!--CHANGELOG--></div>
+    <div class="histnote">자세한 작업 내역은 저장소의 <code>docs/WORKLOG.md</code> 에 있습니다.</div>
     <div class="row" style="justify-content:flex-end"><button class="btn pri" value="ok">닫기</button></div>
   </form>
 </dialog>

@@ -59,8 +59,48 @@ const result = await build({
   define: { 'process.env.NODE_ENV': '"production"', __WORKER_SRC__: JSON.stringify(workerSrc), __UPSCALE_SRC__: JSON.stringify(upscaleSrc), __POTRACE_SRC__: JSON.stringify(potraceSrc) },
 });
 const js = result.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
-const tpl = readFileSync('src/template.html', 'utf8');
+let tpl = readFileSync('src/template.html', 'utf8');
+// 변경 이력: CHANGELOG.md 를 그대로 끼워 넣는다 (저장소와 사이트가 따로 놀지 않게)
+if (tpl.includes('<!--CHANGELOG-->')) tpl = tpl.replace('<!--CHANGELOG-->', () => changelogHtml());
 mkdirSync('dist', { recursive: true });
 const outName = withPotrace ? 'dist/svg-forge.html' : 'dist/svg-forge-nogpl.html';
 writeFileSync(outName, tpl.replace('<!--BUNDLE-->', () => `<script>${js}</script>`));
 console.log('built', outName, ((js.length + tpl.length) / 1024).toFixed(0) + ' KB');
+
+/** CHANGELOG.md → 아주 작은 마크다운 변환 (제목·목록·굵게·코드·링크) */
+function changelogHtml() {
+  let md = '';
+  try {
+    md = readFileSync('CHANGELOG.md', 'utf8');
+  } catch (e) {
+    return '';
+  }
+  const esc = (t) => t.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const inline = (t) =>
+    esc(t)
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, a, b) => (/^https?:/.test(b) ? `<a href="${b}" target="_blank" rel="noopener">${a}</a>` : a));
+  const out = [];
+  let started = false;        // 첫 '##' 전의 머리말은 창 아래 안내와 겹쳐 버린다
+  let inList = false;
+  const closeList = () => { if (inList) (out.push('</ul>'), (inList = false)); };
+  for (const raw of md.split(/\r?\n/)) {
+    const line = raw.trimEnd();
+    if (!line.trim()) { closeList(); continue; }
+    if (!started && !/^##/.test(line)) continue;
+    let m;
+    if ((m = line.match(/^#\s+(.*)/))) { closeList(); continue; }          // 문서 제목은 창 제목과 겹쳐 뺀다
+    if ((m = line.match(/^##\s+(.*)/))) { closeList(); started = true; out.push(`<h4>${inline(m[1])}</h4>`); continue; }
+    if ((m = line.match(/^###\s+(.*)/))) { closeList(); out.push(`<h4 style="color:var(--ink);font-size:12.5px">${inline(m[1])}</h4>`); continue; }
+    if ((m = line.match(/^[-*]\s+(.*)/))) {
+      if (!inList) (out.push('<ul>'), (inList = true));
+      out.push(`<li>${inline(m[1])}</li>`);
+      continue;
+    }
+    closeList();
+    out.push(`<p style="margin:4px 0">${inline(line)}</p>`);
+  }
+  closeList();
+  return out.join('\n');
+}
