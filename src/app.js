@@ -9,6 +9,7 @@ import { VERSION } from './version.js';
 import { enhanceColorInputs } from './tiles.js';
 import { keycapDims } from './keycap.js';
 import { applyPattern } from './mold.js';
+import { groupsOf, groupAt, applyLayout, addMove, spreadMoves } from './layout.js';
 import { makePressView, stageAt, STAGES } from './pressview3d.js';
 import { SAMPLES, sampleSvg, samplePaths } from './samples.js';
 import { potracePathsToRings } from './pathparse.js';
@@ -29,7 +30,7 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'preset', 'advImage', 'bgRow', 'removeBg', 'keepRow', 'keepInner', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'hist', 'appVer', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcPartR', 'kcPartRType', 'kcBodyR', 'kcInnerR', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'tdTitle', 'tdPrint', 'tdSw', 'tdEst', 'tdMoveRow', 'tdMove', 'tdHint', 'tdDel', 'edTextEdit', 'txtSw', 'txtSwEst', 'thinBtn', 'bucketBar', 'bucketBtn', 'bucketCol', 'tabPress', 'viewPress', 'pressGL', 'pressHeat', 'pressHome', 'pressPlay', 'pressRst', 'pressPos', 'pressStage', 'pressInfo',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'hist', 'appVer', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcPartR', 'kcPartRType', 'kcBodyR', 'kcInnerR', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'tdTitle', 'tdPrint', 'tdSw', 'tdEst', 'tdMoveRow', 'tdMove', 'tdHint', 'tdDel', 'edTextEdit', 'txtSw', 'txtSwEst', 'thinBtn', 'bucketBar', 'bucketBtn', 'bucketCol', 'arrBar', 'arrBtn', 'arrSplit', 'arrSpread', 'arrReset', 'arrInfo', 'tabPress', 'viewPress', 'pressGL', 'pressHeat', 'pressHome', 'pressPlay', 'pressRst', 'pressPos', 'pressStage', 'pressInfo',
   'tabSim', 'viewSim', 'simCv', 'simHead', 'simPlay', 'simRst', 'simPos', 'simTime', 'simSpd', 'simCut', 'simEng', 'simTrv', 'simInfo',
   'mpOn', 'mpOpts', 'mpKind', 'mpColor', 'mpFill', 'mpFillColor', 'mpW', 'mpPitch', 'mpWall', 'mpAngle', 'mpSpokes', 'mpSpokesRow', 'mpInfo', 'mpKeep',
   'mdOn', 'mdOpts', 'mdKind', 'mdOut', 'mdColor', 'mdDome', 'mdGap', 'mdRim', 'mdPair', 'mdDepth', 'mdFloor', 'mdDraft', 'mdClear', 'mdFlange', 'mdRibH', 'mdInfo', 'sampleRow',
@@ -39,6 +40,9 @@ const el = {};
 
 const S = {
   edits: [],
+  layout: [],      // 조각 배치 (무늬를 깐 뒤 좌표만 옮김) — 편집과 따로 돈다
+  groups: [],
+  arrange: false,
   editsKey: '',
   sel: null,
   mode: 'image',
@@ -586,8 +590,9 @@ async function compute() {
 
   if (S.editsKey === '*') S.editsKey = S.traceKey;
   if (S.editsKey !== S.traceKey) {
-    if (S.edits.length) S.flash = T('이미지·글자 설정이 바뀌어 도형 편집을 처음으로 되돌렸습니다.');
+    if (S.edits.length || S.layout.length) S.flash = T('이미지·글자 설정이 바뀌어 도형 편집을 처음으로 되돌렸습니다.');
     S.edits = [];
+    S.layout = [];
     S.editsKey = S.traceKey;
   }
   let mlayers = layers;
@@ -678,6 +683,9 @@ async function compute() {
     });
     S.silModel = { ...m, layers: m.layers.map((l) => ({ ...l })) }; // 몰드는 무늬가 아니라 원래 실루엣 기준
     S.model = m = r.model;
+    // 무늬를 다 깐 뒤에 조각 배치를 입힌다 (편집 파이프라인 밖 — 무늬는 그대로 두고 자리만 옮김)
+    if (S.layout.length) applyLayout(m, S.layout);
+    S.groups = S.arrange ? groupsOf(m) : [];
     const msgs = [];
     if (r.info.noInner) msgs.push(T('도형이 벽 폭보다 얇아 무늬가 들어갈 자리가 없습니다. 벽 폭을 줄이거나 너비를 키우세요.'));
     else if (r.info.empty) msgs.push(T('무늬가 하나도 들어가지 않았습니다. 간격을 좁혀 보세요.'));
@@ -686,7 +694,7 @@ async function compute() {
       + (r.info.fill ? T(' · 구멍 {a}mm² 채움', { a: r.info.fillArea }) : '');
     el.mpInfo.style.color = msgs.length ? '#c92a2a' : '';
     if (msgs.length) el.mpInfo.textContent = msgs[0];
-  } else { S.silModel = null; if (el.mpInfo) el.mpInfo.textContent = ''; }
+  } else { S.silModel = null; S.groups = []; if (el.mpInfo) el.mpInfo.textContent = ''; }
   // 편집 도구 줄은 checkSel() 에서 먼저 정해지는데, 채우기 가능 여부는 여기서야 결정된다 → 다시 맞춘다
   if (el.mpOn) updateEditBar();
   if (S.mode === 'text') {
@@ -983,6 +991,7 @@ function pickSel(q) {
   setSels(q ? [q] : []);
 }
 function updateEditBar() {
+  updateArrUi();
   const m = S.model, q = S.sel;
   const l = m && q && m.layers.find((x) => x.color === q.c);
   const it = l && l.items[q.i];
@@ -1330,6 +1339,7 @@ window.addEventListener('keydown', (e) => {
     }
     if (e.key === 'Escape') return setSels([], []);
   }
+  if (S.arrange && e.key === 'Escape') return setArrange(false);
   if (S.bucket && e.key === 'Escape') return setBucket(false);
   if (S.eyedrop && e.key === 'Escape') return setDrop(false);
   if (S.placeText && e.key === 'Escape') return setPlace(false);
@@ -1418,10 +1428,49 @@ function bucketHover(e) {
     sv.appendChild(pth);
   });
 }
+// ---------- 조각 배치 ----------
+/** 배치는 편집과 섞이면 안 된다 → 다른 도구와 마찬가지로 하나만 켜지게 */
+function setArrange(on) {
+  S.arrange = !!on;
+  if (on) (setBucket(false), setCut(false), setDrop(false), S.placeText && setPlace(false), clearSel());
+  el.arrBtn.classList.toggle('on', S.arrange);
+  el.view2d.style.cursor = S.arrange ? 'move' : '';
+  if (!S.arrange) (S.groups = []), el.view2d.querySelectorAll('path.arrhi').forEach((n) => n.remove());
+  updateArrUi();
+  schedule(0);
+}
+function updateArrUi() {
+  const mp = el.mpOn && el.mpOn.checked;
+  el.arrBar.style.display = mp && S.view === '2d' && S.model && S.mode === 'image' ? '' : 'none';
+  if (!S.arrange) return void (el.arrInfo.textContent = '');
+  const n = S.groups.length;
+  el.arrInfo.textContent = n > 1 ? T('조각 {n}개 — 끌어서 옮기기', { n }) : T('떨어진 조각이 없습니다. ✂ 나누기로 먼저 잘라 주세요');
+}
+/** 끌고 있는 덩어리를 화면에만 미리 옮겨 보여 준다 (다시 계산하지 않고) */
+function arrPreview(gi, dx, dy) {
+  const sv = el.view2d.querySelector('svg');
+  if (!sv) return;
+  sv.querySelectorAll('path.arrhi').forEach((n) => n.remove());
+  const g = S.groups[gi];
+  if (!g) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  const pth = document.createElementNS(NS, 'path');
+  pth.setAttribute('class', 'arrhi');
+  pth.setAttribute('d', g.items.map((a) => 'M' + a.it.poly.map(([x, y]) => (x + dx).toFixed(2) + ' ' + (y + dy).toFixed(2)).join('L') + 'Z').join(''));
+  Object.entries({ fill: 'var(--pri,#1f6feb)', 'fill-opacity': 0.5, 'fill-rule': 'evenodd', stroke: '#0b3d91', 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke', 'pointer-events': 'none' }).forEach(([k, v]) => pth.setAttribute(k, v));
+  sv.appendChild(pth);
+}
+/** 옮긴 거리를 배치 기록에 더한다 (같은 조각을 또 옮기면 합쳐짐) */
+function pushMove(gi, dx, dy) {
+  const g = S.groups[gi];
+  if (!g || (!dx && !dy)) return;
+  S.layout = addMove(S.layout, S.model, g, dx, dy);
+  schedule(0);
+}
 function setBucket(on) {
   S.bucket = !!on;
   if (!on) S.bucketAuto = false;
-  if (on) (setCut(false), setDrop(false), S.placeText && setPlace(false));
+  if (on) (setArrange(false), setCut(false), setDrop(false), S.placeText && setPlace(false));
   el.bucketBtn.classList.toggle('on', S.bucket);
   el.view2d.style.cursor = S.bucket ? BUCKET_CUR : '';
   if (!S.bucket) el.view2d.querySelectorAll('path.bkhover').forEach((n) => n.remove());
@@ -1433,6 +1482,28 @@ el.bucketBtn.onclick = () => {
   setBucket(!S.bucket);
 };
 el.bucketCol.addEventListener('change', () => (setBucket(true), (S.bucketAuto = true)));
+el.arrBtn.onclick = () => setArrange(!S.arrange);
+// 조각을 나누는 건 '편집'이라 무늬를 켠 채로는 할 수 없다 → 그 상태로 바꿔 주고 안내만 한다
+el.arrSplit.onclick = () => {
+  setArrange(false);
+  if (el.mpOn.checked) {
+    el.mpOn.checked = false;
+    el.mpOn.dispatchEvent(new Event('change'));
+  }
+  setCut(true);
+  S.flash = T('무늬를 잠깐 껐습니다. 나눌 곳을 가로질러 끈 다음, 🕸 패턴 채우기를 다시 켜고 🧩 조각 배치로 옮기세요.');
+  schedule(0);
+};
+el.arrSpread.onclick = () => {
+  if (!S.model || S.groups.length < 2) return;
+  S.layout = spreadMoves(S.layout, S.model, S.groups);
+  schedule(0);
+};
+el.arrReset.onclick = () => {
+  if (!S.layout.length) return;
+  S.layout = [];
+  schedule(0);
+};
 el.thinBtn.onclick = () => {
   S.showThin = S.showThin === false;
   render2d();
@@ -1611,6 +1682,7 @@ el.view2d.addEventListener(
   let drag = null;
   let hd = null;
   let cutDrag = null;
+  let arrDrag = null;   // 조각 배치 끌기
   let mvDrag = null;
   let box = null;
   const startBox = (e, ctm, add) => {
@@ -1658,6 +1730,15 @@ el.view2d.addEventListener(
       pan = { x: e.clientX, y: e.clientY, b: (S.vb2 || S.fit2).slice(), a: ctm ? ctm.a : 1, id: e.pointerId, mid: true };
       el.view2d.setPointerCapture(e.pointerId);
       el.view2d.classList.add('panning');
+      e.preventDefault();
+      return;
+    }
+    if (S.arrange && S.mode === 'image' && ctm && S.model) {
+      const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+      const gi = groupAt(S.groups, P.x, P.y);
+      if (gi < 0 || S.groups.length < 2) return;
+      arrDrag = { gi, a: [P.x, P.y], ctm, id: e.pointerId };
+      el.view2d.setPointerCapture(e.pointerId);
       e.preventDefault();
       return;
     }
@@ -1803,6 +1884,12 @@ el.view2d.addEventListener(
   el.view2d.addEventListener('mousedown', (e) => e.button === 1 && e.preventDefault());
   el.view2d.addEventListener('pointerleave', () => el.view2d.querySelectorAll('path.bkhover').forEach((n) => n.remove()));
   el.view2d.addEventListener('pointermove', (e) => {
+    if (arrDrag) {
+      const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(arrDrag.ctm.inverse());
+      arrDrag.d = [P.x - arrDrag.a[0], P.y - arrDrag.a[1]];
+      arrPreview(arrDrag.gi, arrDrag.d[0], arrDrag.d[1]);
+      return;
+    }
     if (S.bucket && !pan && !box) bucketHover(e);
     if (box) {
       const P = new DOMPoint(e.clientX, e.clientY).matrixTransform(box.ctm.inverse());
@@ -1905,6 +1992,13 @@ el.view2d.addEventListener(
     applyVb2();
   });
   const end = (e) => {
+    if (arrDrag) {
+      const a = arrDrag;
+      arrDrag = null;
+      el.view2d.querySelectorAll('path.arrhi').forEach((n) => n.remove());
+      if (e && e.type === 'pointerup' && a.d && (Math.abs(a.d[0]) > 0.01 || Math.abs(a.d[1]) > 0.01)) pushMove(a.gi, a.d[0], a.d[1]);
+      return;
+    }
     if (box) {
       const b = box;
       box = null;
@@ -2821,7 +2915,7 @@ function updateMpUi() {
   el.mpSpokesRow.style.display = k === 'web' || k === 'spokes' || k === 'rings' ? '' : 'none';
   el.mpAngle.parentElement.style.opacity = k === 'rings' ? 0.5 : 1;
 }
-[el.mpOn, el.mpKind, el.mpColor, el.mpFill, el.mpFillColor].forEach((e) => e.addEventListener('change', () => (updateMpUi(), schedule(0))));
+[el.mpOn, el.mpKind, el.mpColor, el.mpFill, el.mpFillColor].forEach((e) => e.addEventListener('change', () => (updateMpUi(), el.mpOn.checked || setArrange(false), updateArrUi(), schedule(0))));
 el.mpOn.addEventListener('change', () => autoMode('mpOn'));
 el.mdOn.addEventListener('change', () => autoMode('mdOn'));
 [el.mpW, el.mpPitch, el.mpWall, el.mpAngle, el.mpSpokes].forEach((e) => e.addEventListener('input', () => schedule()));
@@ -3309,6 +3403,7 @@ async function serializeProject(forFile) {
     font,
     image,
     heightByColor: [...S.heightByColor.entries()],
+    layout: S.layout,
     baseCustom: S.baseCustom || null,
     rings: (ringFromInputs(), S.rings),
     ringSel: S.ringSel,
@@ -3352,6 +3447,7 @@ async function applyProject(p) {
   ringToInputs();
   S.charStyles = p.charStyles || {};
   S.edits = Array.isArray(p.edits) ? p.edits : [];
+  S.layout = Array.isArray(p.layout) ? p.layout : [];
   S.chain = null;
   S.editsKey = '*';
   clearSel();
@@ -3527,7 +3623,7 @@ function histSnap() {
   const controls = {};
   for (const e of controlEls()) controls[e.id] = e.type === 'checkbox' ? e.checked : e.value;
   if (S.baseCustom) S.baseCache[S.baseCustom.key] = S.baseCustom;
-  return JSON.stringify({ controls, font: el.fontSel.value, mode: S.mode, hbc: [...S.heightByColor.entries()], baseKey: S.baseCustom ? S.baseCustom.key : null, rings: S.rings, ringSel: S.ringSel, charStyles: S.charStyles, v2mode: S.v2mode, edits: S.edits, editsKey: S.editsKey });
+  return JSON.stringify({ controls, font: el.fontSel.value, mode: S.mode, hbc: [...S.heightByColor.entries()], baseKey: S.baseCustom ? S.baseCustom.key : null, rings: S.rings, ringSel: S.ringSel, charStyles: S.charStyles, v2mode: S.v2mode, edits: S.edits, layout: S.layout, editsKey: S.editsKey });
 }
 function updateUndoBtns() {
   el.undoBtn.disabled = S.histI <= 0;
@@ -3569,6 +3665,7 @@ function restoreHist(i) {
   ringToInputs();
   S.charStyles = p.charStyles || {};
   S.edits = Array.isArray(p.edits) ? p.edits : [];
+  S.layout = Array.isArray(p.layout) ? p.layout : [];
   S.chain = null;
   S.editsKey = p.editsKey || '*';
   clearSel();
