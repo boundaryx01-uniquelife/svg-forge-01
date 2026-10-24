@@ -452,9 +452,11 @@ dialog#prefs .row label{flex-basis:70px}
           <label title="새김 속도 (mm/s)">새김 <input id="simEng" class="mini" type="number" min="1" max="1000" value="150"></label>
           <span id="simInfo" class="out" style="color:var(--sub)"></span>
           <label class="chk" style="margin:0" title="레이저가 꺼진 채 이동하는 경로 보이기"><input type="checkbox" id="simTrv"> 이동선</label></div></div>
-      <div class="view hide" id="viewPress"><canvas id="pressCv"></canvas>
+      <div class="view hide" id="viewPress" style="display:flex;flex-direction:column"><div id="pressGL" style="flex:1;min-height:0;position:relative;overflow:hidden"></div>
         <div class="simbar"><button class="btn small" id="pressPlay">▶ 재생</button><button class="btn small" id="pressRst" title="처음으로">⏮</button>
           <input id="pressPos" type="range" min="0" max="1000" value="0" style="flex:1 1 160px" title="진행 위치 (끌어서 이동)">
+          <label class="chk" style="margin:0" title="많이 늘어나는 자리를 붉게 칠해 보여 줍니다. 붉을수록 찢어지기 쉽습니다"><input type="checkbox" id="pressHeat" checked> 늘어남</label>
+          <button class="btn small" id="pressHome" title="보던 방향으로 되돌리기">⌂</button>
           <span id="pressStage" class="out" style="min-width:150px"></span>
           <span id="pressInfo" class="out" style="color:var(--sub)"></span></div></div>
       <div class="view hide" id="view3d"><div class="badge3d" id="badge3d"></div><div id="cube" title="면을 누르면 그 방향에서 봅니다"></div><div id="dimLabels"></div></div>
@@ -604,7 +606,7 @@ dialog#prefs .row label{flex-basis:70px}
         <input id="mpAngle" class="mini" type="number" min="0" max="180" step="5" value="0" title="무늬 각도 (°)"></div>
       <div class="row" id="mpSpokesRow"><label for="mpSpokes" title="거미줄·방사선에서 중심에서 뻗는 줄 수">줄 수</label>
         <input id="mpSpokes" class="mini" type="number" min="3" max="48" step="1" value="12" title="방사 줄 수"></div>
-      <label class="chk" title="무늬 사이의 빈 구멍을 두 번째 색으로 같은 두께만큼 채웁니다. 뚫린 곳 없는 2색 판이 됩니다"><input type="checkbox" id="mpFill" checked> 구멍을 다른 색으로 채우기</label>
+      <label class="chk" title="무늬 사이의 빈 구멍을 두 번째 색으로 같은 두께만큼 채웁니다. 뚫린 곳 없는 2색 판이 됩니다"><input type="checkbox" id="mpFill"> 구멍을 다른 색으로 채우기</label>
       <div class="row g-mpfill"><label for="mpFillColor" title="구멍을 채울 색">채움 색</label>
         <input id="mpFillColor" type="color" value="#e8e2d0" title="구멍을 채울 색"></div>
       <div id="mpInfo" class="note2" style="font-size:12px;color:var(--sub);margin:2px 0 4px"></div>

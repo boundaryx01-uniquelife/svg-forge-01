@@ -8,13 +8,13 @@ import { createSim } from './sim.js';
 import { VERSION } from './version.js';
 import { enhanceColorInputs } from './tiles.js';
 import { keycapDims } from './keycap.js';
-import { applyPattern, pressProfile } from './mold.js';
-import { drawPress, stageAt, STAGES } from './pressview.js';
+import { applyPattern } from './mold.js';
+import { makePressView, stageAt, STAGES } from './pressview3d.js';
 import { SAMPLES, sampleSvg } from './samples.js';
 import { potracePathsToRings } from './pathparse.js';
 import { toFillSvg, toLaserSvg, toDxf, laserModel } from './export.js';
 import { printabilityReport } from './solid.js';
-import { buildPartGeometries, buildStlBlob, build3mfBlob } from './mesh.js';
+import { buildPartGeometries, buildPressScene, buildStlBlob, build3mfBlob } from './mesh.js';
 import builtinFontData from '../assets/NotoSansKR-Bold-subset.otf';
 import hanjaFontData from '../assets/NotoSansCJKkr-Bold-hanja.otf';
 import { CSS3DRenderer, CSS3DObject, CSS3DSprite } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
@@ -29,7 +29,7 @@ const el = {};
   'modeImage', 'modeText', 'paneImage', 'paneText', 'drop', 'file', 'fileName', 'colors', 'thr', 'thrVal', 'thrRow', 'thrAuto',
   'invert', 'invertRow', 'preset', 'advImage', 'bgRow', 'removeBg', 'keepRow', 'keepInner', 'tres', 'tresVal', 'omit', 'omitVal', 'blur', 'blurVal', 'blurRow', 'res', 'corner', 'cornerVal', 'lineTol', 'lineTolVal', 'axisSnap', 'optArcs', 'optParallel', 'optWidth', 'optAlign', 'optSym', 'upscale', 'denoise', 'engine', 'engineRow',
   'text', 'fontSel', 'fontFileBtn', 'fontFile', 'fontLocalBtn', 'localFontRow', 'localFontSel', 'align', 'lineH', 'lineHVal',
-  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcPartR', 'kcPartRType', 'kcBodyR', 'kcInnerR', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'tdTitle', 'tdPrint', 'tdSw', 'tdEst', 'tdMoveRow', 'tdMove', 'tdHint', 'tdDel', 'edTextEdit', 'txtSw', 'txtSwEst', 'thinBtn', 'bucketBar', 'bucketBtn', 'bucketCol', 'tabPress', 'viewPress', 'pressCv', 'pressPlay', 'pressRst', 'pressPos', 'pressStage', 'pressInfo',
+  'width', 'heightOut', 'tol', 'btnFill', 'btnLaser', 'btnDxf', 'btnStl', 'btn3mf', 'laserSingle', 'thick', 'stepAuto', 'stepZero', 'colorHeights', 'baseOn', 'baseOpts', 'baseShape', 'baseMargin', 'baseH', 'baseColor', 'baseFill', 'baseFillRow', 'baseFillLbl', 'baseImgBtn', 'baseImgFile', 'baseStretch', 'baseStretchLbl', 'textMode', 'ringType', 'ringSel', 'ringAdd', 'ringDel', 'charChips', 'charHint', 'charEdit', 'chScale', 'chScaleVal', 'chRot', 'chRotVal', 'chW', 'chH', 'chDz', 'chColor', 'chReset', 'chDx', 'chDy', 'chResetAll', 'dimsBtn', 'homeBtn', 'undoBtn', 'redoBtn', 'helpBtn', 'help', 'kerf', 'laserOpsBtn', 'laserDlg', 'laserRows', 'prefsBtn', 'prefs', 'pDimColor', 'pDimSize', 'pBg2d', 'pBg3d', 'pHints', 'pAutosave', 'pResetCtl', 'pResetPrefs', 'cube', 'dimLabels', 'borderOn', 'borderOpts', 'borderFull', 'borderW', 'borderH', 'ringOn', 'ringOpts', 'ringPos', 'ringOuter', 'ringHole', 'ringDx', 'ringDy', 'ringReset', 'edgeType', 'edgeSize', 'edgeOpts', 'edgeColor', 'edgeBase', 'kcOn', 'kcOpts', 'kcU', 'kcColor', 'kcH', 'kcInset', 'kcWall', 'kcTol', 'kcMode', 'kcDepth', 'kcEdge', 'kcEdgeSize', 'kcPartR', 'kcPartRType', 'kcBodyR', 'kcInnerR', 'kcStem', 'kcInfo', 'wallOn', 'wallOpts', 'wallW', 'wallH', 'wallGap', 'wallColor', 'tdTitle', 'tdPrint', 'tdSw', 'tdEst', 'tdMoveRow', 'tdMove', 'tdHint', 'tdDel', 'edTextEdit', 'txtSw', 'txtSwEst', 'thinBtn', 'bucketBar', 'bucketBtn', 'bucketCol', 'tabPress', 'viewPress', 'pressGL', 'pressHeat', 'pressHome', 'pressPlay', 'pressRst', 'pressPos', 'pressStage', 'pressInfo',
   'tabSim', 'viewSim', 'simCv', 'simHead', 'simPlay', 'simRst', 'simPos', 'simTime', 'simSpd', 'simCut', 'simEng', 'simTrv', 'simInfo',
   'mpOn', 'mpOpts', 'mpKind', 'mpColor', 'mpFill', 'mpFillColor', 'mpW', 'mpPitch', 'mpWall', 'mpAngle', 'mpSpokes', 'mpSpokesRow', 'mpInfo',
   'mdOn', 'mdOpts', 'mdKind', 'mdOut', 'mdColor', 'mdDome', 'mdGap', 'mdRim', 'mdPair', 'mdDepth', 'mdFloor', 'mdDraft', 'mdClear', 'mdFlange', 'mdRibH', 'mdInfo', 'sampleRow',
@@ -2742,21 +2742,19 @@ function pressStop() {
   if (PV.raf) cancelAnimationFrame(PV.raf), (PV.raf = 0);
   if (el.pressPlay) el.pressPlay.textContent = T('▶ 재생');
 }
-function pressSizeCanvas() {
-  const r = el.viewPress.getBoundingClientRect();
-  const d = Math.min(2, window.devicePixelRatio || 1);
-  const w = Math.max(300, r.width), h = Math.max(220, r.height - 42);
-  if (el.pressCv.width !== Math.round(w * d) || el.pressCv.height !== Math.round(h * d)) {
-    el.pressCv.width = Math.round(w * d);
-    el.pressCv.height = Math.round(h * d);
-    el.pressCv.style.width = w + 'px';
-    el.pressCv.style.height = h + 'px';
+function pressGL() {
+  if (!PV.gl) {
+    PV.gl = makePressView(el.pressGL);
+    if (PV.gl.setStretchOn) PV.gl.setStretchOn(el.pressHeat.checked);
   }
+  return PV.gl;
 }
 function pressDraw() {
-  if (!PV.prof) return;
-  pressSizeCanvas();
-  drawPress(el.pressCv, PV.prof, PV.t);
+  if (!PV.scene) return;
+  const g = pressGL();
+  if (g.failed) return;
+  g.setTime(PV.t);
+  g.render();
   const i = stageAt(PV.t);
   el.pressStage.textContent = STAGES[i].name;
   el.pressPos.value = Math.round(PV.t * 1000);
@@ -2772,23 +2770,30 @@ function pressTick(now) {
 }
 /** 모델·설정이 바뀌면 단면을 다시 계산 */
 function refreshPress() {
-  const m = S.silModel || S.model;
-  if (!m || !m.layers || !m.layers.length) {
-    PV.prof = null;
+  if (!S.model || !S.model.layers || !S.model.layers.length) {
+    PV.scene = null;
     el.pressInfo.textContent = T('그림을 먼저 불러오세요.');
-    pressSizeCanvas();
-    el.pressCv.getContext('2d').clearRect(0, 0, el.pressCv.width, el.pressCv.height);
     return;
   }
+  const g = pressGL();
+  if (g.failed) return;
   const so = solidOpts();
-  PV.prof = pressProfile(m, { ...so.mold, thick: so.thickness });
-  if (!PV.prof) {
-    el.pressInfo.textContent = T('단면을 만들 수 없습니다. 테두리를 줄이거나 너비를 키우세요.');
+  let sc = null;
+  try {
+    sc = buildPressScene(S.model, so);
+  } catch (e) {
+    console.error(e);
+  }
+  if (!sc) {
+    PV.scene = null;
+    el.pressInfo.textContent = T('성형 틀을 만들 수 없습니다. 테두리를 줄이거나 너비를 키우세요.');
     return;
   }
-  const p = PV.prof;
+  PV.scene = sc;
+  g.setScene(sc, sc.dome, { gap: so.mold.gap, thick: so.thickness, floor: Math.max(0.8, so.mold.floor ?? 2.5) });
+  const d = sc.dome;
   el.pressInfo.textContent = T('돔 {h}mm · 간격 {g}mm · 테두리 {r}mm · 본체 두께 {t}mm · 늘어남 {s}%', {
-    h: p.domeH, g: p.gap, r: p.rim, t: p.thick, s: (p.stretch * 100).toFixed(0),
+    h: d.domeH, g: so.mold.gap, r: Math.round(d.useRim * 10) / 10, t: so.thickness, s: (d.stretch * 100).toFixed(0),
   });
   pressDraw();
 }
@@ -2803,6 +2808,8 @@ el.pressPlay.onclick = () => {
 el.pressRst.onclick = () => (pressStop(), (PV.t = 0), pressDraw());
 el.pressPos.addEventListener('input', () => (pressStop(), (PV.t = parseInt(el.pressPos.value, 10) / 1000), pressDraw()));
 window.addEventListener('resize', () => S.view === 'press' && pressDraw());
+el.pressHeat.addEventListener('change', () => (PV.gl && PV.gl.setStretchOn(el.pressHeat.checked), pressDraw()));
+el.pressHome.onclick = () => PV.gl && PV.gl.home();
 
 // ---------- 몰드 · 패턴 ----------
 function updateMpUi() {
@@ -3703,6 +3710,7 @@ el.btn3mf.onclick = async () => {
 
 window.__svgforge = S;
 window.__strokeOf = strokeOf; // 테스트용
+window.__press = () => PV;    // 테스트용
 window.__edit = (e) => { S.edits.push(e); schedule(0); }; // 테스트용 — 편집을 바로 적용
 Object.defineProperty(S, 'cam', { get: () => (G3 && !G3.failed ? G3.camera.position.toArray() : null) }); // 테스트용
 Object.defineProperty(S, 'fov', { get: () => (G3 && !G3.failed ? G3.camera.fov : null) }); // 테스트용

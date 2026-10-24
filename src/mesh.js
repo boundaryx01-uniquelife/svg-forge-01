@@ -5,7 +5,7 @@ import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildParts, beveledSolid } from './solid.js';
 import { buildKeycap } from './keycap.js';
-import { buildMold, buildPressMold, patternFor } from './mold.js';
+import { buildMold, buildPressMold, patternFor, pressDome } from './mold.js';
 
 /** 파트(도형+높이) → 지오메트리 */
 export function partGeometry(part) {
@@ -72,6 +72,28 @@ export function buildPartGeometries(model, opts) {
   }
   out.info = info;
   return out;
+}
+
+/** 성형 미리보기(3D)용 장면 — 본체(무늬 그대로)·수틀·암틀을 제자리에 겹쳐 돌려준다 */
+export function buildPressScene(model, opts) {
+  const md = opts.mold;
+  if (!md || !md.on || md.kind !== 'press') return null;
+  const src = md.sil || model;
+  const dome = pressDome(src, md);
+  if (!dome) return null;
+  const bodyParts = buildParts(model, { ...opts, mold: null });
+  const body = [];
+  for (const p of bodyParts.parts) {
+    const g = partGeometry(p);
+    if (g) body.push({ color: p.color, geometry: g });
+  }
+  const mk = (which) => {
+    const r = buildPressMold(src, { ...md, out: which, gapX: 0 });
+    const gs = r.parts.map((x) => x.geom).filter(Boolean);
+    if (!gs.length) return null;
+    return gs.length === 1 ? gs[0] : mergeGeometries(gs);
+  };
+  return { body, male: mk('maleOnly'), female: mk('femaleOnly'), dome };
 }
 
 /** 바이너리 STL Blob (단위 mm, 모든 파트를 한 파일로) */

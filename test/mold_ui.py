@@ -40,11 +40,11 @@ with sync_playwright() as p:
     pg.click('#bucketBtn'); time.sleep(0.6)
 
     # 구멍 채우기 (두 번째 색)
-    r['채움_기본켜짐'] = pg.is_checked('#mpFill')
-    r['채움_색수'] = pg.evaluate("()=>window.__svgforge.model.layers.length")
-    pg.uncheck('#mpFill'); time.sleep(2)
+    r['채움_기본꺼짐'] = not pg.is_checked('#mpFill')
     r['채움끔_색수'] = pg.evaluate("()=>window.__svgforge.model.layers.length")
-    pg.check('#mpFill'); time.sleep(2)
+    pg.check('#mpFill'); time.sleep(2.5)
+    r['채움켬_색수'] = pg.evaluate("()=>window.__svgforge.model.layers.length")
+    pg.uncheck('#mpFill'); time.sleep(2)
 
     # 무늬 바꿔 보기
     for kind in ['grid', 'tri', 'rings', 'hatch', 'spokes']:
@@ -140,6 +140,12 @@ with sync_playwright() as p:
     pg.click('#tabPress'); time.sleep(2.5)
     r['미리보기_안내'] = pg.inner_text('#pressInfo')[:40]
     r['미리보기_단계'] = pg.inner_text('#pressStage')
+    r['3D캔버스'] = pg.evaluate("()=>{const c=document.querySelector('#pressGL canvas');return c?c.width>100&&c.height>100:false}")
+    r['늘어남토글'] = pg.is_checked('#pressHeat')
+    pg.uncheck('#pressHeat'); time.sleep(1.2)
+    r['늘어남끔'] = not pg.is_checked('#pressHeat')
+    pg.check('#pressHeat'); time.sleep(1)
+    pg.click('#pressHome'); time.sleep(1)
     pg.fill('#pressPos', '950'); pg.dispatch_event('#pressPos', 'input'); time.sleep(1)
     r['마지막단계'] = pg.inner_text('#pressStage')
     # 다른 모드로 가면 탭이 숨고 성형 뷰에서 빠져나와야
