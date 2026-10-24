@@ -35,7 +35,9 @@ export function keycapDims(k) {
   const topW = bw - 2 * inset, topD = bd - 2 * inset;
   const bs = bevType === 'none' ? 0 : Math.min(Math.max(0.1, k.edgeSize || 0.6), 2.5, Math.max(0.1, Math.min(topW, topD) / 2 - 1.5), H * 0.4);
   const topT = Math.max(1.4, depth + 1.0, bs + 0.8);
-  return { u, bw, bd, inset, H, wall, mode, depth, topT, topW, topD, zT: H - depth, zi: H - topT, bevType, bs };
+  // 몸체 네 세로 모서리 R (평면에서 본 둥글기). 윗면이 좁아지므로 윗면 짧은 변의 1/3 까지만
+  const bodyR = Math.min(Math.max(0.2, k.bodyR == null ? 1.4 : k.bodyR), Math.max(0.2, Math.min(topW, topD) / 3));
+  return { u, bw, bd, inset, H, wall, mode, depth, topT, topW, topD, zT: H - depth, zi: H - topT, bevType, bs, bodyR };
 }
 
 function meshFrom(tris) {
@@ -63,7 +65,7 @@ function ringAt(cx, cy, D, z, off) {
     const q = z - (H - bs);
     ex = bevType === 'chamfer' ? q : bs - Math.sqrt(Math.max(0, bs * bs - q * q));
   }
-  const rb = 1.4, rt = 1.0;
+  const rb = D.bodyR, rt = Math.max(0.2, D.bodyR - 0.4);   // 아래가 조금 더 둥글다 (기본 1.4 / 1.0)
   return rrect(cx, cy, bw / 2 - inset * t - off - ex, bd / 2 - inset * t - off - ex, Math.max(0.2, rb + (rt - rb) * t - off - ex), 6);
 }
 
@@ -168,7 +170,7 @@ function bodyMesh(cx, cy, D, legendTree) {
 
 /**
  * 반환: { parts, info } — buildParts와 같은 모양
- * k: { u, h, inset, wall, color, mode: 'emboss'|'engrave'|'inlay', depth, legendH, stemLen, tol, edgeType, edgeSize }
+ * k: { u, h, inset, wall, color, mode, depth, legendH, stemLen, tol, edgeType, edgeSize, partR, partRType }
  */
 export function buildKeycap(model, o) {
   const k = { ...o.keycap };
@@ -201,11 +203,18 @@ export function buildKeycap(model, o) {
   }
   const body = bodyMesh(cx, cy, D, tree);
   parts.push({ name: '키캡 몸체', color, geom: body, shapes: [], z0: 0, z1: D.H, role: 'kcbody' });
+  // 모서리 R: 스템·글자·윤곽 벽의 위아래 모서리를 둥글게(또는 비스듬히) 깎는다.
+  // 키캡 몸체 윗모서리는 따로 '윗모서리' 값이 맡는다.
+  const rSize = Math.max(0, Math.min(2, k.partR == null ? 0 : k.partR));
+  const rBevel = rSize > 0.01 ? { type: k.partRType === 'chamfer' ? 'chamfer' : 'fillet', size: rSize } : null;
   const add = (name, col, paths, z0, z1, role, layer, label = true) => {
     if (!paths.length) return;
     const sh = toShapes(paths);
     if (!sh.length) return;
-    parts.push({ name, color: col, paths, shapes: label ? sh : [], z0, z1, role, layer });
+    // 조각이 얇으면 그 두께가 허락하는 만큼만 (0.6mm 글자에 R 1mm 를 줄 수는 없다)
+    const sz = rBevel ? Math.min(rSize, Math.abs(z1 - z0) * 0.45) : 0;
+    const bevel = sz > 0.02 ? { type: rBevel.type, size: sz } : null;
+    parts.push({ name, color: col, paths, shapes: label ? sh : [], z0, z1, role, layer, bevel });
   };
   // 글자 — 색상별 높이(±mm)가 돋을 높이·상감 높이에 반영됨
   const lh = Math.min(2, Math.max(0.2, k.legendH || 0.6));
@@ -226,9 +235,23 @@ export function buildKeycap(model, o) {
   const tol = Math.min(0.5, Math.max(0, k.tol == null ? 0.1 : k.tol));
   const L = 4.1 + tol, Wd = 1.35 + tol;
   const cross = union([[pathOf([[cx - L / 2, cy - Wd / 2], [cx + L / 2, cy - Wd / 2], [cx + L / 2, cy + Wd / 2], [cx - L / 2, cy + Wd / 2]])], [pathOf([[cx - Wd / 2, cy - L / 2], [cx + Wd / 2, cy - L / 2], [cx + Wd / 2, cy + L / 2], [cx - Wd / 2, cy + L / 2]])]].flat());
+  // 십자 슬롯 모서리 R — 평면에서 둥글게. 슬롯이 좁아지지 않게 폭의 1/3 까지만
+  let slot = cross;
+  if (rSize > 0.01) {
+    const rr = Math.min(rSize, Wd / 3);
+    const co = new ClipperLib.ClipperOffset(2, 0.05 * SC);
+    const grow = new ClipperLib.Paths(), back = new ClipperLib.Paths();
+    co.AddPaths(cross, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+    co.Execute(grow, rr * SC);
+    const co2 = new ClipperLib.ClipperOffset(2, 0.05 * SC);
+    co2.AddPaths(grow, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+    co2.Execute(back, -rr * SC);
+    if (back.length) slot = back;          // 닫힘 연산 = 안쪽(오목) 모서리를 둥글게
+    info.slotR = Math.round(rr * 100) / 100;
+  }
   const stemLen = k.stem === 'floor' ? D.zi : Math.min(D.zi - 0.5, 4.6); // 바닥까지 닿게 / 기본 4.6mm
   const stemOuter = geo2d.circle(cx, cy, 2.75);
-  add('스템', color, diff(stemOuter, cross), D.zi - stemLen, D.zi + 0.3, 'kcstem', undefined, false);
+  add('스템', color, diff(stemOuter, slot), D.zi - stemLen, D.zi + 0.3, 'kcstem', undefined, false);
   const zmax = Math.max(...parts.map((p) => p.z1));
   info.size = [D.bw, D.bd, zmax];
   info.bbox = [cx - D.bw / 2, cy - D.bd / 2, cx + D.bw / 2, cy + D.bd / 2];
