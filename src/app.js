@@ -10,7 +10,7 @@ import { enhanceColorInputs } from './tiles.js';
 import { keycapDims } from './keycap.js';
 import { applyPattern } from './mold.js';
 import { makePressView, stageAt, STAGES } from './pressview3d.js';
-import { SAMPLES, sampleSvg } from './samples.js';
+import { SAMPLES, sampleSvg, samplePaths } from './samples.js';
 import { potracePathsToRings } from './pathparse.js';
 import { toFillSvg, toLaserSvg, toDxf, laserModel } from './export.js';
 import { printabilityReport } from './solid.js';
@@ -2717,6 +2717,7 @@ function on3dChange(showView) {
 /** 샘플 하나를 SVG 파일처럼 불러온다 */
 function loadSample(sp) {
   const svg = sampleSvg(sp);
+  if (sp.mm) el.width.value = sp.mm; // 도형마다 알맞은 크기로 (가로로 넓은 그림이 납작해지지 않게)
   return loadFile(new File([svg], `${sp.name}.svg`, { type: 'image/svg+xml' }));
 }
 function buildSampleChips() {
@@ -2725,7 +2726,7 @@ function buildSampleChips() {
     b.className = 'samp';
     b.type = 'button';
     b.title = T('{n} 샘플로 시작', { n: sp.name });
-    b.innerHTML = `<svg viewBox="0 0 ${sp.w} ${sp.h}" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="${sp.d}"/></svg><span>${sp.name}</span>`;
+    b.innerHTML = `<svg viewBox="0 0 ${sp.w} ${sp.h}" aria-hidden="true">${samplePaths(sp)}</svg><span>${sp.name}</span>`;
     b.addEventListener('click', () => {
       if (S.mode !== 'image') el.modeImage.click();
       loadSample(sp);
