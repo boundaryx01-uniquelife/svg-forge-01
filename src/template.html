@@ -615,6 +615,12 @@ dialog#prefs .row label{flex-basis:70px}
         <input id="mpAngle" class="mini" type="number" min="0" max="180" step="5" value="0" title="무늬 각도 (°)"></div>
       <div class="row" id="mpSpokesRow"><label for="mpSpokes" title="거미줄·방사선에서 중심에서 뻗는 줄 수">줄 수</label>
         <input id="mpSpokes" class="mini" type="number" min="3" max="48" step="1" value="12" title="방사 줄 수"></div>
+      <div class="row"><label for="mpKeep" style="flex-basis:60px" title="색이 다른 면을 무늬로 채울지, 제 색 그대로 남길지">무늬 범위</label>
+        <select id="mpKeep" class="grow" style="min-width:96px">
+          <option value="painted" selected>칠한 곳만 남기고</option>
+          <option value="none">전체 (색 구분 없이)</option>
+          <option value="color">색마다 따로</option>
+        </select></div>
       <label class="chk" title="무늬 사이의 빈 구멍을 두 번째 색으로 같은 두께만큼 채웁니다. 뚫린 곳 없는 2색 판이 됩니다"><input type="checkbox" id="mpFill"> 구멍을 다른 색으로 채우기</label>
       <div class="row g-mpfill"><label for="mpFillColor" title="구멍을 채울 색">채움 색</label>
         <input id="mpFillColor" type="color" value="#e8e2d0" title="구멍을 채울 색"></div>

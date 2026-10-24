@@ -209,20 +209,36 @@ export function applyPattern(model, o = {}) {
   let baseIdx = want ? regions.findIndex((r) => (r.color || '').toLowerCase() === want) : -1;
   if (baseIdx < 0) baseIdx = 0;                 // 그 색을 통째로 칠해 없앴으면 가장 넓은 색으로
   info.base = regions[baseIdx] && regions[baseIdx].color;
+  // 무늬 범위 — 'painted'(기본): 직접 칠한 자리만 제 색으로 남기고 나머지는 전부 무늬.
+  //   그림을 불러오면 색이 여러 가지로 갈리는데(박쥐 날개처럼) 그건 일부러 나눈 게 아니라
+  //   트레이싱 결과일 뿐이라, 통째로 무늬 없이 남으면 보기에 어색하다.
+  // 'none': 칠한 자리까지 전부 무늬 · 'color': 색이 다른 면은 모두 제 색으로 (예전 동작)
+  const keepMode = o.keep || 'painted';
+  const paintedOf = (col) =>
+    (model.painted || []).filter((p) => p.polys && p.polys.length && (p.color || '').toLowerCase() === (col || '').toLowerCase());
   const kept = [];
   for (let i = 0; i < regions.length; i++) {
-    if (i === baseIdx) continue;
+    if (i === baseIdx || keepMode === 'none') continue;
     const r = regions[i];
+    const src = r.paths;
+    if (keepMode === 'painted') {
+      // 그 색을 '직접 칠한 자리'가 이 면과 겹치면 사용자가 뜻을 둔 색으로 본다.
+      // 겹친 부분만 오려 내지 않고 면을 통째로 남긴다 — 잘라 내면 둘레 벽이 들쭉날쭉해진다
+      const pp = paintedOf(r.color);
+      if (!pp.length) continue;                   // 트레이싱으로 갈린 색 → 바탕에 합쳐 무늬를 깐다
+      const hit = inter(union(pp.flatMap((p) => p.polys.map((q) => toPath(q))), PF.pftEvenOdd), src);
+      if (!hit.length || areaOf(hit) < 0.05) continue;
+    }
     // 노즐보다 가는 색 면은 제 색으로 뽑을 수 없다 → 바탕에 합쳐 무늬를 깐다
     // (트레이싱 가장자리에 생기는 실오라기 색이 여기 걸린다)
-    if (!offset(r.paths, -minW0 / 2).length) continue;
-    const own = clean(diff(bgPaths.length ? diff(r.paths, bgPaths) : r.paths, kept.flatMap((k) => k.paths)), 0.05);
+    if (!offset(src, -minW0 / 2).length) continue;
+    const own = clean(diff(bgPaths.length ? diff(src, bgPaths) : src, kept.flatMap((k) => k.paths)), 0.05);
     if (own.length) kept.push({ color: r.color, paths: own });
   }
   // 바탕색과 '같은 색'으로 칠한 자리도 제 영역으로 남긴다.
   // 색만 보면 몸통과 구분이 안 돼 무늬에 덮여 사라진다 (유령 눈을 까망으로 칠하면 눈이 없어지던 원인).
   const baseKey = ((regions[baseIdx] && regions[baseIdx].color) || '').toLowerCase();
-  for (const pt of model.painted || []) {
+  for (const pt of keepMode === 'none' ? [] : model.painted || []) {
     if (!pt.polys || !pt.polys.length) continue;
     if ((pt.color || '').toLowerCase() !== baseKey) continue;     // 다른 색은 이미 위에서 남겼다
     let own = inter(union(pt.polys.map((q) => toPath(q)), PF.pftEvenOdd), regions[baseIdx].paths);

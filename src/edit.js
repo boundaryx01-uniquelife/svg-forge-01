@@ -293,15 +293,18 @@ export function applyEdits(model, edits, tol) {
         const d = (e.sw + 0.05 - cur) / 2; // 최소 획 폭: 가는 글자만 굵게 (굵은 글자는 그대로)
         if (d > 0.005) nr = growRings(nr, d, tol);
       }
+      const nrItems = buildItems(nr, tol);
       {
         let a0 = Infinity, b0 = Infinity, a1 = -Infinity, b1 = -Infinity;
-        for (const it of buildItems(nr, tol)) for (const [x, y] of it.poly) (x < a0 && (a0 = x), x > a1 && (a1 = x), y < b0 && (b0 = y), y > b1 && (b1 = y));
+        for (const it of nrItems) for (const [x, y] of it.poly) (x < a0 && (a0 = x), x > a1 && (a1 = x), y < b0 && (b0 = y), y > b1 && (b1 = y));
         (model.addBoxes || (model.addBoxes = [])).push({ idx: edits.indexOf(eOrig), box: [a0, b0, a1, b1] });
       }
+      // 직접 놓은 자리로 기억해 둔다 → 몰드에서 무늬에 먹히지 않게
+      if (nrItems.length) (model.painted || (model.painted = [])).push({ color: e.c, polys: nrItems.map((x) => x.poly) });
       let L = model.layers.find((l) => l.color === e.c);
       if (!L) model.layers.push((L = { color: e.c, items: [] }));
       const li = model.layers.indexOf(L);
-      model.layers[li] = { ...L, items: buildItems(unionRings(L.items, buildItems(nr, tol)), tol) };
+      model.layers[li] = { ...L, items: buildItems(unionRings(L.items, nrItems), tol) };
       knock(model, e.c, nr, tol);
       continue;
     }

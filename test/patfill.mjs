@@ -17,6 +17,8 @@ function cover(m, cx, cy, r) {
   const o = { tot: 0 }; for (const [k, v] of Object.entries(cnt)) (o[k] = Math.round((100 * v) / tot), (o.tot += v));
   o.덮임 = Math.round((100 * o.tot) / tot); delete o.tot; return o;
 }
+/** 사용자가 직접 칠한 것처럼 표시 (앱에서는 edit.js 의 markPainted 가 한다) */
+const paint = (m, color, rings) => ((m.painted || (m.painted = [])).push({ color, polys: buildItems(rings, m.tol).map((x) => x.poly) }), m);
 let bad = 0;
 const check = (l, c, e = '') => { if (!c) bad++; console.log(`${c ? 'OK ' : '✗  '} ${l}${e ? '  ' + e : ''}`); };
 const P = { pattern: 'grid', width: 1.2, pitch: 5, wall: 2, color: '#1b1b1b', fill: true, fillColor: '#e8e2d0' };
@@ -37,6 +39,7 @@ const body = rect(5, 5, 95, 95);
     { color: '#000000', rings: [body, circle(30, 30, 8), circle(70, 30, 8)] },
     { color: '#e03131', rings: [circle(30, 30, 8)] },            // 눈을 빨강으로 채움
   ], 100, 0.05);
+  paint(m, '#e03131', [circle(30, 30, 8)]);
   const r = applyPattern(m, P);
   const L = cover(r.model, 30, 30, 6), R = cover(r.model, 70, 30, 6), B = cover(r.model, 50, 60, 6);
   console.log('빨강 눈 —  왼눈:', JSON.stringify(L), ' 오른눈:', JSON.stringify(R), ' 몸통:', JSON.stringify(B));
@@ -82,7 +85,7 @@ const body = rect(5, 5, 95, 95);
     { color: '#000000', rings: [body, circle(30, 30, 8), circle(70, 30, 8)] },
     { color: '#888888', rings: [rect(5, 5, 95, 5.4)] },          // 0.4mm — 안티에일리어싱 수준
   ], 100, 0.05);
-  const r = applyPattern(m, P);
+  const r = applyPattern(m, { ...P, keep: 'color' });
   const grey = r.model.layers.find((l) => l.color === '#888888');
   console.log('실오라기 색 — 남은 레이어:', r.model.layers.map((l) => l.color).join(', '));
   check('작은 색 조각은 바탕에 합쳐짐', !grey, grey ? '남음' : '합쳐짐');
@@ -123,6 +126,7 @@ const body = rect(5, 5, 95, 95);
     { color: '#000000', rings: [rect(5, 5, 95, 95)] },
     { color: '#29b6f6', rings: [rect(5, 5, 95, 60)] },          // 4500 > 남은 검정 3500
   ], 100, 0.05);
+  paint(m, '#29b6f6', [rect(5, 5, 95, 60)]);
   const noBase = applyPattern(m, P);                              // 예전 동작 (넓이로 매번 다시 뽑음)
   const fixed = applyPattern(m, { ...P, baseColor: '#000000' });  // 트레이싱 바탕색 고정
   const blueOf = (r) => r.model.layers.find((l) => l.color === '#29b6f6');
@@ -146,6 +150,8 @@ const body = rect(5, 5, 95, 95);
     { color: '#dc1e1e', rings: [rect(20, 20, 80, 80), circle(50, 50, 10)] },
     { color: '#e53935', rings: [circle(50, 50, 10)] },
   ], 100, 0.05);
+  paint(m, '#dc1e1e', [rect(20, 20, 80, 80), circle(50, 50, 10)]);
+  paint(m, '#e53935', [circle(50, 50, 10)]);
   const r = applyPattern(m, { ...P, baseColor: '#000000' });
   const inner = r.model.layers.find((l) => l.color === '#e53935');
   const poly = inner.items[0].poly;
@@ -184,6 +190,29 @@ const body = rect(5, 5, 95, 95);
   const stale = applyPattern({ ...m, painted: [{ color: '#ff00ff', polys: m.painted[0].polys }] }, { ...P, baseColor: '#000000' });
   const S2 = cover(stale.model, 30, 30, 6);
   check('낡은 칠 기록은 버려짐', (S2['#ff00ff'] || 0) === 0, `${S2['#ff00ff'] || 0}%`);
+}
+
+// ── 8. 무늬 범위 — 트레이싱으로 갈린 색은 무늬를 깔고, 직접 칠한 색만 남긴다 ──
+{
+  const mk = () => makeModel([
+    { color: '#000000', rings: [rect(5, 5, 95, 95), circle(30, 30, 8)] },
+    { color: '#9a9a9a', rings: [circle(30, 30, 8)] },          // 트레이싱으로 갈린 색 (박쥐 날개 같은)
+  ], 100, 0.05);
+  const has = (r, c) => !!r.model.layers.find((l) => l.color === c);
+  const auto = applyPattern(mk(), { ...P, baseColor: '#000000' });                 // 기본 = 칠한 곳만 남기고
+  const byCol = applyPattern(mk(), { ...P, baseColor: '#000000', keep: 'color' }); // 예전 동작
+  const A = cover(auto.model, 30, 30, 6);
+  console.log(`무늬 범위 — 기본: ${JSON.stringify(A)} · 색마다 따로: 회색 ${has(byCol, '#9a9a9a') ? '남음' : '없음'}`);
+  check('트레이싱 색은 무늬가 깔림', !has(auto, '#9a9a9a') && (A['#1b1b1b'] || 0) > 10, `무늬 ${A['#1b1b1b'] || 0}%`);
+  check("'색마다 따로' 면 제 색으로 남음", has(byCol, '#9a9a9a'));
+
+  // 직접 칠한 색은 기본값에서도 남고, '전체' 에서는 무늬가 깔린다
+  const m2 = mk(); paint(m2, '#9a9a9a', [circle(30, 30, 8)]);
+  const kept2 = applyPattern(m2, { ...P, baseColor: '#000000' });
+  const m3 = mk(); paint(m3, '#9a9a9a', [circle(30, 30, 8)]);
+  const none = applyPattern(m3, { ...P, baseColor: '#000000', keep: 'none' });
+  check('칠한 색은 기본값에서도 남음', has(kept2, '#9a9a9a'));
+  check("'전체' 면 칠한 색에도 무늬", !has(none, '#9a9a9a'));
 }
 
 console.log(bad ? `\n실패 ${bad}건` : '\n전부 통과');
