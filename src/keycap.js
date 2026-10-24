@@ -2,7 +2,8 @@
 // 좌표: mm, Y 위쪽 (solid.js와 같음). 몸체 중심 = 글자 모델 중심
 import * as THREE from 'three';
 import ClipperLib from 'clipper-lib';
-import { geo2d } from './solid.js';
+import { geo2d, beveledSolid } from './solid.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const { union, diff, offset, toShapes, toPath, heal, clip, CT, PF, SC } = geo2d;
 const pathOf = (pts) => pts.map(([x, y]) => ({ X: Math.round(x * SC), Y: Math.round(y * SC) }));
@@ -37,7 +38,11 @@ export function keycapDims(k) {
   const topT = Math.max(1.4, depth + 1.0, bs + 0.8);
   // 몸체 네 세로 모서리 R (평면에서 본 둥글기). 윗면이 좁아지므로 윗면 짧은 변의 1/3 까지만
   const bodyR = Math.min(Math.max(0.2, k.bodyR == null ? 1.4 : k.bodyR), Math.max(0.2, Math.min(topW, topD) / 3));
-  return { u, bw, bd, inset, H, wall, mode, depth, topT, topW, topD, zT: H - depth, zi: H - topT, bevType, bs, bodyR };
+  // 안쪽 필렛: 천장과 만나는 오목한 모서리를 둥글게 — 스템이 잘 안 부러지고, 뒤집어 출력해도 서포트가 필요 없다
+  // (천장 쪽이 가장 두껍고 위로 갈수록 얇아지므로 층마다 재료가 줄기만 한다)
+  const zi = H - topT;
+  const innerR = Math.min(Math.max(0, k.innerR == null ? 0.8 : k.innerR), 2.5, Math.max(0, zi - 0.6), wall * 1.5);
+  return { u, bw, bd, inset, H, wall, mode, depth, topT, topW, topD, zT: H - depth, zi, bevType, bs, bodyR, innerR };
 }
 
 function meshFrom(tris) {
@@ -151,20 +156,31 @@ function bodyMesh(cx, cy, D, legendTree) {
     const j = (i + 1) % n;
     quad(P(o0[i], 0), P(i0[i], 0), P(i0[j], 0), P(o0[j], 0));
   }
-  // 안쪽 벽 (구멍 쪽을 봄) 0 → zi
-  const nzi = Math.max(4, Math.round(18 * (zi / H)));
-  let pv = i0;
-  for (let k = 1; k <= nzi; k++) {
-    const za = ((k - 1) / nzi) * zi, zb = (k / nzi) * zi;
-    const cu = ringAt(cx, cy, D, zb, wall);
+  // 안쪽 벽 (구멍 쪽을 봄) 0 → zi.
+  // 천장 가까이에서는 안쪽 필렛(innerR)만큼 안으로 말아 들어가 오목한 모서리를 둥글게 만든다.
+  const fr = D.innerR;
+  const zTop = Math.max(0.1, zi - fr);
+  const nzi = Math.max(4, Math.round(18 * (zTop / H)));
+  let pv = i0, pz = 0;
+  const step = (zb, extra) => {
+    const cu = ringAt(cx, cy, D, zb, wall + extra);
     for (let i = 0; i < n; i++) {
       const j = (i + 1) % n;
-      quad(P(pv[j], za), P(pv[i], za), P(cu[i], zb), P(cu[j], zb));
+      quad(P(pv[j], pz), P(pv[i], pz), P(cu[i], zb), P(cu[j], zb));
     }
-    pv = cu;
+    (pv = cu), (pz = zb);
+  };
+  for (let k = 1; k <= nzi; k++) step((k / nzi) * zTop, 0);
+  if (fr > 0.05) {
+    // 1/4 원 단면. d=0(벽 쪽)에서는 벽에, d=fr(천장)에서는 천장에 접한다
+    const nf = 8;
+    for (let k = 1; k <= nf; k++) {
+      const zb = zTop + (fr * k) / nf, d = zb - zTop;
+      step(zb, fr - Math.sqrt(Math.max(0, fr * fr - d * d)));
+    }
   }
-  const ci = [cx, cy, zi];
-  for (let i = 0; i < n; i++) tri(ci, P(pv[(i + 1) % n], zi), P(pv[i], zi));
+  const ci = [cx, cy, pz];
+  for (let i = 0; i < n; i++) tri(ci, P(pv[(i + 1) % n], pz), P(pv[i], pz));
   return meshFrom(T);
 }
 
@@ -252,6 +268,35 @@ export function buildKeycap(model, o) {
   const stemLen = k.stem === 'floor' ? D.zi : Math.min(D.zi - 0.5, 4.6); // 바닥까지 닿게 / 기본 4.6mm
   const stemOuter = geo2d.circle(cx, cy, 2.75);
   add('스템', color, diff(stemOuter, slot), D.zi - stemLen, D.zi + 0.3, 'kcstem', undefined, false);
+  // 스템 뿌리 필렛 — 천장과 만나는 자리를 둥글게 넓혀 붙는 힘을 키운다.
+  // 천장 쪽이 가장 굵고 위로 갈수록 가늘어지므로, 뒤집어 출력해도 서포트가 필요 없다.
+  const fr = D.innerR;
+  if (fr > 0.05 && stemLen > fr + 0.3) {
+    const N = Math.max(4, Math.ceil(fr / 0.12));
+    const gs = [];
+    for (let i = 0; i < N; i++) {
+      const za = D.zi - fr + (fr * i) / N, zb = D.zi - fr + (fr * (i + 1)) / N;
+      const d = (za + zb) / 2 - (D.zi - fr);                      // 0(아래) → fr(천장)
+      const w = fr - Math.sqrt(Math.max(0, fr * fr - d * d));
+      if (w < 0.015) continue;
+      const band = diff(geo2d.circle(cx, cy, 2.75 + w), stemOuter);
+      if (!band.length) continue;
+      const pos = beveledSolid(band, za, zb, { type: 'chamfer', size: 0.001 });
+      if (pos.length) {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+        gs.push(g);
+      }
+    }
+    if (gs.length) {
+      const g = gs.length === 1 ? gs[0] : mergeGeometries(gs);
+      gs.forEach((x) => x !== g && x.dispose());
+      g.computeVertexNormals();
+      parts.push({ name: '스템 뿌리', color, geom: g, shapes: [], z0: D.zi - fr, z1: D.zi, role: 'kcstem' });
+      info.stemFillet = Math.round(fr * 100) / 100;
+    }
+  }
   const zmax = Math.max(...parts.map((p) => p.z1));
   info.size = [D.bw, D.bd, zmax];
   info.bbox = [cx - D.bw / 2, cy - D.bd / 2, cx + D.bw / 2, cy + D.bd / 2];

@@ -22,7 +22,7 @@ for (const r of [0, 0.2, 0.5, 1.0]) {
 // ── 검사 ──
 let bad = 0;
 const check = (l, c, e = '') => { if (!c) bad++; console.log(`${c ? 'OK ' : '✗  '} ${l}${e ? '  ' + e : ''}`); };
-const mk = (over) => buildKeycap(m, { keycap: { on:true, u:'1', h:9, inset:2.8, wall:1.4, tol:0.1, stem:'std', mode:'emboss', depth:0.5, legendH:0.6, edgeType:'fillet', edgeSize:0.8, partR:0, partRType:'fillet', bodyR:1.4, ...over }, step:0 });
+const mk = (over) => buildKeycap(m, { keycap: { on:true, u:'1', h:9, inset:2.8, wall:1.4, tol:0.1, stem:'std', mode:'emboss', depth:0.5, legendH:0.6, edgeType:'fillet', edgeSize:0.8, partR:0, partRType:'fillet', bodyR:1.4, innerR:0, ...over }, step:0 });
 const volOf = (r, role) => { const p = r.parts.find((x) => x.role === role); const g = partGeometry(p); return { v: vol(g), open: openEdges(g) }; };
 
 console.log('\n── 부품 R (스템·글자) ──');
@@ -42,6 +42,46 @@ check('R 을 키우면 몸체가 깎임', bv[0].v > bv[1].v && bv[1].v > bv[2].v
 check('몸체 메시가 전부 닫힘', bv.every((x) => x.open === 0));
 check('윗면보다 큰 R 은 윗면 1/3 까지로 묶임', keycapDims({ u:'1', h:9, inset:2.8, bodyR:99 }).bodyR <= 4.2, `${keycapDims({ u:'1', h:9, inset:2.8, bodyR:99 }).bodyR.toFixed(2)}`);
 check('기본값은 예전과 같음 (1.4)', Math.abs(keycapDims({ u:'1', h:9, inset:2.8 }).bodyR - 1.4) < 1e-9);
+
+console.log('\n── 안쪽 R (스템 뿌리 · 안쪽 벽 필렛) ──');
+{
+  const b0 = volOf(mk({ innerR: 0 }), 'kcbody'), b8 = volOf(mk({ innerR: 0.8 }), 'kcbody');
+  check('안쪽 벽 필렛이 몸체에 살을 더함', b8.v > b0.v + 2, `${b0.v.toFixed(2)} → ${b8.v.toFixed(2)}`);
+  check('몸체가 여전히 닫힌 메시', b0.open === 0 && b8.open === 0, `${b0.open}/${b8.open}`);
+
+  const noF = mk({ innerR: 0 }).parts.find((p) => p.name === '스템 뿌리');
+  check('0 이면 스템 뿌리 파트가 없음', !noF);
+  const r = mk({ innerR: 0.8 });
+  const fp = r.parts.find((p) => p.name === '스템 뿌리');
+  check('스템 뿌리 파트가 생김', !!fp, `${r.info.stemFillet}mm`);
+  const fg = partGeometry(fp);
+  check('스템 뿌리가 닫힌 메시', openEdges(fg) === 0, `${openEdges(fg)}`);
+  check('스템 뿌리에 살이 있음', vol(fg) > 1, `${vol(fg).toFixed(2)}mm³`);
+
+  // 서포트 없이 찍히려면: 천장 쪽이 가장 굵고 멀어질수록 가늘어야 한다
+  // (키캡은 윗면을 바닥에 놓고 뒤집어 출력하므로 층마다 재료가 줄기만 하면 된다)
+  const pos = fg.getAttribute('position').array;
+  const D = keycapDims({ u: '1', h: 9, inset: 2.8, wall: 1.4, depth: 0.5, edgeType: 'fillet', edgeSize: 0.8, innerR: 0.8 });
+  const cx = D.bw / 2, cy = D.bd / 2;
+  const band = new Map();                       // z 구간 → 가장 바깥 반지름
+  for (let i = 0; i < pos.length / 3; i++) {
+    const z = pos[3 * i + 2], rr = Math.hypot(pos[3 * i] - cx, pos[3 * i + 1] - cy);
+    const key = Math.round((z - (D.zi - 0.8)) / 0.1);
+    band.set(key, Math.max(band.get(key) || 0, rr));
+  }
+  const keys = [...band.keys()].sort((a, b) => a - b);
+  const prof = keys.map((k) => +band.get(k).toFixed(3));
+  console.log(`   천장에서 멀어질수록 반지름: ${prof.join(' ← ')}  (오른쪽이 천장)`);
+  let mono = true;
+  for (let i = 1; i < prof.length; i++) if (prof[i] < prof[i - 1] - 1e-6) mono = false;
+  check('천장 쪽이 가장 굵다 (서포트 불필요)', mono && prof[prof.length - 1] > prof[0] + 0.2, `${prof[0]} → ${prof[prof.length - 1]}`);
+  check('스템 지름(5.5)보다 두껍지 않게 퍼짐', prof[prof.length - 1] <= 2.75 + 0.8 + 0.01, `${prof[prof.length - 1]}`);
+
+  // 스템이 짧으면 뿌리 필렛을 만들지 않는다 (스템을 다 먹어 버리면 안 됨)
+  check('안쪽 R 상한은 천장 두께·벽 폭에 묶임', keycapDims({ u: '1', h: 9, inset: 2.8, wall: 1.0, innerR: 99 }).innerR <= 1.5 + 1e-9,
+    `${keycapDims({ u: '1', h: 9, inset: 2.8, wall: 1.0, innerR: 99 }).innerR}`);
+  check('기본값 0.8', Math.abs(keycapDims({ u: '1', h: 9, inset: 2.8, wall: 1.4 }).innerR - 0.8) < 1e-9);
+}
 
 console.log(bad ? `\n실패 ${bad}건` : '\n전부 통과');
 process.exit(bad ? 1 : 0);

@@ -571,6 +571,9 @@ dialog#prefs .row label{flex-basis:70px}
       <div class="row"><label for="kcBodyR" title="키캡 몸체의 네 세로 모서리를 평면에서 본 둥글기 (mm). 기본 1.4" style="flex-basis:52px">몸체 R</label>
         <input id="kcBodyR" class="mini" type="number" min="0.2" max="6" step="0.1" value="1.4" title="몸체 세로 모서리 R (mm)">
         <span class="lbl" style="font-size:11px;color:var(--sub)">네 세로 모서리</span></div>
+      <div class="row"><label for="kcInnerR" title="속 천장과 만나는 오목한 모서리를 둥글게 (mm, 0이면 그대로). 스템이 잘 안 부러지고, 윗면을 바닥에 놓고 뒤집어 출력해도 서포트가 필요 없습니다" style="flex-basis:52px">안쪽 R</label>
+        <input id="kcInnerR" class="mini" type="number" min="0" max="2.5" step="0.1" value="0.8" title="스템 뿌리·안쪽 벽 필렛 (mm)">
+        <span class="lbl" style="font-size:11px;color:var(--sub)">스템 뿌리·안쪽 벽</span></div>
       <div class="row"><label for="kcPartR" title="스템·글자·윤곽 벽의 위아래 모서리를 깎습니다 (mm, 0이면 그대로). 십자 슬롯 안쪽 모서리도 같이 둥글어져 스위치가 잘 들어갑니다" style="flex-basis:52px">부품 R</label>
         <select id="kcPartRType" class="grow" style="min-width:96px"><option value="fillet" selected>모깎기 (둥글게)</option><option value="chamfer">모따기 (비스듬히)</option></select>
         <input id="kcPartR" class="mini" type="number" min="0" max="2" step="0.1" value="0" title="스템·글자·윤곽 벽 모서리 R (mm)"></div>
