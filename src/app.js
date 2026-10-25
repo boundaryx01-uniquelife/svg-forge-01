@@ -3819,7 +3819,10 @@ document.querySelectorAll('.appver').forEach((e) => (e.textContent = 'v' + VERSI
 if (el.appVer && el.hist) {
   const openHist = () => el.hist.showModal();
   el.appVer.onclick = openHist;
-  el.appVer.onkeydown = (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), openHist());
+  // 식을 그대로 돌려주면 Tab 에서 false 가 되어 기본 동작(포커스 이동)이 막힌다 → 값을 돌려주지 않는다
+  el.appVer.onkeydown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') (e.preventDefault(), openHist());
+  };
 }
 enhanceColorInputs(document, () => (S.model ? [...new Set(S.model.layers.map((l) => l.color))] : []));
 initLang();
