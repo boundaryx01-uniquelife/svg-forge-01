@@ -268,8 +268,9 @@ export function buildKeycap(model, o) {
   const stemLen = k.stem === 'floor' ? D.zi : Math.min(D.zi - 0.5, 4.6); // 바닥까지 닿게 / 기본 4.6mm
   const stemOuter = geo2d.circle(cx, cy, 2.75);
   add('스템', color, diff(stemOuter, slot), D.zi - stemLen, D.zi + 0.3, 'kcstem', undefined, false);
-  // 스템 뿌리 필렛 — 천장과 만나는 자리를 둥글게 넓혀 붙는 힘을 키운다.
-  // 천장 쪽이 가장 굵고 위로 갈수록 가늘어지므로, 뒤집어 출력해도 서포트가 필요 없다.
+  // 스템 뿌리 — 천장과 만나는 자리를 45° 로 넓혀 붙는 힘을 키운다.
+  // 사분원으로 하면 천장 가까이에서 면이 수평에 가까워져, 세워서 뽑을 때 서포트가 필요하다.
+  // 45° 경사는 세워서 뽑든 뒤집어 뽑든 제 살로 받친다 (오버행 한계가 보통 45°).
   const fr = D.innerR;
   if (fr > 0.05 && stemLen > fr + 0.3) {
     // 층마다 닫힌 솔리드를 만들어 합치면 경계가 내부 면으로 남아 메시가 닫히지 않는다
@@ -279,7 +280,7 @@ export function buildKeycap(model, o) {
     for (let i = 0; i < N; i++) {
       const za = D.zi - fr + (fr * i) / N, zb = D.zi - fr + (fr * (i + 1)) / N;
       const d = (za + zb) / 2 - (D.zi - fr);                      // 0(아래) → fr(천장)
-      const w = fr - Math.sqrt(Math.max(0, fr * fr - d * d));
+      const w = d;                                                // 45° 경사 (사분원이 아니라)
       if (w < 0.015) continue;
       const band = diff(geo2d.circle(cx, cy, 2.75 + w), stemOuter);
       if (!band.length) continue;

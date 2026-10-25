@@ -63,15 +63,29 @@ console.log('\n── 안쪽 R (스템 뿌리 · 안쪽 벽 필렛) ──');
   const pos = fg.getAttribute('position').array;
   const D = keycapDims({ u: '1', h: 9, inset: 2.8, wall: 1.4, depth: 0.5, edgeType: 'fillet', edgeSize: 0.8, innerR: 0.8 });
   const cx = D.bw / 2, cy = D.bd / 2;
+  const NB = Math.max(4, Math.ceil(0.8 / 0.12));   // keycap.js 의 층 나누기와 같게
+  const DZ = 0.8 / NB;
   const band = new Map();                       // z 구간 → 가장 바깥 반지름
   for (let i = 0; i < pos.length / 3; i++) {
     const z = pos[3 * i + 2], rr = Math.hypot(pos[3 * i] - cx, pos[3 * i + 1] - cy);
-    const key = Math.round((z - (D.zi - 0.8)) / 0.1);
+    const key = Math.round((z - (D.zi - 0.8)) / DZ);
     band.set(key, Math.max(band.get(key) || 0, rr));
   }
   const keys = [...band.keys()].sort((a, b) => a - b);
   const prof = keys.map((k) => +band.get(k).toFixed(3));
   console.log(`   천장에서 멀어질수록 반지름: ${prof.join(' ← ')}  (오른쪽이 천장)`);
+  // 세워서 뽑을 때(윗면이 위) 스템 뿌리는 위로 갈수록 굵어진다 → 한 층에서 옆으로 나가는 폭이
+  // 층 높이보다 크면 45° 를 넘어 서포트가 필요하다. 경사(45°)면 딱 1.0 이하로 떨어진다.
+  {
+    const dz = DZ;                                    // 위 band 묶음의 높이
+    let worst = 0, at = 0;
+    for (let i = 1; i < prof.length; i++) {
+      const r = (prof[i] - prof[i - 1]) / dz;
+      if (r > worst) (worst = r), (at = i);
+    }
+    check('한 층에서 옆으로 나가는 폭이 층 높이 이하 (45°)', worst <= 1.02,
+      `최대 ${worst.toFixed(2)}배 (${(Math.atan(worst) * 180 / Math.PI).toFixed(0)}°, ${at}번째 층)`);
+  }
   let mono = true;
   for (let i = 1; i < prof.length; i++) if (prof[i] < prof[i - 1] - 1e-6) mono = false;
   check('천장 쪽이 가장 굵다 (서포트 불필요)', mono && prof[prof.length - 1] > prof[0] + 0.2, `${prof[0]} → ${prof[prof.length - 1]}`);

@@ -4,13 +4,16 @@
 //   · 속 천장 브리지 길이, 속벽 기울기
 // STEM=floor 로 스템을 바닥까지 닿게 한 경우와 견줄 수 있다.
 //   node kc_overhang.mjs   ·   STEM=floor node kc_overhang.mjs
+// 주의: 경사는 벽+턱의 '계단' 으로 만들어지므로, 턱 하나하나는 여기서 수평 면으로 잡힌다.
+//   실제로 서포트가 필요한지는 '한 층에서 옆으로 나가는 폭 / 층 높이' 로 봐야 한다
+//   (그 검사는 kc_round.mjs 에 있다). 여기 숫자는 어디를 들여다볼지 고르는 용도로 쓴다.
 import { buildKeycap, keycapDims } from '../src/keycap.js';
 import { partGeometry } from '../src/mesh.js';
 import { makeModel } from '../src/geom.js';
 const rect=(a,b,c,d)=>[['M',a,b],['L',c,b],['L',c,d],['L',a,d],['L',a,b]];
 const m=makeModel([{color:'#000',rings:[rect(0,0,6,6)]}],6,0.05);
 const kc={on:true,u:'1',h:9,inset:2.8,wall:1.4,tol:0.1,stem:process.env.STEM||'std',mode:'emboss',depth:0.5,legendH:0.6,
-          edgeType:'fillet',edgeSize:0.8,partR:0,partRType:'fillet',bodyR:1.4,innerR:0.8};
+          edgeType:'fillet',edgeSize:0.8,partR:0,partRType:'fillet',bodyR:1.4,innerR:parseFloat(process.env.IR??'0.8')};
 const D=keycapDims({keycap:kc});
 console.log('치수', JSON.stringify({몸체:[D.bw,D.bd],윗면:[D.topW,D.topD],속천장z:D.zi,벽:kc.wall}, null, 0));
 const { parts } = buildKeycap(m,{keycap:kc, step:0});
