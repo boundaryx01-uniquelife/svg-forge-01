@@ -249,10 +249,36 @@ export function toDxf(model, { single = false } = {}) {
   const H = model.height;
   const g = [];
   const add = (code, val) => g.push(String(code), String(val));
-  const layerDefs = laserLayers(model, single).map((g) => ({ name: g.name, aci: g.name === 'CUT' ? 7 : nearestAci(g.color), paths: g.paths }));
+  // 색 번호는 겹치면 안 된다 — RDWorks·LightBurn 은 DXF '색' 으로 작업(절단·새김)을 가른다.
+  // 가까운 색으로만 고르면 무채색이 전부 7·8·9 로 쏟아져, 새김으로 지정한 자리가 절단으로 타 버린다.
+  const usedAci = new Set();
+  const pickAci = (name, color) => {
+    const want = name === 'CUT' ? 7 : nearestAci(color);
+    if (!usedAci.has(want)) return usedAci.add(want), want;
+    for (let n = 1; n <= 255; n++) if (!usedAci.has(n)) return usedAci.add(n), n;
+    return want;
+  };
+  const layerDefs = laserLayers(model, single).map((g) => ({ name: g.name, aci: pickAci(g.name, g.color), paths: g.paths }));
+
+  // 도면 범위 (DXF 좌표: y 뒤집힘)
+  let ex0 = Infinity, ey0 = Infinity, ex1 = -Infinity, ey1 = -Infinity;
+  for (const L of layerDefs) for (const pt of L.paths) for (const v of ringToDxfVertices(pt.cmds, model.tol, pt.closed)) {
+    const x = v[0], y = H - v[1];
+    if (x < ex0) ex0 = x;
+    if (y < ey0) ey0 = y;
+    if (x > ex1) ex1 = x;
+    if (y > ey1) ey1 = y;
+  }
+  if (!isFinite(ex0)) (ex0 = ey0 = 0), (ex1 = model.width), (ey1 = H);
 
   add(0, 'SECTION'); add(2, 'HEADER');
   add(9, '$ACADVER'); add(1, 'AC1009');
+  // 단위를 안 적으면 RDWorks·LightBurn 이 제 설정대로 가정한다 — 인치로 잡히면 80mm 가 2,032mm 로 들어온다
+  add(9, '$INSUNITS'); add(70, 4);        // 4 = 밀리미터
+  add(9, '$MEASUREMENT'); add(70, 1);     // 1 = 미터법
+  add(9, '$LUNITS'); add(70, 2);          // 2 = 십진
+  add(9, '$EXTMIN'); add(10, ex0.toFixed(4)); add(20, ey0.toFixed(4)); add(30, '0.0');
+  add(9, '$EXTMAX'); add(10, ex1.toFixed(4)); add(20, ey1.toFixed(4)); add(30, '0.0');
   add(0, 'ENDSEC');
 
   add(0, 'SECTION'); add(2, 'TABLES');
