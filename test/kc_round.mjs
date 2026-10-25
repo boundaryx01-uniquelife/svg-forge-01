@@ -43,10 +43,10 @@ check('몸체 메시가 전부 닫힘', bv.every((x) => x.open === 0));
 check('윗면보다 큰 R 은 윗면 1/3 까지로 묶임', keycapDims({ u:'1', h:9, inset:2.8, bodyR:99 }).bodyR <= 4.2, `${keycapDims({ u:'1', h:9, inset:2.8, bodyR:99 }).bodyR.toFixed(2)}`);
 check('기본값은 예전과 같음 (1.4)', Math.abs(keycapDims({ u:'1', h:9, inset:2.8 }).bodyR - 1.4) < 1e-9);
 
-console.log('\n── 안쪽 R (스템 뿌리 · 안쪽 벽 필렛) ──');
+console.log('\n── 안쪽 모따기 (스템 뿌리 · 속 천장) ──');
 {
   const b0 = volOf(mk({ innerR: 0 }), 'kcbody'), b8 = volOf(mk({ innerR: 0.8 }), 'kcbody');
-  check('안쪽 벽 필렛이 몸체에 살을 더함', b8.v > b0.v + 2, `${b0.v.toFixed(2)} → ${b8.v.toFixed(2)}`);
+  check('속 천장 모따기가 몸체에 살을 더함', b8.v > b0.v + 2, `${b0.v.toFixed(2)} → ${b8.v.toFixed(2)}`);
   check('몸체가 여전히 닫힌 메시', b0.open === 0 && b8.open === 0, `${b0.open}/${b8.open}`);
 
   const noF = mk({ innerR: 0 }).parts.find((p) => p.name === '스템 뿌리');

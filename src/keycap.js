@@ -157,7 +157,8 @@ function bodyMesh(cx, cy, D, legendTree) {
     quad(P(o0[i], 0), P(i0[i], 0), P(i0[j], 0), P(o0[j], 0));
   }
   // 안쪽 벽 (구멍 쪽을 봄) 0 → zi.
-  // 천장 가까이에서는 안쪽 필렛(innerR)만큼 안으로 말아 들어가 오목한 모서리를 둥글게 만든다.
+  // 천장 가까이에서는 안쪽 모따기(innerR)만큼 45° 로 비스듬히 채워 오목한 모서리를 없앤다.
+  // 둥글게(사분원) 하면 천장 바로 아래에서 면이 수평에 가까워져 세워서 뽑을 때 서포트가 필요하다.
   const fr = D.innerR;
   const zTop = Math.max(0.1, zi - fr);
   const nzi = Math.max(4, Math.round(18 * (zTop / H)));
@@ -173,10 +174,10 @@ function bodyMesh(cx, cy, D, legendTree) {
   for (let k = 1; k <= nzi; k++) step((k / nzi) * zTop, 0);
   if (fr > 0.05) {
     // 1/4 원 단면. d=0(벽 쪽)에서는 벽에, d=fr(천장)에서는 천장에 접한다
-    const nf = 8;
+    const nf = 2;                       // 45° 직선이라 잘게 나눌 이유가 없다
     for (let k = 1; k <= nf; k++) {
-      const zb = zTop + (fr * k) / nf, d = zb - zTop;
-      step(zb, fr - Math.sqrt(Math.max(0, fr * fr - d * d)));
+      const zb = zTop + (fr * k) / nf;
+      step(zb, zb - zTop);              // 모따기: 높이만큼 안으로
     }
   }
   const ci = [cx, cy, pz];

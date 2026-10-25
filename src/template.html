@@ -577,18 +577,19 @@ dialog#prefs .row label{flex-basis:70px}
       <div class="row"><label for="kcMode" style="flex-basis:44px">글자</label>
         <select id="kcMode" class="grow" style="min-width:96px"><option value="emboss">돋을 (볼록)</option><option value="engrave">새김 (오목)</option><option value="inlay">상감 (색 채움)</option></select>
         <input id="kcDepth" class="mini" type="number" min="0.2" max="2" step="0.1" value="0.5" title="돋을 높이 · 새김·상감 깊이 (mm)"></div>
-      <div class="row"><label for="kcEdge" title="키캡 윗면 둘레 모서리를 깎습니다 (크기 mm). 모깎기=둥글게, 모따기=비스듬히" style="flex-basis:52px">윗모서리</label>
-        <select id="kcEdge" class="grow" style="min-width:96px"><option value="none">그대로</option><option value="fillet" selected>모깎기 (둥글게)</option><option value="chamfer">모따기 (비스듬히)</option></select>
-        <input id="kcEdgeSize" class="mini" type="number" min="0.1" max="2.5" step="0.1" value="0.8" title="모서리 크기 (mm)"></div>
-      <div class="row"><label for="kcBodyR" title="키캡 몸체의 네 세로 모서리를 평면에서 본 둥글기 (mm). 기본 1.4" style="flex-basis:52px">몸체 R</label>
-        <input id="kcBodyR" class="mini" type="number" min="0.2" max="6" step="0.1" value="1.4" title="몸체 세로 모서리 R (mm)">
-        <span class="lbl" style="font-size:11px;color:var(--sub)">네 세로 모서리</span></div>
-      <div class="row"><label for="kcInnerR" title="속 천장과 만나는 오목한 모서리를 둥글게 (mm, 0이면 그대로). 스템이 잘 안 부러지고, 윗면을 바닥에 놓고 뒤집어 출력해도 서포트가 필요 없습니다" style="flex-basis:52px">안쪽 R</label>
-        <input id="kcInnerR" class="mini" type="number" min="0" max="2.5" step="0.1" value="0.8" title="스템 뿌리·안쪽 벽 필렛 (mm)">
-        <span class="lbl" style="font-size:11px;color:var(--sub)">스템 뿌리·안쪽 벽</span></div>
-      <div class="row"><label for="kcPartR" title="스템·글자·윤곽 벽의 위아래 모서리를 깎습니다 (mm, 0이면 그대로). 십자 슬롯 안쪽 모서리도 같이 둥글어져 스위치가 잘 들어갑니다" style="flex-basis:52px">부품 R</label>
-        <select id="kcPartRType" class="grow" style="min-width:96px"><option value="fillet" selected>모깎기 (둥글게)</option><option value="chamfer">모따기 (비스듬히)</option></select>
-        <input id="kcPartR" class="mini" type="number" min="0" max="2" step="0.1" value="0" title="스템·글자·윤곽 벽 모서리 R (mm)"></div>
+      <div class="row"><span class="lbl" style="flex-basis:100%;font-size:12px;color:var(--sub)">모서리 다듬기 — 모깎기=둥글게 · 모따기=비스듬히 (숫자는 mm)</span></div>
+      <div class="row"><label for="kcEdge" title="누르는 면의 둘레를 깎습니다. 모깎기=둥글게, 모따기=비스듬히. 손끝에 닿는 느낌을 정하는 곳입니다" style="flex-basis:52px">윗면</label>
+        <select id="kcEdge" class="grow" style="min-width:96px"><option value="none">그대로</option><option value="fillet" selected>모깎기</option><option value="chamfer">모따기</option></select>
+        <input id="kcEdgeSize" class="mini" type="number" min="0.1" max="2.5" step="0.1" value="0.8" title="깎는 크기 (mm)"></div>
+      <div class="row"><label for="kcBodyR" title="위에서 봤을 때 키캡 네 귀퉁이의 둥글기 (mm). 여기는 늘 둥글게 깎습니다 — 모양을 정하는 곳이라 비스듬히 깎을 일이 없습니다. 기본 1.4" style="flex-basis:52px">옆면</label>
+        <input id="kcBodyR" class="mini" type="number" min="0.2" max="6" step="0.1" value="1.4" title="네 귀퉁이 둥글기 (mm)">
+        <span class="lbl" style="font-size:11px;color:var(--sub)">네 귀퉁이 · 모깎기</span></div>
+      <div class="row"><label for="kcInnerR" title="속 천장과 스템 뿌리가 만나는 오목한 자리를 비스듬히 채웁니다 (mm, 0이면 그대로). 스템 뿌리가 굵어져 잘 안 부러집니다. 둥글게 깎으면 천장 바로 아래에서 면이 수평에 가까워지는데, 비스듬히 깎으면 기울기가 일정해 출력이 낫습니다 (스템 뿌리는 정확히 45°)" style="flex-basis:52px">안쪽</label>
+        <input id="kcInnerR" class="mini" type="number" min="0" max="2.5" step="0.1" value="0.8" title="속 천장·스템 뿌리 모따기 (mm)">
+        <span class="lbl" style="font-size:11px;color:var(--sub)">천장·뿌리 · 모따기</span></div>
+      <div class="row"><label for="kcPartR" title="스템·글자·윤곽 벽의 위아래 모서리를 깎습니다 (mm, 0이면 그대로). 십자 슬롯 안쪽도 같이 깎여 스위치가 잘 들어갑니다" style="flex-basis:52px">부품</label>
+        <select id="kcPartRType" class="grow" style="min-width:96px"><option value="fillet" selected>모깎기</option><option value="chamfer">모따기</option></select>
+        <input id="kcPartR" class="mini" type="number" min="0" max="2" step="0.1" value="0" title="스템·글자·윤곽 벽 모서리 (mm)"></div>
       <div class="row"><label for="kcStem" title="십자 스템 길이. 바닥까지 닿게 하면 세워서 뽑을 때 스템이 허공에서 시작하지 않아 서포트가 필요 없습니다. 기본 길이(4.6mm)는 재료가 덜 들지만 세워서 뽑으면 서포트가 필요합니다" style="flex-basis:52px">스템</label>
         <select id="kcStem" class="grow" style="min-width:96px"><option value="floor" selected>바닥까지 닿게</option><option value="std">기본 길이</option></select></div>
       <div id="kcInfo" class="note2" style="font-size:12px;color:var(--sub);margin:2px 0 4px"></div>
