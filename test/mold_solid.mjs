@@ -27,7 +27,7 @@ function openEdges(geom) {
     }
   }
   let open = 0;
-  for (const v of E.values()) if (v % 2 === 1) open++;
+  for (const v of E.values()) if (v !== 2) open++;   // 4개 공유(내부 면)도 샌 것으로 본다
   return open;
 }
 const bbox = (g) => { g.computeBoundingBox(); const b = g.boundingBox; return [b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z]; };

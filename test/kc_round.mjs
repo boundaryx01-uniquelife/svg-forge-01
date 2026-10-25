@@ -7,7 +7,7 @@ const rect=(a,b,c,d)=>[['M',a,b],['L',c,b],['L',c,d],['L',a,d],['L',a,b]];
 const m = makeModel([{color:'#000000',rings:[rect(2,2,12,12)]}], 14, 0.05);
 function openEdges(g){const p=g.getAttribute('position').array;const key=i=>[p[3*i],p[3*i+1],p[3*i+2]].map(v=>v.toFixed(3)).join(',');const E=new Map();
  for(let t=0;t<p.length/9;t++)for(let e=0;e<3;e++){const a=key(3*t+e),b=key(3*t+((e+1)%3));const k=a<b?a+'|'+b:b+'|'+a;E.set(k,(E.get(k)||0)+1);}
- let o=0;for(const v of E.values())if(v%2===1)o++;return o;}
+ let o=0;for(const v of E.values())if(v!==2)o++;return o;}   // 4개 공유(내부 면)도 샌 것으로 본다
 const vol=(g)=>{const p=g.getAttribute('position').array;let v=0;
  for(let t=0;t<p.length/9;t++){const i=9*t;v+=(p[i]*(p[i+4]*p[i+8]-p[i+5]*p[i+7])-p[i+1]*(p[i+3]*p[i+8]-p[i+5]*p[i+6])+p[i+2]*(p[i+3]*p[i+7]-p[i+4]*p[i+6]))/6;}return Math.abs(v);};
 for (const r of [0, 0.2, 0.5, 1.0]) {
