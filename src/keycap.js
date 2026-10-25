@@ -2,7 +2,7 @@
 // 좌표: mm, Y 위쪽 (solid.js와 같음). 몸체 중심 = 글자 모델 중심
 import * as THREE from 'three';
 import ClipperLib from 'clipper-lib';
-import { geo2d, beveledSolid } from './solid.js';
+import { geo2d, beveledSolid, loftSolid } from './solid.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const { union, diff, offset, toShapes, toPath, heal, clip, CT, PF, SC } = geo2d;
@@ -272,8 +272,10 @@ export function buildKeycap(model, o) {
   // 천장 쪽이 가장 굵고 위로 갈수록 가늘어지므로, 뒤집어 출력해도 서포트가 필요 없다.
   const fr = D.innerR;
   if (fr > 0.05 && stemLen > fr + 0.3) {
+    // 층마다 닫힌 솔리드를 만들어 합치면 경계가 내부 면으로 남아 메시가 닫히지 않는다
+    // → 단면만 쌓아 loftSolid 로 한 덩어리로 만든다
     const N = Math.max(4, Math.ceil(fr / 0.12));
-    const gs = [];
+    const slabs = [];
     for (let i = 0; i < N; i++) {
       const za = D.zi - fr + (fr * i) / N, zb = D.zi - fr + (fr * (i + 1)) / N;
       const d = (za + zb) / 2 - (D.zi - fr);                      // 0(아래) → fr(천장)
@@ -281,17 +283,13 @@ export function buildKeycap(model, o) {
       if (w < 0.015) continue;
       const band = diff(geo2d.circle(cx, cy, 2.75 + w), stemOuter);
       if (!band.length) continue;
-      const pos = beveledSolid(band, za, zb, { type: 'chamfer', size: 0.001 });
-      if (pos.length) {
-        const g = new THREE.BufferGeometry();
-        g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-        g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
-        gs.push(g);
-      }
+      slabs.push({ z0: za, z1: zb, paths: band });
     }
-    if (gs.length) {
-      const g = gs.length === 1 ? gs[0] : mergeGeometries(gs);
-      gs.forEach((x) => x !== g && x.dispose());
+    const pos = slabs.length ? loftSolid(slabs) : new Float32Array(0);
+    if (pos.length) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
       g.computeVertexNormals();
       parts.push({ name: '스템 뿌리', color, geom: g, shapes: [], z0: D.zi - fr, z1: D.zi, role: 'kcstem' });
       info.stemFillet = Math.round(fr * 100) / 100;

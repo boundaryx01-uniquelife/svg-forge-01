@@ -10,7 +10,7 @@ import ClipperLib from 'clipper-lib';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildItems, closeRing } from './geom.js';
-import { beveledSolid } from './solid.js';
+import { beveledSolid, loftSolid } from './solid.js';
 
 const SC = 1000; // mm → µm
 const CT = ClipperLib.ClipType;
@@ -403,6 +403,17 @@ function extrude(paths, z0, z1) {
   return g;
 }
 
+/** 단면 슬래브 목록 → 한 덩어리 지오메트리.
+ *  층마다 닫힌 솔리드를 만들어 합치면 경계가 내부 면으로 남아 메시가 닫히지 않는다. */
+function loftGeom(slabs) {
+  const pos = loftSolid(slabs);
+  if (!pos.length) return null;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+  return g;
+}
+
 const rectPath = (x0, y0, x1, y1) =>
   [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(([x, y]) => ({ X: Math.round(x * SC), Y: Math.round(y * SC) }));
 
@@ -437,31 +448,38 @@ export function buildMold(model, o = {}) {
   const steps = draft > 0 ? Math.min(60, Math.max(2, Math.ceil(depth / 0.15))) : 1;
   info.steps = steps;
 
-  const geos = [];
-  const push = (g) => g && geos.push(g);
-  push(extrude(plate, 0, floor)); // 바닥판
-  for (let k = 0; k < steps; k++) {
-    const z0 = floor + (depth * k) / steps;
-    const z1 = floor + (depth * (k + 1)) / steps;
+  // 무늬 리브: 캐비티 바닥에 얕게 솟아 주조물 표면에 무늬가 찍히게
+  let ribs = [];
+  if (ribH > 0.01 && o.ribs && o.ribs.length) {
+    const inner = offset(cavBase, -Math.max(0.4, grow + 0.3)); // 기울어진 벽에 닿지 않게
+    ribs = clean(inter(o.ribs, inner));
+    if (!ribs.length) info.warn = info.warn || 'noRib';
+  }
+  const ribTop = ribs.length ? Math.min(floor + ribH, floor + depth) : 0;
+
+  // 바닥판 · 구배 층 · 리브를 한 덩어리로 쌓는다 (경계마다 내부 면이 남지 않게)
+  const cuts = [0, floor];
+  for (let k = 1; k <= steps; k++) cuts.push(floor + (depth * k) / steps);
+  if (ribTop > floor + 1e-6) cuts.push(ribTop);
+  cuts.sort((a, b) => a - b);
+
+  const slabs = [];
+  for (let i = 0; i + 1 < cuts.length; i++) {
+    const za = cuts[i], zb = cuts[i + 1];
+    if (zb - za < 1e-6) continue;
+    const mid = (za + zb) / 2;
+    if (mid <= floor) { slabs.push({ z0: za, z1: zb, paths: plate }); continue; }
+    const k = Math.min(steps - 1, Math.max(0, Math.floor(((mid - floor) / depth) * steps)));
     const d = grow * ((k + 0.5) / steps);          // 이 층에서의 캐비티 확장량
     const cav = d > 0.001 ? offset(cavBase, d) : cavBase;
     const ring = clean(diff(plate, cav), 0.001);     // 판 − 캐비티
     if (!ring.length) { info.warn = 'cavityTooBig'; break; }
     if (k === steps - 1 && diff(cav, plate).length) info.warn = 'cavityOutOfPlate'; // 캐비티가 판 밖으로
-    push(extrude(ring, z0, z1));
+    slabs.push({ z0: za, z1: zb, paths: mid < ribTop ? union([...ring, ...ribs]) : ring });
   }
 
-  // 무늬 리브: 캐비티 바닥에 얕게 솟아 주조물 표면에 무늬가 찍히게
-  if (ribH > 0.01 && o.ribs && o.ribs.length) {
-    const inner = offset(cavBase, -Math.max(0.4, grow + 0.3)); // 기울어진 벽에 닿지 않게
-    const r = clean(inter(o.ribs, inner));
-    if (r.length) push(extrude(r, floor, floor + ribH));
-    else info.warn = info.warn || 'noRib';
-  }
-
-  if (!geos.length) return { parts: [], info: { ...info, warn: 'empty' } };
-  let geom = geos.length === 1 ? geos[0] : mergeGeometries(geos);
-  geos.forEach((g) => g !== geom && g.dispose());
+  let geom = loftGeom(slabs);
+  if (!geom) return { parts: [], info: { ...info, warn: 'empty' } };
   if (dx) geom.translate(dx, 0, 0);
   geom.computeVertexNormals();
   info.size = [bx1 - bx0 + flange * 2, by1 - by0 + flange * 2, top];
@@ -595,14 +613,14 @@ export function buildPressMold(model, o = {}) {
 
   // ── 수틀 (볼록) ──
   if (want !== 'femaleOnly') {
-    const G = [extrude(plate, 0, floor)];
+    const slabs = [{ z0: 0, z1: floor, paths: plate }];
     for (let k = 0; k < steps; k++) {
       const t0 = (domeH * k) / steps, t1 = (domeH * (k + 1)) / steps;
       const lay = clean(offset(fp, -domeInset((t0 + t1) / 2, r0, domeH)), 0.02);
       if (!lay.length) break;
-      G.push(extrude(lay, floor + t0, floor + t1));
+      slabs.push({ z0: floor + t0, z1: floor + t1, paths: lay });
     }
-    mk(G, '수틀 (볼록)', o.colorM || '#8fa6b8', floor + domeH);
+    mk([loftGeom(slabs)], '수틀 (볼록)', o.colorM || '#8fa6b8', floor + domeH);
   }
 
   // ── 암틀 (오목) ──
@@ -612,7 +630,7 @@ export function buildPressMold(model, o = {}) {
     const fpM = mirX(fp);                                   // 뒤집어 덮을 것이므로 좌우 반전
     const silM = mirX(sil);
     const plateF = mirX(plate);                             // 맞춤 모서리도 같이 반전
-    const G = [extrude(plateF, 0, floor)];
+    const slabs = [{ z0: 0, z1: floor, paths: plateF }];
     for (let k = 0; k < steps + 2; k++) {
       const h0 = ((domeH + gap) * k) / (steps + 2), h1 = ((domeH + gap) * (k + 1)) / (steps + 2);
       const hm = (h0 + h1) / 2;
@@ -625,9 +643,9 @@ export function buildPressMold(model, o = {}) {
         : union([...offset(fpM, gap), ...offset(silM, gap)]);
       const ring = clean(diff(plateF, cav), 0.001);
       if (!ring.length) { info.warn = info.warn || 'cavityOutOfPlate'; break; }
-      G.push(extrude(ring, floor + h0, floor + h1));
+      slabs.push({ z0: floor + h0, z1: floor + h1, paths: ring });
     }
-    const g = G.filter(Boolean);
+    const g = [loftGeom(slabs)].filter(Boolean);
     if (dx) g.forEach((x) => x.translate(dx, 0, 0));
     mk(g, '암틀 (오목)', o.colorF || '#b8a68f', top);
   }

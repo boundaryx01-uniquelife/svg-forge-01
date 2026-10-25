@@ -584,8 +584,134 @@ function beveledOne(paths, z0, z1, bevel) {
   }
   if (!A.length) return new Float32Array(0);
   A[A.length - 1].z = z1;
+  // 층 목록 → 단면 슬래브 목록. 쌓기는 loftSolid 한 곳에서만 한다
+  const slabs = [];
+  let zp = z0;
+  for (const L of A) {
+    slabs.push({ z0: zp, z1: L.z, paths: L.cont });
+    zp = L.z;
+  }
+  return loftSolid(slabs);
+}
 
-  // 정점표(정수 X,Y + 높이) — 같은 좌표는 같은 번호
+/**
+ * 단면을 쌓아 **한 덩어리** 솔리드를 만든다.
+ * slabs = [{ z0, z1, paths }] — 아래에서 위로, 앞 슬래브의 z1 이 다음 z0.
+ *
+ * 닫힌 솔리드를 여러 개 만들어 mergeGeometries 로 합치면 경계마다
+ * 아래 것의 윗면과 위 것의 밑면이 **내부 면**으로 남아, 모서리를 4개가 공유한다
+ * (슬라이서가 "모델 복구" 를 띄우는 상태). 그래서 한 번에 만든다.
+ *
+ * 경계에서는 두 단면의 차집합만 막는다 —
+ * 줄어드는 쪽(위가 작아짐)은 위를 보는 선반, 늘어나는 쪽은 아래를 보는 선반.
+ */
+/** 한 점에서 스스로 맞닿은 윤곽을 그 점에서 갈라 단순 고리들로.
+ *  Clipper 는 이런 윤곽을 그대로 내놓는데, earcut 은 면을 다 못 채워 메시가 샌다
+ *  (거미줄 무늬에서 17개 중 3개가 덜 채워졌다). */
+function unpinch(contour) {
+  const out = [];
+  const path = [];
+  const seen = new Map();
+  for (const q of contour) {
+    const k = q.X + ',' + q.Y;
+    const at = seen.get(k);
+    if (at !== undefined) {
+      const tail = path.splice(at + 1);                 // 중복점 다음부터가 하나의 고리
+      for (const r of tail) seen.delete(r.X + ',' + r.Y);
+      if (tail.length >= 2) out.push([path[at], ...tail]);
+      continue;                                          // 중복점 자체는 한 번만 남긴다
+    }
+    seen.set(k, path.length);
+    path.push(q);
+  }
+  if (path.length >= 3) out.push(path);
+  return out.filter((c) => c.length >= 3);
+}
+
+const sarea = (c) => {
+  let a = 0;
+  for (let i = 0, j = c.length - 1; i < c.length; j = i++) a += (c[j].X + c[i].X) * (c[j].Y - c[i].Y);
+  return a / 2;
+};
+const inC = (x, y, c) => {
+  let w = false;
+  for (let i = 0, j = c.length - 1; i < c.length; j = i++) {
+    const a = c[i], b = c[j];
+    if ((a.Y > y) !== (b.Y > y) && x < ((b.X - a.X) * (y - a.Y)) / (b.Y - a.Y) + a.X) w = !w;
+  }
+  return w;
+};
+/** 고리 목록 → {outer, holes} 묶음 (Clipper 로 다시 union 하면 맞닿은 점이 되살아난다) */
+function nestLoops(loops) {
+  const L = loops.map((c) => ({ c, a: Math.abs(sarea(c)), depth: 0, parent: -1 }));
+  L.sort((x, y) => y.a - x.a);
+  for (let i = 0; i < L.length; i++) {
+    const c = L[i].c;
+    const pts = [c[0], c[(c.length / 3) | 0], c[((2 * c.length) / 3) | 0]];
+    for (let j = 0; j < i; j++) {                        // 더 큰 것들 중 가장 작은 포함자
+      let n = 0;
+      for (const q of pts) if (inC(q.X, q.Y, L[j].c)) n++;
+      if (n * 2 > pts.length) (L[i].parent = j), (L[i].depth = L[j].depth + 1);
+    }
+  }
+  const out = [];
+  const idx = new Map();
+  for (let i = 0; i < L.length; i++) {
+    if (L[i].depth % 2) continue;
+    idx.set(i, out.length);
+    out.push({ outer: L[i].c, holes: [] });
+  }
+  for (let i = 0; i < L.length; i++) {
+    if (!(L[i].depth % 2)) continue;
+    const at = idx.get(L[i].parent);
+    if (at !== undefined) out[at].holes.push(L[i].c);
+  }
+  return out;
+}
+/** 삼각분할이 믿을 수 있는 형태로 (맞닿은 점이 없으면 원래 트리를 그대로 쓴다) */
+export function simpleShapes(paths) {
+  const shapes = treeShapes(paths, PF.pftNonZero);
+  if (!pinched(shapes)) return shapes;
+  // 맞닿은 자리를 2µm(=0.002mm) 넓혀 아예 붙여 버린다. 출력에서는 보이지 않는 크기이고,
+  // 한 점에서 만난 채로 두면 그 수직 모서리를 네 면이 써서 메시가 닫히지 않는다
+  const eroded = treeShapes(offset(paths, 0.002), PF.pftNonZero);
+  if (eroded.length && !pinched(eroded)) return eroded;
+  const loops = [];
+  for (const sh of shapes) for (const c of [sh.outer, ...sh.holes]) loops.push(...unpinch(c));
+  return nestLoops(loops);
+}
+/** 한 점을 두 번 지나거나 두 고리가 한 점에서 만나면 삼각분할·벽이 어긋난다 */
+function pinched(shapes) {
+  const seen = new Set();
+  for (const sh of shapes) {
+    for (const c of [sh.outer, ...sh.holes]) {
+      const mine = new Set();
+      for (const q of c) {
+        const k = q.X + ',' + q.Y;
+        if (mine.has(k) || seen.has(k)) return true;
+        mine.add(k);
+      }
+      for (const k of mine) seen.add(k);
+    }
+  }
+  return false;
+}
+
+export function loftSolid(slabs) {
+  // 벽과 뚜껑이 **같은 윤곽**을 봐야 꼭짓점이 맞는다.
+  // 단면마다 NonZero 로 한 번만 정리해, 그 결과로 벽도 그리고 뚜껑도 삼각분할한다
+  // (거미줄처럼 자기교차가 있는 입력은 뚜껑에서 한 번 더 정리하면 벽과 갈라져 메시가 샌다)
+  const shapesOf = (paths) => simpleShapes(paths);
+  const contoursOf = (shapes) => shapes.flatMap((sh) => [sh.outer, ...sh.holes]);
+  const S = (slabs || [])
+    .filter((x) => x && x.paths && x.paths.length && x.z1 - x.z0 > 1e-9)
+    .map((x) => {
+      const shapes = shapesOf(x.paths);
+      return { z0: x.z0, z1: x.z1, shapes, cont: contoursOf(shapes) };
+    })
+    .filter((x) => x.cont.length);
+  if (!S.length) return new Float32Array(0);
+
   const verts = [];
   const vmap = new Map();
   const vid = (q, z) => {
@@ -600,13 +726,12 @@ function beveledOne(paths, z0, z1, bevel) {
   };
   const T = [];
   const area2 = (a, b, c) => (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
-  const cap = (contours, z, up) => {
-    for (const s of treeShapes(contours, PF.pftEvenOdd)) {
-      const outer = s.outer.map((q) => new Vector2(q.X, q.Y));
-      const holes = s.holes.map((hh) => hh.map((q) => new Vector2(q.X, q.Y)));
-      const pts = s.outer.concat(...s.holes);
-      const faces = ShapeUtils.triangulateShape(outer, holes);
-      for (const [i, j, k] of faces) {
+  const cap = (shapes, z, up) => {
+    for (const sh of shapes) {
+      const outer = sh.outer.map((q) => new Vector2(q.X, q.Y));
+      const holes = sh.holes.map((hh) => hh.map((q) => new Vector2(q.X, q.Y)));
+      const pts = sh.outer.concat(...sh.holes);
+      for (const [i, j, k] of ShapeUtils.triangulateShape(outer, holes)) {
         let a = pts[i], b = pts[j], c = pts[k];
         const ar = area2(a, b, c);
         if (ar === 0) continue;
@@ -615,22 +740,47 @@ function beveledOne(paths, z0, z1, bevel) {
       }
     }
   };
-  cap(A[0].cont, z0, false);
-  let zPrev = z0;
-  for (let k = 0; k < A.length; k++) {
-    const { z, cont } = A[k];
+  // 맞닿은 두 영역이 같은 변을 공유하면 벽이 두 번 그려져 모서리를 4개가 쓴다.
+  // 서로 반대 방향인 변은 '속벽' 이므로 상쇄해 없앤다 (거미줄 무늬에서 464개가 그랬다)
+  const walls = (cont, za, zb) => {
+    const dir = new Map();
     for (const c of cont) {
       const n = c.length;
       for (let i = 0; i < n; i++) {
-        const p = c[i], q = c[(i + 1) % n];
-        const a = vid(p, zPrev), b = vid(q, zPrev), cc = vid(q, z), d = vid(p, z);
-        T.push([a, b, cc], [a, cc, d]);
+        const a = vid(c[i], za), b = vid(c[(i + 1) % n], za);
+        if (a === b) continue;
+        const rev = b + '>' + a;
+        const back = dir.get(rev) || 0;
+        if (back > 0) dir.set(rev, back - 1);
+        else {
+          const k = a + '>' + b;
+          dir.set(k, (dir.get(k) || 0) + 1);
+        }
       }
     }
-    const nextCont = k + 1 < A.length ? A[k + 1].cont : [];
-    cap(cont.concat(nextCont), z, true);
-    zPrev = z;
+    for (const [k, n] of dir) {
+      if (n <= 0) continue;
+      const [ai, bi] = k.split('>').map(Number);
+      const pa = { X: verts[ai][0], Y: verts[ai][1] }, pb = { X: verts[bi][0], Y: verts[bi][1] };
+      for (let t = 0; t < n; t++) T.push([ai, bi, vid(pb, zb)], [ai, vid(pb, zb), vid(pa, zb)]);
+    }
+  };
+
+  cap(S[0].shapes, S[0].z0, false);                    // 맨 아래 바닥
+  for (let k = 0; k < S.length; k++) {
+    walls(S[k].cont, S[k].z0, S[k].z1);
+    const nxt = S[k + 1];
+    if (!nxt) {
+      cap(S[k].shapes, S[k].z1, true);                 // 맨 위 천장
+      break;
+    }
+    // 경계: 줄어든 만큼은 위를 보고, 늘어난 만큼은 아래를 본다
+    const a = diff(S[k].cont, nxt.cont);
+    const b = diff(nxt.cont, S[k].cont);
+    if (a.length) cap(shapesOf(a), S[k].z1, true);
+    if (b.length) cap(shapesOf(b), S[k].z1, false);
   }
+
   repairTJunctions(T, verts);
   const out = new Float32Array(T.length * 9);
   let o = 0;
